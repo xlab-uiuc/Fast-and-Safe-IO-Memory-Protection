@@ -21,14 +21,6 @@ struct iova {
 	unsigned long	pfn_lo; /* Lowest allocated pfn */
 };
 
-/* STRUCTURES FOR LOGGING*/
-struct iova_log_entry {
-	unsigned long iova_pfn;
-	int iova_source; // 1 - RB_tree, 2 - global cache, 3 - per cpu cache
-	bool insertion; // 1 if insertion, 0 if removal
-	u64 nano_timestamp;
-}
-
 struct iova_rcache;
 
 /* holds all the iova translations for a domain */

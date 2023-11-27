@@ -29,38 +29,6 @@ static void free_cpu_cached_iovas(unsigned int cpu, struct iova_domain *iovad);
 static void free_iova_rcaches(struct iova_domain *iovad);
 
 
-/* data structures for logging */
-//TODO: Use get_cpu_var and put_cpu_var. Can use & to get a pointer. Define per cpu in here and then declare_per_cpu in module. 
-/*struct iova_log_entry {
-	unsigned long iova_pfn;
-	int iova_source; // 1 - RB_tree, 2 - global cache, 3 - per cpu cache
-	bool insertion; // 1 if insertion, 0 if removal
-	u64 nano_timestamp;
-}*/
-
-DEFINE_PER_CPU(struct iova_log_entry*, iova_log_ptr);
-DEFINE_PER_CPU(int, iova_log_length);
-atomic_t set_iova_logging = ATOMIC_INIT(0);
-struct iova_log* iova_log_ptr; //100k entries
-
-int add_iova_log(unsigned long pfn, int source, bool ins) {
-	if (!atomic_read(&set_iova_logging)) {
-		return;
-	}
-	u64 timestamp = ktime_get_ns();
-	struct iova_log_entry entry = {.iova_pfn = pfn, .iova_source = source, .insertion = ins, .nano_timestamp = timestamp};
-	struct iova_log_entry* = get_cpu_var(iova_log_ptr);
-	int log_length = this_cpu_read(iova_log_length);
-	iova_log_entry[log_length] = entry;
-	this_cpu_inc(iova_log_length);
-	put_cpu_var(iova_log_ptr);
-}
-
-EXPORT_PER_CPU_SYMBOL(iova_log_ptr);
-EXPORT_PER_CPU_SYMBOL(iova_log_length);
-EXPORT_SYMBOL(set_iova_logging);
-/* end of data structures for logging */
-
 unsigned long iova_rcache_range(void)
 {
 	return PAGE_SIZE << (IOVA_RANGE_CACHE_MAX_SIZE - 1);
@@ -476,7 +444,6 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 {
 	unsigned long iova_pfn;
 	struct iova *new_iova;
-	//TODO: Instrument logging into this function
 
 	/*
 	 * Freeing non-power-of-two-sized allocations back into the IOVA caches
@@ -489,7 +456,6 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 
 	iova_pfn = iova_rcache_get(iovad, size, limit_pfn + 1);
 	if (iova_pfn) {
-		add_iova_log(iova_pfn, 2, false);
 		return iova_pfn;
 	}
 
@@ -508,7 +474,6 @@ retry:
 		free_global_cached_iovas(iovad);
 		goto retry;
 	}
-	add_iova_log(new_iova->pfn_lo, 1, false);
 	return new_iova->pfn_lo;
 }
 EXPORT_SYMBOL_GPL(alloc_iova_fast);
@@ -524,14 +489,11 @@ EXPORT_SYMBOL_GPL(alloc_iova_fast);
 void
 free_iova_fast(struct iova_domain *iovad, unsigned long pfn, unsigned long size)
 {
-	//TODO: Add logging here
 	if (iova_rcache_insert(iovad, pfn, size)) {
-		add_iova_log(pfn, 2, true);
 		return;
 	}
 
 	free_iova(iovad, pfn);
-	add_iova_log(pfn, 1, true);
 }
 EXPORT_SYMBOL_GPL(free_iova_fast);
 
