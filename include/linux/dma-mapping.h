@@ -103,7 +103,12 @@ static inline int dma_mapping_error(struct device *dev, dma_addr_t dma_addr)
 dma_addr_t dma_map_page_attrs(struct device *dev, struct page *page,
 		size_t offset, size_t size, enum dma_data_direction dir,
 		unsigned long attrs);
+dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, 
+		size_t offset, size_t size, enum dma_data_direction dir,
+		unsigned long attrs);
 void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
+		enum dma_data_direction dir, unsigned long attrs);
+void dma_unmap_page_attrs_iova(struct device *dev, dma_addr_t addr, size_t size, size_t iova_size, bool free_iova,
 		enum dma_data_direction dir, unsigned long attrs);
 unsigned int dma_map_sg_attrs(struct device *dev, struct scatterlist *sg,
 		int nents, enum dma_data_direction dir, unsigned long attrs);

@@ -8,6 +8,7 @@
 #include <linux/memblock.h> /* for max_pfn */
 #include <linux/acpi.h>
 #include <linux/dma-map-ops.h>
+#include <linux/dma-iommu.h>
 #include <linux/export.h>
 #include <linux/gfp.h>
 #include <linux/of_device.h>
@@ -162,6 +163,33 @@ dma_addr_t dma_map_page_attrs(struct device *dev, struct page *page,
 }
 EXPORT_SYMBOL(dma_map_page_attrs);
 
+dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, 
+		size_t offset, size_t size, enum dma_data_direction dir,
+		unsigned long attrs)
+{
+	const struct dma_map_ops *ops = get_dma_ops(dev);
+	dma_addr_t addr;
+
+	BUG_ON(!valid_dma_direction(dir));
+
+	if (WARN_ON_ONCE(!dev->dma_mask))
+		return DMA_MAPPING_ERROR;
+
+	if (dma_map_direct(dev, ops) ||
+	    arch_dma_map_page_direct(dev, page_to_phys(page) + offset + size))
+		addr = dma_direct_map_page(dev, page, offset, size, dir, attrs);
+	else
+		if (ops->map_page == iommu_dma_map_page) { 
+			addr = iommu_dma_map_page_iova(dev, page, iova, offset, size, dir, attrs);
+		} else {
+			addr = ops->map_page(dev, page, offset, size, dir, attrs);
+		}
+	debug_dma_map_page(dev, page, offset, size, dir, addr, attrs);
+
+	return addr;
+}
+EXPORT_SYMBOL(dma_map_page_attrs_iova);
+
 void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
 		enum dma_data_direction dir, unsigned long attrs)
 {
@@ -176,6 +204,25 @@ void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
 	debug_dma_unmap_page(dev, addr, size, dir);
 }
 EXPORT_SYMBOL(dma_unmap_page_attrs);
+
+void dma_unmap_page_attrs_iova(struct device *dev, dma_addr_t addr, size_t size, size_t iova_size, bool free_iova,
+		enum dma_data_direction dir, unsigned long attrs)
+{
+	const struct dma_map_ops *ops = get_dma_ops(dev);
+
+	BUG_ON(!valid_dma_direction(dir));
+	if (dma_map_direct(dev, ops) ||
+	    arch_dma_unmap_page_direct(dev, addr + size))
+		dma_direct_unmap_page(dev, addr, size, dir, attrs);
+	else if (ops->unmap_page) {
+		if (ops->unmap_page == iommu_dma_unmap_page) {
+			iommu_dma_unmap_page_iova(dev, addr, size, iova_size, free_iova, dir, attrs);
+		}
+		ops->unmap_page(dev, addr, size, dir, attrs);
+	}
+	debug_dma_unmap_page(dev, addr, size, dir);
+}
+EXPORT_SYMBOL(dma_unmap_page_attrs_iova);
 
 static int __dma_map_sg_attrs(struct device *dev, struct scatterlist *sg,
 	 int nents, enum dma_data_direction dir, unsigned long attrs)

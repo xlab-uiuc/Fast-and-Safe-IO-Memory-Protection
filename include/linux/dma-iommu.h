@@ -13,6 +13,20 @@
 #include <linux/iommu.h>
 #include <linux/msi.h>
 
+/* iova map and unmap functions for batch iova*/
+void iommu_dma_unmap_page_iova(struct device *dev, dma_addr_t dma_handle,
+		size_t size, size_t iova_size, bool free_iova, enum dma_data_direction dir, unsigned long attrs);
+void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
+		size_t size, enum dma_data_direction dir, unsigned long attrs);
+dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_addr_t iova_addr,
+		unsigned long offset, size_t size, enum dma_data_direction dir,
+		unsigned long attrs);
+dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
+		unsigned long offset, size_t size, enum dma_data_direction dir,
+		unsigned long attrs);
+dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
+		size_t size, u64 dma_limit, struct device *dev);
+
 /* Domain management interface for IOMMU drivers */
 int iommu_get_dma_cookie(struct iommu_domain *domain);
 int iommu_get_msi_cookie(struct iommu_domain *domain, dma_addr_t base);

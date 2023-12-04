@@ -481,6 +481,10 @@ struct mlx5e_txqsq {
 
 struct mlx5e_dma_info {
 	dma_addr_t addr;
+	bool batch_iova;
+	dma_addr_t iova;
+	size_t iova_size; 
+	bool free_iova;
 	union {
 		struct page *page;
 		struct xdp_buff *xsk;
