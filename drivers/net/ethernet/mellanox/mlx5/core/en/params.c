@@ -163,12 +163,9 @@ u8 mlx5e_mpwqe_get_log_stride_size(struct mlx5_core_dev *mdev,
 				   struct mlx5e_params *params,
 				   struct mlx5e_xsk_param *xsk)
 {
-	if (mlx5e_rx_mpwqe_is_linear_skb(mdev, params, xsk)){
-		//printk("DEBUG: IS LINEAR");
+	if (mlx5e_rx_mpwqe_is_linear_skb(mdev, params, xsk))
 		return order_base_2(mlx5e_rx_get_linear_frag_sz(params, xsk));
-	}
 
-//	printk("DEBUG: IS NOT LINEAR");
 	return MLX5_MPWRQ_DEF_LOG_STRIDE_SZ(mdev);
 }
 
@@ -590,7 +587,6 @@ int mlx5e_build_rq_param(struct mlx5_core_dev *mdev,
 	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ: {
 		u8 log_wqe_num_of_strides = mlx5e_mpwqe_get_log_num_strides(mdev, params, xsk);
 		u8 log_wqe_stride_size = mlx5e_mpwqe_get_log_stride_size(mdev, params, xsk);
-		//printk("DEBUG: num_strides: %u, stride_size: %u",log_wqe_num_of_strides,log_wqe_stride_size);
 
 		if (!mlx5e_verify_rx_mpwqe_strides(mdev, log_wqe_stride_size,
 						   log_wqe_num_of_strides)) {

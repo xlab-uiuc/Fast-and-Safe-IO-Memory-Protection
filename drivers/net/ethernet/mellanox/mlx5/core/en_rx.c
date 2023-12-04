@@ -668,8 +668,6 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
 	int err;
 	int i;
 
-//	printk("MLX5_MPWRQ_PAGES_PER_WQE: %lu",MLX5_MPWRQ_PAGES_PER_WQE);
-
 	/* Check in advance that we have enough frames, instead of allocating
 	 * one-by-one, failing and moving frames to the Reuse Ring.
 	 */
@@ -1852,11 +1850,11 @@ mlx5e_fill_skb_data(struct sk_buff *skb, struct mlx5e_rq *rq, struct mlx5e_dma_i
 		    u32 data_bcnt, u32 data_offset)
 {
 	net_prefetchw(skb->data);
-	//printk("DEBUG: NEW PACKET (%u offset)", data_offset);
+
 	while (data_bcnt) {
 		u32 pg_consumed_bytes = min_t(u32, PAGE_SIZE - data_offset, data_bcnt);
 		unsigned int truesize;
-         //       printk("page address: %llu, Data offset: %u, full address: %llu, consumed_bytes: %u",page_to_phys(di->page),data_offset,data_offset + page_to_phys(di->page), pg_consumed_bytes);
+
 		if (test_bit(MLX5E_RQ_STATE_SHAMPO, &rq->state))
 			truesize = pg_consumed_bytes;
 		else
@@ -1869,7 +1867,6 @@ mlx5e_fill_skb_data(struct sk_buff *skb, struct mlx5e_rq *rq, struct mlx5e_dma_i
 		data_offset = 0;
 		di++;
 	}
-//	printk("DEBUG: PACKET FINISHED");
 }
 
 static struct sk_buff *
@@ -2394,7 +2391,6 @@ int mlx5e_rq_set_handlers(struct mlx5e_rq *rq, struct mlx5e_params *params, bool
 
 	switch (rq->wq_type) {
 	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
-		//printk("DEBUG: Striding WQ");
 		rq->mpwqe.skb_from_cqe_mpwrq = xsk ?
 			mlx5e_xsk_skb_from_cqe_mpwrq_linear :
 			mlx5e_rx_mpwqe_is_linear_skb(mdev, params, NULL) ?
@@ -2419,7 +2415,6 @@ int mlx5e_rq_set_handlers(struct mlx5e_rq *rq, struct mlx5e_params *params, bool
 
 		break;
 	default: /* MLX5_WQ_TYPE_CYCLIC */
-	//	printk("DEBUG: Cyclic WQ");
 		rq->wqe.skb_from_cqe = xsk ?
 			mlx5e_xsk_skb_from_cqe_linear :
 			mlx5e_rx_is_linear_skb(params, NULL) ?

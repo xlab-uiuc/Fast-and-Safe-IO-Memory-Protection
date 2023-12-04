@@ -11,8 +11,6 @@
 #include <linux/smp.h>
 #include <linux/bitops.h>
 #include <linux/cpu.h>
-#include <linux/timekeeping.h>
-#include <asm/atomic.h>
 
 /* The anchor node sits above the top of the usable address space */
 #define IOVA_ANCHOR	~0UL
@@ -27,7 +25,6 @@ static unsigned long iova_rcache_get(struct iova_domain *iovad,
 				     unsigned long limit_pfn);
 static void free_cpu_cached_iovas(unsigned int cpu, struct iova_domain *iovad);
 static void free_iova_rcaches(struct iova_domain *iovad);
-
 
 unsigned long iova_rcache_range(void)
 {
@@ -455,9 +452,8 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
 		size = roundup_pow_of_two(size);
 
 	iova_pfn = iova_rcache_get(iovad, size, limit_pfn + 1);
-	if (iova_pfn) {
+	if (iova_pfn)
 		return iova_pfn;
-	}
 
 retry:
 	new_iova = alloc_iova(iovad, size, limit_pfn, true);
@@ -474,6 +470,7 @@ retry:
 		free_global_cached_iovas(iovad);
 		goto retry;
 	}
+
 	return new_iova->pfn_lo;
 }
 EXPORT_SYMBOL_GPL(alloc_iova_fast);
@@ -489,9 +486,8 @@ EXPORT_SYMBOL_GPL(alloc_iova_fast);
 void
 free_iova_fast(struct iova_domain *iovad, unsigned long pfn, unsigned long size)
 {
-	if (iova_rcache_insert(iovad, pfn, size)) {
+	if (iova_rcache_insert(iovad, pfn, size))
 		return;
-	}
 
 	free_iova(iovad, pfn);
 }
