@@ -370,8 +370,10 @@ static inline void mlx5e_put_rx_frag(struct mlx5e_rq *rq,
 				     struct mlx5e_wqe_frag_info *frag,
 				     bool recycle)
 {
-	if (frag->last_in_page)
+	if (frag->last_in_page) {
+		frag->di->iova_size=0;
 		mlx5e_page_release(rq, frag->di, recycle);
+	}
 }
 
 static inline struct mlx5e_wqe_frag_info *get_frag(struct mlx5e_rq *rq, u16 ix)
@@ -499,12 +501,11 @@ mlx5e_free_rx_mpwqe(struct mlx5e_rq *rq, struct mlx5e_mpw_info *wi, bool recycle
 	no_xdp_xmit = bitmap_empty(wi->xdp_xmit_bitmap,
 				   MLX5_MPWRQ_PAGES_PER_WQE);
 
-	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++)
+	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++) {
 		if (no_xdp_xmit || !test_bit(i, wi->xdp_xmit_bitmap)) { 
 			bool i_bool;
-			if (dma_info->batch_iova) {
-				dma_info[i].iova_size = MLX5_MPWRQ_PAGES_PER_WQE * 4096;
-				i_bool = i;
+			if (dma_info[i].batch_iova) {
+				i_bool = i; /* TODO: has to release at the end not at the beginning */
 				dma_info[i].free_iova = !i_bool; /* only want to free once when i=0*/
 				mlx5e_page_release(rq, &dma_info[i], recycle);
 			} else { 
@@ -512,7 +513,7 @@ mlx5e_free_rx_mpwqe(struct mlx5e_rq *rq, struct mlx5e_mpw_info *wi, bool recycle
 				mlx5e_page_release(rq, &dma_info[i], recycle);
 			}
 		}
-	
+	}
 	
 	//TODO: PUT REAL VALUE HERE FOR BATCHING BEING ON, probably just want to make it a macro to be shared in alloc and free mpwqe
 	//TODO: ALSO probably want to make the batch size a macro to be reused here
@@ -648,6 +649,7 @@ err_unmap:
 		dma_info = &shampo->info[--index];
 		if (!(i & (MLX5E_SHAMPO_WQ_HEADER_PER_PAGE - 1))) {
 			dma_info->addr = ALIGN_DOWN(dma_info->addr, PAGE_SIZE);
+			dma_info->iova_size = 0;
 			mlx5e_page_release(rq, dma_info, true);
 		}
 	}
@@ -744,9 +746,12 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
 
 	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++, dma_info++) {
 		dma_info->batch_iova = batch_iova;
+		dma_info->iova = 0;
+		dma_info->iova_size = 0;
 		if (batch_iova) {
 			iova = iova_base + (i * 4096);
 			dma_info->iova = iova;
+			dma_info->iova_size = iova_allocation_size;
 		}
 		err = mlx5e_page_alloc(rq, dma_info);
 		if (unlikely(err))
@@ -778,6 +783,9 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
 err_unmap:
 	while (--i >= 0) {
 		dma_info--;
+		if (!dma_info->batch_iova) {
+			dma_info->iova_size=0;
+		}
 		mlx5e_page_release(rq, dma_info, true);
 	}
 
@@ -812,6 +820,7 @@ void mlx5e_shampo_dealloc_hd(struct mlx5e_rq *rq, u16 len, u16 start, bool close
 		hd_info->addr = ALIGN_DOWN(hd_info->addr, PAGE_SIZE);
 		if (hd_info->page != deleted_page) {
 			deleted_page = hd_info->page;
+			hd_info->iova_size=0;
 			mlx5e_page_release(rq, hd_info, false);
 		}
 	}
@@ -2110,6 +2119,7 @@ mlx5e_free_rx_shampo_hd_entry(struct mlx5e_rq *rq, u16 header_index)
 
 	if (((header_index + 1) & (MLX5E_SHAMPO_WQ_HEADER_PER_PAGE - 1)) == 0) {
 		shampo->info[header_index].addr = ALIGN_DOWN(addr, PAGE_SIZE);
+		shampo->info[header_index].iova_size = 0;
 		mlx5e_page_release(rq, &shampo->info[header_index], true);
 	}
 	bitmap_clear(shampo->bitmap, header_index, 1);
