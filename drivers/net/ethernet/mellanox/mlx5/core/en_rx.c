@@ -503,10 +503,8 @@ mlx5e_free_rx_mpwqe(struct mlx5e_rq *rq, struct mlx5e_mpw_info *wi, bool recycle
 
 	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++) {
 		if (no_xdp_xmit || !test_bit(i, wi->xdp_xmit_bitmap)) { 
-			bool i_bool;
 			if (dma_info[i].batch_iova) {
-				i_bool = i; /* TODO: has to release at the end not at the beginning */
-				dma_info[i].free_iova = !i_bool; /* only want to free once when i=0*/
+				dma_info[i].free_iova = i == (MLX5_MPWRQ_PAGES_PER_WQE - 1); /* only want to free once at the end. It will automatically subtract to get the beginning */
 				mlx5e_page_release(rq, &dma_info[i], recycle);
 			} else { 
 				dma_info[i].iova_size = 0;
