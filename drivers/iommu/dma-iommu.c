@@ -1112,6 +1112,7 @@ dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_ad
 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
 	return iova;
 }
+EXPORT_SYMBOL(iommu_dma_map_page_iova);
 
 void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
 		size_t size, enum dma_data_direction dir, unsigned long attrs)
@@ -1120,9 +1121,12 @@ void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
 	phys_addr_t phys;
 
 	phys = iommu_iova_to_phys(domain, dma_handle);
-	if (WARN_ON(!phys))
+	if (WARN_ON(!phys)){ 
+		//printk("DEBUG: fail unmap page iova %llu, cpu: %d", dma_handle, smp_processor_id());
 		return;
-
+	} else {
+		//printk("DEBUG: unmap page iova %llu, cpu: %d", dma_handle, smp_processor_id());
+	}
 	if (!(attrs & DMA_ATTR_SKIP_CPU_SYNC) && !dev_is_dma_coherent(dev))
 		arch_sync_dma_for_cpu(phys, size, dir);
 
@@ -1150,7 +1154,7 @@ void iommu_dma_unmap_page_iova(struct device *dev, dma_addr_t dma_handle,
 	if (unlikely(is_swiotlb_buffer(dev, phys)))
 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
 }
-
+EXPORT_SYMBOL(iommu_dma_unmap_page_iova);
 /*
  * Prepare a successfully-mapped scatterlist to give back to the caller.
  *

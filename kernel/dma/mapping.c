@@ -178,12 +178,15 @@ dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_ad
 	if (dma_map_direct(dev, ops) ||
 	    arch_dma_map_page_direct(dev, page_to_phys(page) + offset + size))
 		addr = dma_direct_map_page(dev, page, offset, size, dir, attrs);
-	else
+	else {
 		if (ops->map_page == iommu_dma_map_page) { 
+			//printk("debug: map_attr, iommu map, iova: %llu", iova);
 			addr = iommu_dma_map_page_iova(dev, page, iova, offset, size, dir, attrs);
 		} else {
+			//printk("debug: map_attr, NOT iommu map, iova: %llu", iova);
 			addr = ops->map_page(dev, page, offset, size, dir, attrs);
 		}
+	}
 	debug_dma_map_page(dev, page, offset, size, dir, addr, attrs);
 
 	return addr;
@@ -216,9 +219,12 @@ void dma_unmap_page_attrs_iova(struct device *dev, dma_addr_t addr, size_t size,
 		dma_direct_unmap_page(dev, addr, size, dir, attrs);
 	else if (ops->unmap_page) {
 		if (ops->unmap_page == iommu_dma_unmap_page) {
+			//printk("debug: unmap_attr, iommu map, iova: %llu", addr);
 			iommu_dma_unmap_page_iova(dev, addr, size, iova_size, free_iova, dir, attrs);
+		} else {
+			//printk("debug: unmap_attr, NOT iommu map, iova: %llu", addr);
+			ops->unmap_page(dev, addr, size, dir, attrs);
 		}
-		ops->unmap_page(dev, addr, size, dir, attrs);
 	}
 	debug_dma_unmap_page(dev, addr, size, dir);
 }
