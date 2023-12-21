@@ -282,7 +282,7 @@ static inline int mlx5e_page_alloc_pool(struct mlx5e_rq *rq,
 		return -ENOMEM;
 	//printk("debug: page_alloc, batch_iova: %d, iova: %llu\n", dma_info->batch_iova, dma_info->iova);
 	if (dma_info->batch_iova) {
-		dma_info->addr = dma_map_page_attrs_iova(rq->pdev, dma_info->page, dma_info->iova, 0, PAGE_SIZE,
+		dma_info->addr = dma_map_page_attrs_iova(rq->pdev, dma_info->page, dma_info->iova, dma_info->first_iova, 0, PAGE_SIZE,
 					    rq->buff.map_dir, DMA_ATTR_SKIP_CPU_SYNC);
 	} else {
 		dma_info->addr = dma_map_page_attrs(rq->pdev, dma_info->page, 0, PAGE_SIZE,
@@ -313,8 +313,11 @@ void mlx5e_page_dma_unmap(struct mlx5e_rq *rq, struct page *page, size_t iova_si
 	//printk("debug: page_unmap, iova_size: %lu, iova: %llu\n", iova_size, dma_addr);
 
 	if (iova_size) {
-		dma_unmap_page_attrs_iova(rq->pdev, dma_addr, PAGE_SIZE, iova_size, free_iova, rq->buff.map_dir,
-			     DMA_ATTR_SKIP_CPU_SYNC);
+		if (free_iova) {
+			dma_addr -= 63 * 4096;
+			dma_unmap_page_attrs_iova(rq->pdev, dma_addr, PAGE_SIZE * 64, iova_size, free_iova, rq->buff.map_dir,
+				     DMA_ATTR_SKIP_CPU_SYNC);
+		}
 	} else {
 		//printk("debug: not_iova_size, iova_size: %lu, iova: %llu\n", iova_size, dma_addr);
 		dma_unmap_page_attrs(rq->pdev, dma_addr, PAGE_SIZE, rq->buff.map_dir,
@@ -756,11 +759,15 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
 		dma_info->batch_iova = batch_iova;
 		dma_info->iova = 0;
 		dma_info->iova_size = 0;
+		dma_info->first_iova = false;
 		if (batch_iova) {
 			iova = iova_base + (i * 4096);
 			//printk("DEBUG: alloc page with iova %llu, cpu: %d", iova, smp_processor_id());
 			dma_info->iova = iova;
 			dma_info->iova_size = iova_allocation_size;
+			if(i==0){
+				dma_info->first_iova = true;
+			}
 		}
 		err = mlx5e_page_alloc(rq, dma_info);
 		if (unlikely(err))

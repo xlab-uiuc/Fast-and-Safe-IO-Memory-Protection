@@ -2319,15 +2319,15 @@ static int __iommu_map(struct iommu_domain *domain, unsigned long iova,
 	return ret;
 }
 
-static int _iommu_map(struct iommu_domain *domain, unsigned long iova,
+static int _iommu_map(struct iommu_domain *domain, unsigned long iova, bool first_iova,
 		      phys_addr_t paddr, size_t size, int prot, gfp_t gfp)
 {
 	const struct iommu_domain_ops *ops = domain->ops;
 	int ret;
 
 	ret = __iommu_map(domain, iova, paddr, size, prot, gfp);
-	if (ret == 0 && ops->iotlb_sync_map)
-		ops->iotlb_sync_map(domain, iova, size);
+	if (ret == 0 && ops->iotlb_sync_map && first_iova)
+		ops->iotlb_sync_map(domain, iova, size*64);
 
 	return ret;
 }
@@ -2336,14 +2336,14 @@ int iommu_map(struct iommu_domain *domain, unsigned long iova,
 	      phys_addr_t paddr, size_t size, int prot)
 {
 	might_sleep();
-	return _iommu_map(domain, iova, paddr, size, prot, GFP_KERNEL);
+	return _iommu_map(domain, iova, false, paddr, size, prot, GFP_KERNEL);
 }
 EXPORT_SYMBOL_GPL(iommu_map);
 
-int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova,
+int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova, bool first_iova,
 	      phys_addr_t paddr, size_t size, int prot)
 {
-	return _iommu_map(domain, iova, paddr, size, prot, GFP_ATOMIC);
+	return _iommu_map(domain, iova, first_iova, paddr, size, prot, GFP_ATOMIC);
 }
 EXPORT_SYMBOL_GPL(iommu_map_atomic);
 

@@ -163,7 +163,7 @@ dma_addr_t dma_map_page_attrs(struct device *dev, struct page *page,
 }
 EXPORT_SYMBOL(dma_map_page_attrs);
 
-dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, 
+dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, bool first_iova, 
 		size_t offset, size_t size, enum dma_data_direction dir,
 		unsigned long attrs)
 {
@@ -181,7 +181,7 @@ dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_ad
 	else {
 		if (ops->map_page == iommu_dma_map_page) { 
 			//printk("debug: map_attr, iommu map, iova: %llu", iova);
-			addr = iommu_dma_map_page_iova(dev, page, iova, offset, size, dir, attrs);
+			addr = iommu_dma_map_page_iova(dev, page, iova, first_iova, offset, size, dir, attrs);
 		} else {
 			//printk("debug: map_attr, NOT iommu map, iova: %llu", iova);
 			addr = ops->map_page(dev, page, offset, size, dir, attrs);

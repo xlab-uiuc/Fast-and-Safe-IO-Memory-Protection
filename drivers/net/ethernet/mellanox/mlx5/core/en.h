@@ -483,6 +483,7 @@ struct mlx5e_dma_info {
 	dma_addr_t addr;
 	bool batch_iova;
 	dma_addr_t iova;
+	bool first_iova;
 	size_t iova_size; 
 	bool free_iova;
 	union {

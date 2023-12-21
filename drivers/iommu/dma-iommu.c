@@ -717,12 +717,12 @@ static void __iommu_dma_unmap_iova(struct device *dev, dma_addr_t dma_addr,
 
 	if (free_iova) {
 		/* dma_addr is the last page aligned byte in the range, we need to give it the first. Hacky, but for now just subtract 63 * 4096, assuming free_iova is only set on the last one */
-		dma_addr -= 63 * 4096;
+		//dma_addr -= 63 * 4096;
 		iommu_dma_free_iova(cookie, dma_addr, iova_size, &iotlb_gather);
 	}
 }
 
-static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys, dma_addr_t iova_addr,
+static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys, dma_addr_t iova_addr, bool first_iova,
 		size_t size, int prot, u64 dma_mask)
 {
 	struct iommu_domain *domain = iommu_get_dma_domain(dev);
@@ -744,7 +744,7 @@ static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys, dma_addr
 	if (!iova)
 		return DMA_MAPPING_ERROR;
 
-	if (iommu_map_atomic(domain, iova, phys - iova_off, size, prot)) {
+	if (iommu_map_atomic(domain, iova, first_iova, phys - iova_off, size, prot)) {
 		iommu_dma_free_iova(cookie, iova, size, NULL);
 		return DMA_MAPPING_ERROR;
 	}
@@ -1053,13 +1053,13 @@ dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
 	if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(phys, size, dir);
 
-	iova = __iommu_dma_map(dev, phys, 0, size, prot, dma_mask);
+	iova = __iommu_dma_map(dev, phys, 0, false, size, prot, dma_mask);
 	if (iova == DMA_MAPPING_ERROR && is_swiotlb_buffer(dev, phys))
 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
 	return iova;
 }
 
-dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_addr_t iova_addr,
+dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_addr_t iova_addr, bool first_iova,
 		unsigned long offset, size_t size, enum dma_data_direction dir,
 		unsigned long attrs)
 {
@@ -1107,7 +1107,7 @@ dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_ad
 	if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
 		arch_sync_dma_for_device(phys, size, dir);
 
-	iova = __iommu_dma_map(dev, phys, iova_addr, size, prot, dma_mask);
+	iova = __iommu_dma_map(dev, phys, iova_addr, first_iova, size, prot, dma_mask);
 	if (iova == DMA_MAPPING_ERROR && is_swiotlb_buffer(dev, phys))
 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
 	return iova;
@@ -1461,7 +1461,7 @@ static void iommu_dma_unmap_sg(struct device *dev, struct scatterlist *sg,
 static dma_addr_t iommu_dma_map_resource(struct device *dev, phys_addr_t phys,
 		size_t size, enum dma_data_direction dir, unsigned long attrs)
 {
-	return __iommu_dma_map(dev, phys, 0, size,
+	return __iommu_dma_map(dev, phys, 0, false, size,
 			dma_info_to_prot(dir, false, attrs) | IOMMU_MMIO,
 			dma_get_mask(dev));
 }
@@ -1572,7 +1572,7 @@ static void *iommu_dma_alloc(struct device *dev, size_t size,
 	if (!cpu_addr)
 		return NULL;
 
-	*handle = __iommu_dma_map(dev, page_to_phys(page), 0, size, ioprot,
+	*handle = __iommu_dma_map(dev, page_to_phys(page), 0, false, size, ioprot,
 			dev->coherent_dma_mask);
 	if (*handle == DMA_MAPPING_ERROR) {
 		__iommu_dma_free(dev, size, cpu_addr);
