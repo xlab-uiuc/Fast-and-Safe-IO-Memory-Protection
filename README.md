@@ -3,31 +3,28 @@ quick blurb...
 
 ## 1. Overview
 ### Repository overview
-- f&s.patch Kernel patch for applying F&S
+- *fands_kernel/* contains the F&S Kernel
 - *utils/* contains tools to re-create IOMMU congestion scenarios and to log IOMMU, CPU and app level performance...
 - *scripts/* contains scripts to run the experiments in the SOSP'24 paper. 
 
-Replace src/ with fands.patch
-
 ### System overview
+For simplicity, we assume that users have two physical servers (Host and Target) connected with each other over networks. Target server has actual storage devices (e.g., RAM block device, NVMe SSD, etc.), and Host server accesses the Target-side storage devices via the remote storage stack (e.g., i10, nvme-tcp) over the networks. Then Host server runs latency-sensitive applications (L-apps) and throughput-bound applications (T-apps) using standard I/O APIs (e.g., Linux AIO). Meanwhile, blk-switch plays a role for providing μs-latency and high throughput at the kernel block device layer.
+
 For simplicity, we assume that users have two physical servers (Host and Target) connected with each other over networks. The target server enables IOMMU, etc...
 
 ## Artifact Evaluation Instructions
-To keep things convenient for artifact evaluators for SOSP'24, we have provided a setup on our servers with the F&S Kernel already installed. Please refer to (put the scripts/sosp-artifact path read me) for instructions on running the experiments for the results in the paper.  
+To keep things convenient for artifact evaluators for SOSP'24, we have provided a setup on our servers with the F&S Kernel already installed. Thus artifact evaluators can skip the **Getting Started Guide** (link on github to the right place). Please refer to (scripts/sosp-artifact link) for instructions on running the experiments for the results in the paper.  
 
-### Getting Started Guide
-Through the following three sections, we provide getting started instructions to install blk-switch and to run experiments.
+## 2. Getting Started Guide
+The following sections provide instructions for:
+ * building the F&S kernel
+ * booting into the kernel 
+ * Installing and configuring the utilities to run benchmarks
 
-   - **Build blk-switch Kernel (10 human-mins + 30 compute-mins + 5 reboot-mins):**  
-blk-switch is currently implemented in the core part of Linux kernel storage stack (blk-mq at block device layer), so it requires kernel compilation and system reboot into the blk-switch kernel. This section covers how to build the blk-switch kernel and i10/nvme-tcp kernel modules. 
-   - **Setup Remote Storage Devices (5 human-mins):**  
-This section covers how to setup remote storage devices using i10/nvme-tcp kernel modules.
-   - **Run Toy-experiments (5-10 compute-mins):**  
-This section covers how to run experiments with the blk-switch kernel. 
 
 The detailed instructions to reproduce all individual results presented in our OSDI21 paper is provided in the "[osdi21_artifact](https://github.com/resource-disaggregation/blk-switch/tree/master/osdi21_artifact)" directory.
 
-## 2. Build F&S Kernel (with root)
+## Build F&S Kernel (with root) (Put amount of time)
 blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. Building the blk-switch kernel should be done on both Host and Target servers.
 
 **(Don't forget to be root)**
@@ -115,16 +112,11 @@ blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. 
 
 ### Running hostCC
 
-One can run hostCC by simply loading the kernel module from within the src/ directory
+One can run F&S by booting into the kernel module and enabling the IOMMU. 
 ```
-sudo insmod hostcc-module.ko
+instructions to do that...
 ```
-hostCC can also take any user-specified values for IIO occupancy and PCIe bandwidth thresholds (I_T and B_T used in the [paper](https://www.cs.cornell.edu/~ragarwal/pubs/hostcc.pdf)) as command line input. More details provided in the README inside the src/ directory. 
 
-To stop running hostCC simply unload the module
-```
-sudo rmmod hostcc-module
-```
 
 ### Installing required utilities
 
@@ -151,27 +143,7 @@ To help run experiments similar to those in SIGCOMM'23 paper, we provide followi
 Run these scripts with -h flag to get list of all possible input parameters, including specifying the home directory (which is assumed to contain hostCC repo), client/server IP addresses, experimental settings as discussed above. The output results are generated in *utils/reports/* directory, and measurement logs are stored in *utils/logs/*.
 
 
-## Reproducing results in the [SIGCOMM'23 paper](www.google.com)
+## 3. Reproducing results in the SOSP '24 paper. 
 
 For ease of use, we also provide wrapper scripts inside the *scripts/SIGCOMM23-experiments* directory which run identical experiments as in the SIGCOMM'23 paper in order to reproduce our key evaluation results. Refer the README in *scripts/SIGCOMM23-experiments/* directory for details on how to run the scripts. 
-
-
-### Factors affecting reproducibality of results
-The results are sensitive to the setup, and any difference in the setup for following factors may lead to results different from the paper. A list of potential factors:
-+ Processor: Number of NUMA nodes, whether hyperthreading is enabled, whether hardware prefetching is enabled, L1/L2/LLC sizes, CPU clock frequency, etc
-+ Memory: DRAM generation (DDR3/DDR4/DDR5), DRAM frequency, number of DRAM channels per NUMA node
-+ Network: NIC hardware (for eg., Mellanox CX5), NIC driver (for eg., OFED version for Mellanox NICs), MTU size
-+ Topology: minimum RTT between the servers
-+ Optimizations: whether Linux network stack optimizations like TSO/GRO/aRFS are enabed
-+ DCTCP parameters: Tx/Rx socket buffer sizes, DCTCP alpha, whether delayed ACKs is enabled
-+ Add more things I know of like MTU, ring buffer, etc. 
-
-The scripts provided in *scripts/sosp24-experiments/* automatically set the Linux network stack optimizations and (say which parameters it does set) to be the same as in the F&S evaluation in our SOSP'24 paper. 
-
-
-## Current limitations, and planned extensions
-
-**IOMMU Interface** The current IOMMU DMA Mapping interface does not allow for the separation of IOVA allocation and DMA mapping and DMA unmapping. This means there is no way to allocate IOVAs at a different granularity than the DMA mapping and to DMA unmap at a different granularity than DMA mapping. We work around this interface to implement F&S and leave it as future work to redesign the interface to allow for F&S contiguous IOVA allocation.
-
-**Additional hardware and driver support.** Current repo only includes support for the setup described in (paper). We plan to add support for additional Intel /AMD architectures.
 
