@@ -54,8 +54,8 @@ buf=1
 bandwidth="100g"
 num_runs=1
 home="/home/benny"
-setup_dir=$home/hostCC/utils
-exp_dir=$home/hostCC/utils/tcp
+setup_dir=$home/linux_iommu/utils
+exp_dir=$home/linux_iommu/utils/tcp
 mlc_dir=$home/mlc/Linux
 
 #echo -n "Enter SSH Username for client:"

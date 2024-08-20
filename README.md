@@ -1,42 +1,48 @@
 # F&S: Fast & Safe IO Memory Proction for Networked Systems
-quick blurb...
+Memory protection is a security property that prevents an errant network interface card (NIC) from reading/writing to regions of host memory not mapped for DMA. The Input-Output Memory Management Unit (IOMMU) provides this protection via address translation: the NIC is given an IO Virtual Address (IOVA) that must be translated to a physical address by the IOMMU. This translation is sped up by an IOTLB that maps virtual addresses to physical addresses. Upon an IOTLB miss, the IOMMU must walk an IO page table sitting in host memory to obtain the virtual address. In addition to the IOTLB, modern IOMMUs contain a series of caches that cache intermediate page table entries that can speed up the page table walk. 
+
+The key insight of F&S is that instead of focusing on reducing the IOTLB misses (which cannot be avoided with the strictest memory protection), we should reduce the *cost* of each miss by leveraging the IOMMU page table caches. With this perspective shift, we implement a few simple changes inside the Linux kernel to achieve memory protection with near-zero overhead. The main design ideas of F&S are:
+
+* Allocate contiguous IOVAs within each Tx/Rx ring buffer, ensuring an access pattern with good locality in the IOMMU
+* Disable unnecessary invalidations of the IOMMU page table caches and only invalidate when the page table structure changes
+* Within each descriptor, batch DMA unmaps (which depends on contiguous IOVAs), saving CPU cycles, especially for the costly IOTLB invalidations
+
 
 ## 1. Overview
 ### Repository overview
-- *fands_kernel/* contains the F&S Kernel
+TODO: Add the F&S patch
+- *fands_patch* - Linux kernel patch for F&S
 - *utils/* contains tools to re-create IOMMU congestion scenarios and to log IOMMU, CPU and app level performance...
 - *scripts/* contains scripts to run the experiments in the SOSP'24 paper. 
 
 ### System overview
-For simplicity, we assume that users have two physical servers (Host and Target) connected with each other over networks. Target server has actual storage devices (e.g., RAM block device, NVMe SSD, etc.), and Host server accesses the Target-side storage devices via the remote storage stack (e.g., i10, nvme-tcp) over the networks. Then Host server runs latency-sensitive applications (L-apps) and throughput-bound applications (T-apps) using standard I/O APIs (e.g., Linux AIO). Meanwhile, blk-switch plays a role for providing μs-latency and high throughput at the kernel block device layer.
-
-For simplicity, we assume that users have two physical servers (Host and Target) connected with each other over networks. The target server enables IOMMU, etc...
+For simplicity, we assume that users have two physical servers (Receiver and Sender) connected with each other over a network. Receiver server enables IOMMU address translation. Then Sender server runs high throughput applications using the standard Linux kernel TCP stack. F&S enables the server to receive data at high throughput by reducing the address translation overhead.
 
 ## Artifact Evaluation Instructions
-To keep things convenient for artifact evaluators for SOSP'24, we have provided a setup on our servers with the F&S Kernel already installed. Thus artifact evaluators can skip the **Getting Started Guide** (link on github to the right place). Please refer to (scripts/sosp-artifact link) for instructions on running the experiments for the results in the paper.  
+To keep things convenient for the artifact evaluators of SOSP'24, we have provided a setup on our servers with the F&S Kernel as well as utilies for running experiments and logging results already installed. Thus, artifact evaluators can skip the **Getting Started Guide** (link on github to the right place). Please refer to (scripts/sosp-artifact link) for instructions on running the experiments to re-create the results in the paper.  
 
 ## 2. Getting Started Guide
 The following sections provide instructions for:
- * building the F&S kernel
- * booting into the kernel 
+ * Building the F&S kernel
+ * Booting into the kernel 
  * Installing and configuring the utilities to run benchmarks
 
 
-The detailed instructions to reproduce all individual results presented in our OSDI21 paper is provided in the "[osdi21_artifact](https://github.com/resource-disaggregation/blk-switch/tree/master/osdi21_artifact)" directory.
+The detailed instructions to reproduce all individual results presented in our SOSP'24 paper is provided in the "[sosp24-experiments]()" directory.
 
 ## Build F&S Kernel (with root) (Put amount of time)
-blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. Building the blk-switch kernel should be done on both Host and Target servers.
+F&S has been successfully tested on Ubuntu 20.04 LTS with kernel 6.0.3. Building the F&S kernel should be done on the server and is not necessary for the traffic generating client.
 
 **(Don't forget to be root)**
 1. Download Linux kernel source tree:
    ```
    sudo -s
    cd ~
-   wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.43.tar.gz
-   tar xzvf linux-5.4.43.tar.gz
+   wget https://mirrors.edge.kernel.org/pub/linux/kernel/v6.x/linux-6.0.3.tar.gz
+   tar xzvf linux-6.0.3.tar.gz
    ```
 
-2. Apply the F&S patch
+2. Apply the F&S patch (TODO: Make the patch)
 
    ```
    git clone https://github.com/resource-disaggregation/blk-switch.git
@@ -55,7 +61,7 @@ blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. 
  
    Edit ".config" file to include your name in the kernel version.
    ```
-   vi .config
+   vim .config
    (in the file)
    ...
    CONFIG_LOCALVERSION="-fands"
@@ -63,32 +69,20 @@ blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. 
    ```
    Save the .config file and exit.   
 
-4. Make sure i10 and nvme-tcp modules are included in the kernel configuration:
+4. Compile and install:
 
    ```
-   make menuconfig
-
-   - Device Drivers ---> NVME Support ---> <M> NVM Express over Fabrics TCP host driver
-   - Device Drivers ---> NVME Support ---> <M>   NVMe over Fabrics TCP target support
-   - Device Drivers ---> NVME Support ---> <M> i10: A New Remote Storage I/O Stack (host)
-   - Device Drivers ---> NVME Support ---> <M> i10: A New Remote Storage I/O Stack (target)
+   (See NOTE below for '-32')
+   make -j32 bzImage
+   make -j32 modules
+   make -j32 modules_install
+   make -j32 install
    ```
-   Press "Save" and "Exit"
-
-5. Compile and install:
-
-   ```
-   (See NOTE below for '-j24')
-   make -j24 bzImage
-   make -j24 modules
-   make modules_install
-   make install
-   ```
-   NOTE: The number 24 means the number of threads created for compilation. Set it to be the total number of cores of your system to reduce the compilation time. Type "lscpu | grep 'CPU(s)'" to see the total number of cores:
+   NOTE: The number 32 means the number of threads created for compilation. Set it to be the total number of cores of your system to reduce the compilation time. Type "lscpu | grep 'CPU(s)'" to see the total number of cores:
    
    ```
-   CPU(s):                24
-   On-line CPU(s) list:   0-23
+   CPU(s):                32
+   On-line CPU(s) list:   0-31
    ```
 
 6. Edit "/etc/default/grub" to boot with your new kernel by default. For example:
@@ -96,7 +90,7 @@ blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. 
    ```
    ...
    #GRUB_DEFAULT=0 
-   GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.43-jaehyun"
+   GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3-fands"
    ...
    ```
 
@@ -106,21 +100,31 @@ blk-switch has been successfully tested on Ubuntu 16.04 LTS with kernel 5.4.43. 
    update-grub && reboot
    ```
 
-8. Do the same steps 1--7 for both Host and Target servers.
+8. When system is rebooted, check the kernel version: Type "uname -r". It should be "6.0.3-(your name)".
 
-9. When systems are rebooted, check the kernel version: Type "uname -r". It should be "5.4.43-(your name)".
-
-### Running hostCC
+### Running F&S
 
 One can run F&S by booting into the kernel module and enabling the IOMMU. 
+Edit `/etc/default/grub` to boot with **[Linux 6.0.3 + F&S]** as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3-name version. For example:
+```bash
+#GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
+GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3-name"
+#GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
 ```
-instructions to do that...
+At the bottom of the `/etc/default/grub` file, make sure the kernel command line enables the IOMMU in strict mode:
+```bash
+GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=on iommu.strict=1"
+#GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=off"
 ```
-
+Reboot the machine and confirm that the correct kernel is being used and that the IOMMU is enabled in strict mode
+```bash
+uname -r
+dmesg | grep -i "iommu"
+```
 
 ### Installing required utilities
 
-Instructions to install required set of benchmarking applications and measurement tools (for running similar experiments in SIGCOMM'23 paper) is provided in the README in in *utils/* directory. 
+Instructions to install required set of benchmarking applications and measurement tools (for running similar experiments in SOSP'24 paper) is provided in the README in in *utils/* directory. 
 + Benchmarking applications: We use **iperf3** as network app generating throughput-bound traffic, **netperf** as network app generating latency-sensitive traffic, and **mlc** as the CPU app generating memory-intensive traffic.
 + Measurement tools: We use **Intel PCM** for measuring the host-level metrics and **Intel Memory Bandwidth Allocation** tool for performing host-local response. We also use **sar** utility to measure CPU utilization.
 
@@ -135,15 +139,15 @@ sudo bash utils/setup-envir.sh -h
 
 ### Running benchmarking experiments
 
-To help run experiments similar to those in SIGCOMM'23 paper, we provide following scripts in the *scripts/* directory:
+To help run experiments similar to those in SOSP'24 paper, we provide following scripts in the *scripts/* directory:
 
 + *run-hostcc-tput-experiment.sh*
 + *run-hostcc-latency-experiment.sh*
 
-Run these scripts with -h flag to get list of all possible input parameters, including specifying the home directory (which is assumed to contain hostCC repo), client/server IP addresses, experimental settings as discussed above. The output results are generated in *utils/reports/* directory, and measurement logs are stored in *utils/logs/*.
+Run these scripts with -h flag to get list of all possible input parameters, including specifying the home directory, client/server IP addresses, experimental settings as discussed above. The output results are generated in *utils/reports/* directory, and measurement logs are stored in *utils/logs/*.
 
 
 ## 3. Reproducing results in the SOSP '24 paper. 
 
-For ease of use, we also provide wrapper scripts inside the *scripts/SIGCOMM23-experiments* directory which run identical experiments as in the SIGCOMM'23 paper in order to reproduce our key evaluation results. Refer the README in *scripts/SIGCOMM23-experiments/* directory for details on how to run the scripts. 
+For ease of use, we also provide wrapper scripts inside the *scripts/sosp24-experiments* directory which run identical experiments as in the SOSP'24 paper in order to reproduce our key evaluation results. Refer the README in *scripts/sosp24-experiments/* directory for details on how to run the scripts. 
 
