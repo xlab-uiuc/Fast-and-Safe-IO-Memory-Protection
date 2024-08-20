@@ -22,6 +22,7 @@ Install the following tools/libraries in your home directory:
 + Intel RDT: https://github.com/intel/intel-cmt-cat (to enable Intel MBA)
 + iperf3: https://github.com/esnet/iperf (to use as throughput bound network app)
 + netperf: https://github.com/HewlettPackard/netperf (to use as latency sensitive network app) [Note: use the supplied patch discussed below while installing netperf]
++ [Optional] hostCC: https://github.com/Terabit-Ethernet/hostCC/tree/main (optional: to run hostCC + F&S experiments)
 + [Optional] Flamegraph: https://github.com/brendangregg/FlameGraph (optional: for lower level insights into stack bottlenecks)
 + Install sar (for collecting cpu utilization)
 ```

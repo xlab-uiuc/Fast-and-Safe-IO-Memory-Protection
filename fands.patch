@@ -1,0 +1,874 @@
+diff --git a/Makefile b/Makefile
+index d4297b3d0..64ad1dae7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,7 +2,7 @@
+ VERSION = 6
+ PATCHLEVEL = 0
+ SUBLEVEL = 3
+-EXTRAVERSION =
++EXTRAVERSION = sol
+ NAME = Hurr durr I'ma ninja sloth
+ 
+ # *DOCUMENTATION*
+diff --git a/drivers/iommu/dma-iommu.c b/drivers/iommu/dma-iommu.c
+index 17dd683b2..5364cd288 100644
+--- a/drivers/iommu/dma-iommu.c
++++ b/drivers/iommu/dma-iommu.c
+@@ -621,7 +621,7 @@ static int dma_info_to_prot(enum dma_data_direction dir, bool coherent,
+ 	}
+ }
+ 
+-static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
++dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
+ 		size_t size, u64 dma_limit, struct device *dev)
+ {
+ 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
+@@ -652,6 +652,7 @@ static dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
+ 
+ 	return (dma_addr_t)iova << shift;
+ }
++EXPORT_SYMBOL(iommu_dma_alloc_iova);
+ 
+ static void iommu_dma_free_iova(struct iommu_dma_cookie *cookie,
+ 		dma_addr_t iova, size_t size, struct iommu_iotlb_gather *gather)
+@@ -693,7 +694,35 @@ static void __iommu_dma_unmap(struct device *dev, dma_addr_t dma_addr,
+ 	iommu_dma_free_iova(cookie, dma_addr, size, &iotlb_gather);
+ }
+ 
+-static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys,
++static void __iommu_dma_unmap_iova(struct device *dev, dma_addr_t dma_addr,
++		size_t size, size_t iova_size, bool free_iova)
++{
++	struct iommu_domain *domain = iommu_get_dma_domain(dev);
++	struct iommu_dma_cookie *cookie = domain->iova_cookie;
++	struct iova_domain *iovad = &cookie->iovad;
++	size_t iova_off = iova_offset(iovad, dma_addr);
++	struct iommu_iotlb_gather iotlb_gather;
++	size_t unmapped;
++
++	dma_addr -= iova_off;
++	size = iova_align(iovad, size + iova_off);
++	iommu_iotlb_gather_init(&iotlb_gather);
++	iotlb_gather.queued = READ_ONCE(cookie->fq_domain);
++
++	unmapped = iommu_unmap_fast(domain, dma_addr, size, &iotlb_gather);
++	WARN_ON(unmapped != size);
++
++	if (!iotlb_gather.queued)
++		iommu_iotlb_sync(domain, &iotlb_gather);
++
++	if (free_iova) {
++		/* dma_addr is the last page aligned byte in the range, we need to give it the first. Hacky, but for now just subtract 63 * 4096, assuming free_iova is only set on the last one */
++		//dma_addr -= 63 * 4096;
++		iommu_dma_free_iova(cookie, dma_addr, iova_size, &iotlb_gather);
++	}
++}
++
++static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys, dma_addr_t iova_addr, bool first_iova,
+ 		size_t size, int prot, u64 dma_mask)
+ {
+ 	struct iommu_domain *domain = iommu_get_dma_domain(dev);
+@@ -707,12 +736,15 @@ static dma_addr_t __iommu_dma_map(struct device *dev, phys_addr_t phys,
+ 		return DMA_MAPPING_ERROR;
+ 
+ 	size = iova_align(iovad, size + iova_off);
+-
+-	iova = iommu_dma_alloc_iova(domain, size, dma_mask, dev);
++    if (iova_addr) {
++		iova = iova_addr;
++	} else {
++		iova = iommu_dma_alloc_iova(domain, size, dma_mask, dev);
++	}
+ 	if (!iova)
+ 		return DMA_MAPPING_ERROR;
+ 
+-	if (iommu_map_atomic(domain, iova, phys - iova_off, size, prot)) {
++	if (iommu_map_atomic(domain, iova, first_iova, phys - iova_off, size, prot)) {
+ 		iommu_dma_free_iova(cookie, iova, size, NULL);
+ 		return DMA_MAPPING_ERROR;
+ 	}
+@@ -973,7 +1005,61 @@ static void iommu_dma_sync_sg_for_device(struct device *dev,
+ 			arch_sync_dma_for_device(sg_phys(sg), sg->length, dir);
+ }
+ 
+-static dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
++dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
++		unsigned long offset, size_t size, enum dma_data_direction dir,
++		unsigned long attrs)
++{
++	phys_addr_t phys = page_to_phys(page) + offset;
++	bool coherent = dev_is_dma_coherent(dev);
++	int prot = dma_info_to_prot(dir, coherent, attrs);
++	struct iommu_domain *domain = iommu_get_dma_domain(dev);
++	struct iommu_dma_cookie *cookie = domain->iova_cookie;
++	struct iova_domain *iovad = &cookie->iovad;
++	dma_addr_t iova, dma_mask = dma_get_mask(dev);
++
++	/*
++	 * If both the physical buffer start address and size are
++	 * page aligned, we don't need to use a bounce page.
++	 */
++	if (dev_use_swiotlb(dev) && iova_offset(iovad, phys | size)) {
++		void *padding_start;
++		size_t padding_size, aligned_size;
++
++		if (!is_swiotlb_active(dev)) {
++			dev_warn_once(dev, "DMA bounce buffers are inactive, unable to map unaligned transaction.\n");
++			return DMA_MAPPING_ERROR;
++		}
++
++		aligned_size = iova_align(iovad, size);
++		phys = swiotlb_tbl_map_single(dev, phys, size, aligned_size,
++					      iova_mask(iovad), dir, attrs);
++
++		if (phys == DMA_MAPPING_ERROR)
++			return DMA_MAPPING_ERROR;
++
++		/* Cleanup the padding area. */
++		padding_start = phys_to_virt(phys);
++		padding_size = aligned_size;
++
++		if (!(attrs & DMA_ATTR_SKIP_CPU_SYNC) &&
++		    (dir == DMA_TO_DEVICE || dir == DMA_BIDIRECTIONAL)) {
++			padding_start += size;
++			padding_size -= size;
++		}
++
++		memset(padding_start, 0, padding_size);
++	}
++
++	if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
++		arch_sync_dma_for_device(phys, size, dir);
++
++	iova = __iommu_dma_map(dev, phys, 0, false, size, prot, dma_mask);
++	if (iova == DMA_MAPPING_ERROR && is_swiotlb_buffer(dev, phys))
++		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
++	return iova;
++}
++
++dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_addr_t iova_addr, bool first_iova,
+ 		unsigned long offset, size_t size, enum dma_data_direction dir,
+ 		unsigned long attrs)
+ {
+@@ -1021,22 +1107,26 @@ static dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
+ 	if (!coherent && !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
+ 		arch_sync_dma_for_device(phys, size, dir);
+ 
+-	iova = __iommu_dma_map(dev, phys, size, prot, dma_mask);
++	iova = __iommu_dma_map(dev, phys, iova_addr, first_iova, size, prot, dma_mask);
+ 	if (iova == DMA_MAPPING_ERROR && is_swiotlb_buffer(dev, phys))
+ 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
+ 	return iova;
+ }
++EXPORT_SYMBOL(iommu_dma_map_page_iova);
+ 
+-static void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
++void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
+ 		size_t size, enum dma_data_direction dir, unsigned long attrs)
+ {
+ 	struct iommu_domain *domain = iommu_get_dma_domain(dev);
+ 	phys_addr_t phys;
+ 
+ 	phys = iommu_iova_to_phys(domain, dma_handle);
+-	if (WARN_ON(!phys))
++	if (WARN_ON(!phys)){ 
++		//printk("DEBUG: fail unmap page iova %llu, cpu: %d", dma_handle, smp_processor_id());
+ 		return;
+-
++	} else {
++		//printk("DEBUG: unmap page iova %llu, cpu: %d", dma_handle, smp_processor_id());
++	}
+ 	if (!(attrs & DMA_ATTR_SKIP_CPU_SYNC) && !dev_is_dma_coherent(dev))
+ 		arch_sync_dma_for_cpu(phys, size, dir);
+ 
+@@ -1046,6 +1136,25 @@ static void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
+ 		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
+ }
+ 
++void iommu_dma_unmap_page_iova(struct device *dev, dma_addr_t dma_handle,
++		size_t size, size_t iova_size, bool free_iova, enum dma_data_direction dir, unsigned long attrs)
++{
++	struct iommu_domain *domain = iommu_get_dma_domain(dev);
++	phys_addr_t phys;
++
++	phys = iommu_iova_to_phys(domain, dma_handle);
++	if (WARN_ON(!phys))
++		return;
++
++	if (!(attrs & DMA_ATTR_SKIP_CPU_SYNC) && !dev_is_dma_coherent(dev))
++		arch_sync_dma_for_cpu(phys, size, dir);
++
++	__iommu_dma_unmap_iova(dev, dma_handle, size, iova_size, free_iova);
++
++	if (unlikely(is_swiotlb_buffer(dev, phys)))
++		swiotlb_tbl_unmap_single(dev, phys, size, dir, attrs);
++}
++EXPORT_SYMBOL(iommu_dma_unmap_page_iova);
+ /*
+  * Prepare a successfully-mapped scatterlist to give back to the caller.
+  *
+@@ -1352,7 +1461,7 @@ static void iommu_dma_unmap_sg(struct device *dev, struct scatterlist *sg,
+ static dma_addr_t iommu_dma_map_resource(struct device *dev, phys_addr_t phys,
+ 		size_t size, enum dma_data_direction dir, unsigned long attrs)
+ {
+-	return __iommu_dma_map(dev, phys, size,
++	return __iommu_dma_map(dev, phys, 0, false, size,
+ 			dma_info_to_prot(dir, false, attrs) | IOMMU_MMIO,
+ 			dma_get_mask(dev));
+ }
+@@ -1463,7 +1572,7 @@ static void *iommu_dma_alloc(struct device *dev, size_t size,
+ 	if (!cpu_addr)
+ 		return NULL;
+ 
+-	*handle = __iommu_dma_map(dev, page_to_phys(page), size, ioprot,
++	*handle = __iommu_dma_map(dev, page_to_phys(page), 0, false, size, ioprot,
+ 			dev->coherent_dma_mask);
+ 	if (*handle == DMA_MAPPING_ERROR) {
+ 		__iommu_dma_free(dev, size, cpu_addr);
+diff --git a/drivers/iommu/intel/dmar.c b/drivers/iommu/intel/dmar.c
+index 5a8f780e7..9e4b95e8b 100644
+--- a/drivers/iommu/intel/dmar.c
++++ b/drivers/iommu/intel/dmar.c
+@@ -1470,7 +1470,7 @@ void qi_flush_iotlb(struct intel_iommu *iommu, u16 did, u64 addr,
+ 	u8 dw = 0, dr = 0;
+ 
+ 	struct qi_desc desc;
+-	int ih = 0;
++	int ih = 1;
+ 
+ 	if (cap_write_drain(iommu->cap))
+ 		dw = 1;
+diff --git a/drivers/iommu/intel/iommu.c b/drivers/iommu/intel/iommu.c
+index 31bc50e53..79297217f 100644
+--- a/drivers/iommu/intel/iommu.c
++++ b/drivers/iommu/intel/iommu.c
+@@ -2477,12 +2477,15 @@ static int domain_add_dev_info(struct dmar_domain *domain, struct device *dev)
+ 		if (hw_pass_through && domain_type_is_si(domain))
+ 			ret = intel_pasid_setup_pass_through(iommu, domain,
+ 					dev, PASID_RID2PASID);
+-		else if (domain_use_first_level(domain))
++		else if (domain_use_first_level(domain)) { 
+ 			ret = domain_setup_first_level(iommu, domain, dev,
+ 					PASID_RID2PASID);
++		}
+ 		else
++		{
+ 			ret = intel_pasid_setup_second_level(iommu, domain,
+ 					dev, PASID_RID2PASID);
++		}
+ 		if (ret) {
+ 			dev_err(dev, "Setup RID2PASID failed\n");
+ 			dmar_remove_one_dev_info(dev);
+@@ -4359,7 +4362,7 @@ static void intel_iommu_tlb_sync(struct iommu_domain *domain,
+ 	xa_for_each(&dmar_domain->iommu_array, i, info)
+ 		iommu_flush_iotlb_psi(info->iommu, dmar_domain,
+ 				      start_pfn, nrpages,
+-				      list_empty(&gather->freelist), 0);
++				      1, 0);
+ 
+ 	put_pages_list(&gather->freelist);
+ }
+diff --git a/drivers/iommu/iommu.c b/drivers/iommu/iommu.c
+index 3a808146b..76d48870d 100644
+--- a/drivers/iommu/iommu.c
++++ b/drivers/iommu/iommu.c
+@@ -2066,7 +2066,7 @@ struct iommu_domain *iommu_get_dma_domain(struct device *dev)
+ {
+ 	return dev->iommu_group->default_domain;
+ }
+-
++EXPORT_SYMBOL(iommu_get_dma_domain);
+ /*
+  * IOMMU groups are really the natural working unit of the IOMMU, but
+  * the IOMMU API works on domains and devices.  Bridge that gap by
+@@ -2319,15 +2319,15 @@ static int __iommu_map(struct iommu_domain *domain, unsigned long iova,
+ 	return ret;
+ }
+ 
+-static int _iommu_map(struct iommu_domain *domain, unsigned long iova,
++static int _iommu_map(struct iommu_domain *domain, unsigned long iova, bool first_iova,
+ 		      phys_addr_t paddr, size_t size, int prot, gfp_t gfp)
+ {
+ 	const struct iommu_domain_ops *ops = domain->ops;
+ 	int ret;
+ 
+ 	ret = __iommu_map(domain, iova, paddr, size, prot, gfp);
+-	if (ret == 0 && ops->iotlb_sync_map)
+-		ops->iotlb_sync_map(domain, iova, size);
++	if (ret == 0 && ops->iotlb_sync_map && first_iova)
++		ops->iotlb_sync_map(domain, iova, size*64);
+ 
+ 	return ret;
+ }
+@@ -2336,14 +2336,14 @@ int iommu_map(struct iommu_domain *domain, unsigned long iova,
+ 	      phys_addr_t paddr, size_t size, int prot)
+ {
+ 	might_sleep();
+-	return _iommu_map(domain, iova, paddr, size, prot, GFP_KERNEL);
++	return _iommu_map(domain, iova, false, paddr, size, prot, GFP_KERNEL);
+ }
+ EXPORT_SYMBOL_GPL(iommu_map);
+ 
+-int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova,
++int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova, bool first_iova,
+ 	      phys_addr_t paddr, size_t size, int prot)
+ {
+-	return _iommu_map(domain, iova, paddr, size, prot, GFP_ATOMIC);
++	return _iommu_map(domain, iova, first_iova, paddr, size, prot, GFP_ATOMIC);
+ }
+ EXPORT_SYMBOL_GPL(iommu_map_atomic);
+ 
+diff --git a/drivers/iommu/iova.c b/drivers/iommu/iova.c
+index 47d1983df..2f7f6f5c9 100644
+--- a/drivers/iommu/iova.c
++++ b/drivers/iommu/iova.c
+@@ -11,11 +11,26 @@
+ #include <linux/smp.h>
+ #include <linux/bitops.h>
+ #include <linux/cpu.h>
++#include <linux/timekeeping.h>
++#include <asm/atomic.h>
+ 
+ /* The anchor node sits above the top of the usable address space */
+ #define IOVA_ANCHOR	~0UL
+ 
+-#define IOVA_RANGE_CACHE_MAX_SIZE 6	/* log of max cached IOVA range size (in pages) */
++#define IOVA_RANGE_CACHE_MAX_SIZE 7	/* log of max cached IOVA range size (in pages) */
++
++//TODO: Add iova log function
++int add_iova_log(unsigned long pfn, int source, bool ins, struct iova_domain *iovad) {
++	//u64 timestamp = ktime_get_ns();
++	/*trace_printk("IL:%lu,%d,%d,%p\n",
++            pfn,
++            source,
++            ins,
++	    iovad
++            );*/
++	return 0;
++}
++
+ 
+ static bool iova_rcache_insert(struct iova_domain *iovad,
+ 			       unsigned long pfn,
+@@ -26,6 +41,7 @@ static unsigned long iova_rcache_get(struct iova_domain *iovad,
+ static void free_cpu_cached_iovas(unsigned int cpu, struct iova_domain *iovad);
+ static void free_iova_rcaches(struct iova_domain *iovad);
+ 
++
+ unsigned long iova_rcache_range(void)
+ {
+ 	return PAGE_SIZE << (IOVA_RANGE_CACHE_MAX_SIZE - 1);
+@@ -452,8 +468,10 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
+ 		size = roundup_pow_of_two(size);
+ 
+ 	iova_pfn = iova_rcache_get(iovad, size, limit_pfn + 1);
+-	if (iova_pfn)
++	if (iova_pfn) {
++		add_iova_log(iova_pfn, 2, false, iovad);
+ 		return iova_pfn;
++	}
+ 
+ retry:
+ 	new_iova = alloc_iova(iovad, size, limit_pfn, true);
+@@ -470,7 +488,7 @@ alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
+ 		free_global_cached_iovas(iovad);
+ 		goto retry;
+ 	}
+-
++	add_iova_log(new_iova->pfn_lo, 1, false, iovad);
+ 	return new_iova->pfn_lo;
+ }
+ EXPORT_SYMBOL_GPL(alloc_iova_fast);
+@@ -486,10 +504,13 @@ EXPORT_SYMBOL_GPL(alloc_iova_fast);
+ void
+ free_iova_fast(struct iova_domain *iovad, unsigned long pfn, unsigned long size)
+ {
+-	if (iova_rcache_insert(iovad, pfn, size))
++	if (iova_rcache_insert(iovad, pfn, size)) {
++		add_iova_log(pfn, 2, true, iovad);
+ 		return;
++	}
+ 
+ 	free_iova(iovad, pfn);
++	add_iova_log(pfn, 1, true, iovad);
+ }
+ EXPORT_SYMBOL_GPL(free_iova_fast);
+ 
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en.h b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+index a560df446..248912f32 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+@@ -481,6 +481,11 @@ struct mlx5e_txqsq {
+ 
+ struct mlx5e_dma_info {
+ 	dma_addr_t addr;
++	bool batch_iova;
++	dma_addr_t iova;
++	bool first_iova;
++	size_t iova_size; 
++	bool free_iova;
+ 	union {
+ 		struct page *page;
+ 		struct xdp_buff *xsk;
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/txrx.h b/drivers/net/ethernet/mellanox/mlx5/core/en/txrx.h
+index c208ea307..c29a04fa4 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/txrx.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/txrx.h
+@@ -44,8 +44,8 @@ int mlx5e_napi_poll(struct napi_struct *napi, int budget);
+ int mlx5e_poll_ico_cq(struct mlx5e_cq *cq);
+ 
+ /* RX */
+-void mlx5e_page_dma_unmap(struct mlx5e_rq *rq, struct page *page);
+-void mlx5e_page_release_dynamic(struct mlx5e_rq *rq, struct page *page, bool recycle);
++void mlx5e_page_dma_unmap(struct mlx5e_rq *rq, struct page *page, size_t iova_size, bool free_iova);
++void mlx5e_page_release_dynamic(struct mlx5e_rq *rq, struct page *page, bool recycle, size_t iova_size, bool free_iova);
+ INDIRECT_CALLABLE_DECLARE(bool mlx5e_post_rx_wqes(struct mlx5e_rq *rq));
+ INDIRECT_CALLABLE_DECLARE(bool mlx5e_post_rx_mpwqes(struct mlx5e_rq *rq));
+ int mlx5e_poll_rx_cq(struct mlx5e_cq *cq, int budget);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+index 8f321a6c0..52e3d601b 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+@@ -180,7 +180,7 @@ bool mlx5e_xdp_handle(struct mlx5e_rq *rq, struct page *page,
+ 		__set_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags);
+ 		__set_bit(MLX5E_RQ_FLAG_XDP_REDIRECT, rq->flags);
+ 		if (xdp->rxq->mem.type != MEM_TYPE_XSK_BUFF_POOL)
+-			mlx5e_page_dma_unmap(rq, page);
++			mlx5e_page_dma_unmap(rq, page, 0, true);
+ 		rq->stats->xdp_redirect++;
+ 		return true;
+ 	default:
+@@ -495,7 +495,7 @@ static void mlx5e_free_xdpsq_desc(struct mlx5e_xdpsq *sq,
+ 			break;
+ 		case MLX5E_XDP_XMIT_MODE_PAGE:
+ 			/* XDP_TX from the regular RQ */
+-			mlx5e_page_release_dynamic(xdpi.page.rq, xdpi.page.page, recycle);
++			mlx5e_page_release_dynamic(xdpi.page.rq, xdpi.page.page, recycle,0,true);
+ 			break;
+ 		case MLX5E_XDP_XMIT_MODE_XSK:
+ 			/* AF_XDP send */
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+index 02eb2f0fa..9108334de 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+@@ -778,7 +778,7 @@ static void mlx5e_free_rq(struct mlx5e_rq *rq)
+ 		 * entered, and it's safe to call mlx5e_page_release_dynamic
+ 		 * directly.
+ 		 */
+-		mlx5e_page_release_dynamic(rq, dma_info->page, false);
++		mlx5e_page_release_dynamic(rq, dma_info->page, false, 0, true);
+ 	}
+ 
+ 	xdp_rxq_info_unreg(&rq->xdp_rxq);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+index 24de37b79..0cff6d339 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+@@ -35,6 +35,8 @@
+ #include <linux/tcp.h>
+ #include <linux/bitmap.h>
+ #include <linux/filter.h>
++#include <linux/dma-iommu.h>
++#include <linux/iommu.h>
+ #include <net/ip6_checksum.h>
+ #include <net/page_pool.h>
+ #include <net/inet_ecn.h>
+@@ -278,9 +280,14 @@ static inline int mlx5e_page_alloc_pool(struct mlx5e_rq *rq,
+ 	dma_info->page = page_pool_dev_alloc_pages(rq->page_pool);
+ 	if (unlikely(!dma_info->page))
+ 		return -ENOMEM;
+-
+-	dma_info->addr = dma_map_page_attrs(rq->pdev, dma_info->page, 0, PAGE_SIZE,
++	//printk("debug: page_alloc, batch_iova: %d, iova: %llu\n", dma_info->batch_iova, dma_info->iova);
++	if (dma_info->batch_iova) {
++		dma_info->addr = dma_map_page_attrs_iova(rq->pdev, dma_info->page, dma_info->iova, dma_info->first_iova, 0, PAGE_SIZE,
+ 					    rq->buff.map_dir, DMA_ATTR_SKIP_CPU_SYNC);
++	} else {
++		dma_info->addr = dma_map_page_attrs(rq->pdev, dma_info->page, 0, PAGE_SIZE,
++							rq->buff.map_dir, DMA_ATTR_SKIP_CPU_SYNC);
++	}
+ 	if (unlikely(dma_mapping_error(rq->pdev, dma_info->addr))) {
+ 		page_pool_recycle_direct(rq->page_pool, dma_info->page);
+ 		dma_info->page = NULL;
+@@ -300,25 +307,35 @@ static inline int mlx5e_page_alloc(struct mlx5e_rq *rq,
+ 		return mlx5e_page_alloc_pool(rq, dma_info);
+ }
+ 
+-void mlx5e_page_dma_unmap(struct mlx5e_rq *rq, struct page *page)
++void mlx5e_page_dma_unmap(struct mlx5e_rq *rq, struct page *page, size_t iova_size, bool free_iova)
+ {
+ 	dma_addr_t dma_addr = page_pool_get_dma_addr(page);
++	//printk("debug: page_unmap, iova_size: %lu, iova: %llu\n", iova_size, dma_addr);
+ 
+-	dma_unmap_page_attrs(rq->pdev, dma_addr, PAGE_SIZE, rq->buff.map_dir,
++	if (iova_size) {
++		if (free_iova) {
++			dma_addr -= 63 * 4096;
++			dma_unmap_page_attrs_iova(rq->pdev, dma_addr, PAGE_SIZE * 64, iova_size, free_iova, rq->buff.map_dir,
++				     DMA_ATTR_SKIP_CPU_SYNC);
++		}
++	} else {
++		//printk("debug: not_iova_size, iova_size: %lu, iova: %llu\n", iova_size, dma_addr);
++		dma_unmap_page_attrs(rq->pdev, dma_addr, PAGE_SIZE, rq->buff.map_dir,
+ 			     DMA_ATTR_SKIP_CPU_SYNC);
++	}
+ 	page_pool_set_dma_addr(page, 0);
+ }
+ 
+-void mlx5e_page_release_dynamic(struct mlx5e_rq *rq, struct page *page, bool recycle)
++void mlx5e_page_release_dynamic(struct mlx5e_rq *rq, struct page *page, bool recycle, size_t iova_size, bool free_iova)
+ {
+ 	if (likely(recycle)) {
+ 		if (mlx5e_rx_cache_put(rq, page))
+ 			return;
+ 
+-		mlx5e_page_dma_unmap(rq, page);
++		mlx5e_page_dma_unmap(rq, page, iova_size, free_iova);
+ 		page_pool_recycle_direct(rq->page_pool, page);
+ 	} else {
+-		mlx5e_page_dma_unmap(rq, page);
++		mlx5e_page_dma_unmap(rq, page, iova_size, free_iova);
+ 		page_pool_release_page(rq->page_pool, page);
+ 		put_page(page);
+ 	}
+@@ -335,7 +352,7 @@ static inline void mlx5e_page_release(struct mlx5e_rq *rq,
+ 		 */
+ 		xsk_buff_free(dma_info->xsk);
+ 	else
+-		mlx5e_page_release_dynamic(rq, dma_info->page, recycle);
++		mlx5e_page_release_dynamic(rq, dma_info->page, recycle, dma_info->iova_size, dma_info->free_iova);
+ }
+ 
+ static inline int mlx5e_get_rx_frag(struct mlx5e_rq *rq,
+@@ -349,6 +366,7 @@ static inline int mlx5e_get_rx_frag(struct mlx5e_rq *rq,
+ 		 * offset) should just use the new one without replenishing again
+ 		 * by themselves.
+ 		 */
++		 frag->di->batch_iova = false;
+ 		err = mlx5e_page_alloc(rq, frag->di);
+ 
+ 	return err;
+@@ -358,8 +376,10 @@ static inline void mlx5e_put_rx_frag(struct mlx5e_rq *rq,
+ 				     struct mlx5e_wqe_frag_info *frag,
+ 				     bool recycle)
+ {
+-	if (frag->last_in_page)
++	if (frag->last_in_page) {
++		frag->di->iova_size=0;
+ 		mlx5e_page_release(rq, frag->di, recycle);
++	}
+ }
+ 
+ static inline struct mlx5e_wqe_frag_info *get_frag(struct mlx5e_rq *rq, u16 ix)
+@@ -487,9 +507,36 @@ mlx5e_free_rx_mpwqe(struct mlx5e_rq *rq, struct mlx5e_mpw_info *wi, bool recycle
+ 	no_xdp_xmit = bitmap_empty(wi->xdp_xmit_bitmap,
+ 				   MLX5_MPWRQ_PAGES_PER_WQE);
+ 
+-	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++)
+-		if (no_xdp_xmit || !test_bit(i, wi->xdp_xmit_bitmap))
+-			mlx5e_page_release(rq, &dma_info[i], recycle);
++	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++) {
++		if (no_xdp_xmit || !test_bit(i, wi->xdp_xmit_bitmap)) { 
++			WARN_ON(!dma_info[i].batch_iova);
++		//	if (dma_info[i].batch_iova) {
++			if (true) {
++				//printk("debug: yes_batch, iova_size: %lu, iova: %llu, addr: %llu", dma_info[i].iova_size,dma_info[i].iova,dma_info[i].addr);
++				dma_info[i].iova_size = 4096 * 64;
++				dma_info[i].batch_iova = true;
++				dma_info[i].free_iova = i == (MLX5_MPWRQ_PAGES_PER_WQE - 1); /* only want to free once at the end. It will automatically subtract to get the beginning */
++				mlx5e_page_release(rq, &dma_info[i], false);
++			} else { 
++				//printk("debug: no_batch, iova: %llu, addr: %llu, iova_size: %lu", dma_info[i].iova, dma_info[i].addr, dma_info[i].iova_size);
++				dma_info[i].iova_size = 0;
++				mlx5e_page_release(rq, &dma_info[i], recycle);
++			}
++		}
++	}
++	
++	//TODO: PUT REAL VALUE HERE FOR BATCHING BEING ON, probably just want to make it a macro to be shared in alloc and free mpwqe
++	//TODO: ALSO probably want to make the batch size a macro to be reused here
++	// if (iova_batch) {
++	// 	struct iommu_domain *domain = iommu_get_dma_domain(rq->pdev);
++	// 	struct iommu_dma_cookie *cookie = domain->iova_cookie;
++	// 	struct iommu_iotlb_gather iotlb_gather;
++
++	// 	iommu_iotlb_gather_init(&iotlb_gather);
++	// 	iotlb_gather.queued = READ_ONCE(cookie->fq_domain);
++
++	// 	iommu_dma_free_iova(cookie, dma_info->page->dma_addr, size, &iotlb_gather);
++	// }
+ }
+ 
+ static void mlx5e_post_rx_mpwqe(struct mlx5e_rq *rq, u8 n)
+@@ -574,6 +621,7 @@ static int mlx5e_build_shampo_hd_umr(struct mlx5e_rq *rq,
+ 		header_offset = (index & (MLX5E_SHAMPO_WQ_HEADER_PER_PAGE - 1)) <<
+ 			MLX5E_SHAMPO_LOG_MAX_HEADER_ENTRY_SIZE;
+ 		if (!(header_offset & (PAGE_SIZE - 1))) {
++			dma_info->batch_iova = false;
+ 			err = mlx5e_page_alloc(rq, dma_info);
+ 			if (unlikely(err))
+ 				goto err_unmap;
+@@ -611,6 +659,7 @@ static int mlx5e_build_shampo_hd_umr(struct mlx5e_rq *rq,
+ 		dma_info = &shampo->info[--index];
+ 		if (!(i & (MLX5E_SHAMPO_WQ_HEADER_PER_PAGE - 1))) {
+ 			dma_info->addr = ALIGN_DOWN(dma_info->addr, PAGE_SIZE);
++			dma_info->iova_size = 0;
+ 			mlx5e_page_release(rq, dma_info, true);
+ 		}
+ 	}
+@@ -664,10 +713,16 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
+ 	struct mlx5e_icosq *sq = rq->icosq;
+ 	struct mlx5_wq_cyc *wq = &sq->wq;
+ 	struct mlx5e_umr_wqe *umr_wqe;
++	unsigned long iova_allocation_size;
++	bool batch_iova;
++	dma_addr_t iova_base;
++	dma_addr_t iova;
+ 	u16 pi;
+ 	int err;
+ 	int i;
+ 
++//	//printk("MLX5_MPWRQ_PAGES_PER_WQE: %lu",MLX5_MPWRQ_PAGES_PER_WQE);
++
+ 	/* Check in advance that we have enough frames, instead of allocating
+ 	 * one-by-one, failing and moving frames to the Reuse Ring.
+ 	 */
+@@ -687,11 +742,39 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
+ 	umr_wqe = mlx5_wq_cyc_get_wqe(wq, pi);
+ 	memcpy(umr_wqe, &rq->mpwqe.umr_wqe, offsetof(struct mlx5e_umr_wqe, inline_mtts));
+ 
++	/* Batch IOVA allocation changes */
++	iova_allocation_size = 4096 * MLX5_MPWRQ_PAGES_PER_WQE;
++	batch_iova = true;
++
++	iova_base = 0;
++	iova = 0;
++	if (batch_iova) {
++		iova_base = iommu_dma_alloc_iova(iommu_get_dma_domain(rq->pdev), iova_allocation_size, dma_get_mask(rq->pdev), rq->pdev);
++		WARN_ON(!iova_base);
++	}
++
++	/* End of Batch IOVA allocation changes*/
++
+ 	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++, dma_info++) {
++		dma_info->batch_iova = batch_iova;
++		dma_info->iova = 0;
++		dma_info->iova_size = 0;
++		dma_info->first_iova = false;
++		if (batch_iova) {
++			iova = iova_base + (i * 4096);
++			//printk("DEBUG: alloc page with iova %llu, cpu: %d", iova, smp_processor_id());
++			dma_info->iova = iova;
++			dma_info->iova_size = iova_allocation_size;
++			if(i==0){
++				dma_info->first_iova = true;
++			}
++		}
+ 		err = mlx5e_page_alloc(rq, dma_info);
+ 		if (unlikely(err))
+ 			goto err_unmap;
+ 		umr_wqe->inline_mtts[i].ptag = cpu_to_be64(dma_info->addr | MLX5_EN_WR);
++		//if (smp_processor_id() == 4) 
++		//	trace_printk("core: %d, ix: %u, %llu\n", smp_processor_id(), ix, dma_info->addr);
+ 	}
+ 
+ 	bitmap_zero(wi->xdp_xmit_bitmap, MLX5_MPWRQ_PAGES_PER_WQE);
+@@ -718,6 +801,9 @@ static int mlx5e_alloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
+ err_unmap:
+ 	while (--i >= 0) {
+ 		dma_info--;
++		if (!dma_info->batch_iova) {
++			dma_info->iova_size=0;
++		}
+ 		mlx5e_page_release(rq, dma_info, true);
+ 	}
+ 
+@@ -752,6 +838,7 @@ void mlx5e_shampo_dealloc_hd(struct mlx5e_rq *rq, u16 len, u16 start, bool close
+ 		hd_info->addr = ALIGN_DOWN(hd_info->addr, PAGE_SIZE);
+ 		if (hd_info->page != deleted_page) {
+ 			deleted_page = hd_info->page;
++			hd_info->iova_size=0;
+ 			mlx5e_page_release(rq, hd_info, false);
+ 		}
+ 	}
+@@ -1850,11 +1937,11 @@ mlx5e_fill_skb_data(struct sk_buff *skb, struct mlx5e_rq *rq, struct mlx5e_dma_i
+ 		    u32 data_bcnt, u32 data_offset)
+ {
+ 	net_prefetchw(skb->data);
+-
++	////printk("DEBUG: NEW PACKET (%u offset)", data_offset);
+ 	while (data_bcnt) {
+ 		u32 pg_consumed_bytes = min_t(u32, PAGE_SIZE - data_offset, data_bcnt);
+ 		unsigned int truesize;
+-
++         //       //printk("page address: %llu, Data offset: %u, full address: %llu, consumed_bytes: %u",page_to_phys(di->page),data_offset,data_offset + page_to_phys(di->page), pg_consumed_bytes);
+ 		if (test_bit(MLX5E_RQ_STATE_SHAMPO, &rq->state))
+ 			truesize = pg_consumed_bytes;
+ 		else
+@@ -1867,6 +1954,7 @@ mlx5e_fill_skb_data(struct sk_buff *skb, struct mlx5e_rq *rq, struct mlx5e_dma_i
+ 		data_offset = 0;
+ 		di++;
+ 	}
++//	//printk("DEBUG: PACKET FINISHED");
+ }
+ 
+ static struct sk_buff *
+@@ -2049,6 +2137,7 @@ mlx5e_free_rx_shampo_hd_entry(struct mlx5e_rq *rq, u16 header_index)
+ 
+ 	if (((header_index + 1) & (MLX5E_SHAMPO_WQ_HEADER_PER_PAGE - 1)) == 0) {
+ 		shampo->info[header_index].addr = ALIGN_DOWN(addr, PAGE_SIZE);
++		shampo->info[header_index].iova_size = 0;
+ 		mlx5e_page_release(rq, &shampo->info[header_index], true);
+ 	}
+ 	bitmap_clear(shampo->bitmap, header_index, 1);
+@@ -2391,6 +2480,7 @@ int mlx5e_rq_set_handlers(struct mlx5e_rq *rq, struct mlx5e_params *params, bool
+ 
+ 	switch (rq->wq_type) {
+ 	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
++		////printk("DEBUG: Striding WQ");
+ 		rq->mpwqe.skb_from_cqe_mpwrq = xsk ?
+ 			mlx5e_xsk_skb_from_cqe_mpwrq_linear :
+ 			mlx5e_rx_mpwqe_is_linear_skb(mdev, params, NULL) ?
+@@ -2415,6 +2505,7 @@ int mlx5e_rq_set_handlers(struct mlx5e_rq *rq, struct mlx5e_params *params, bool
+ 
+ 		break;
+ 	default: /* MLX5_WQ_TYPE_CYCLIC */
++	//	//printk("DEBUG: Cyclic WQ");
+ 		rq->wqe.skb_from_cqe = xsk ?
+ 			mlx5e_xsk_skb_from_cqe_linear :
+ 			mlx5e_rx_is_linear_skb(params, NULL) ?
+diff --git a/include/linux/dma-iommu.h b/include/linux/dma-iommu.h
+index 24607dc3c..a61295765 100644
+--- a/include/linux/dma-iommu.h
++++ b/include/linux/dma-iommu.h
+@@ -13,6 +13,20 @@
+ #include <linux/iommu.h>
+ #include <linux/msi.h>
+ 
++/* iova map and unmap functions for batch iova*/
++void iommu_dma_unmap_page_iova(struct device *dev, dma_addr_t dma_handle,
++		size_t size, size_t iova_size, bool free_iova, enum dma_data_direction dir, unsigned long attrs);
++void iommu_dma_unmap_page(struct device *dev, dma_addr_t dma_handle,
++		size_t size, enum dma_data_direction dir, unsigned long attrs);
++dma_addr_t iommu_dma_map_page_iova(struct device *dev, struct page *page, dma_addr_t iova_addr,bool first_iova,
++		unsigned long offset, size_t size, enum dma_data_direction dir,
++		unsigned long attrs);
++dma_addr_t iommu_dma_map_page(struct device *dev, struct page *page,
++		unsigned long offset, size_t size, enum dma_data_direction dir,
++		unsigned long attrs);
++dma_addr_t iommu_dma_alloc_iova(struct iommu_domain *domain,
++		size_t size, u64 dma_limit, struct device *dev);
++
+ /* Domain management interface for IOMMU drivers */
+ int iommu_get_dma_cookie(struct iommu_domain *domain);
+ int iommu_get_msi_cookie(struct iommu_domain *domain, dma_addr_t base);
+diff --git a/include/linux/dma-mapping.h b/include/linux/dma-mapping.h
+index 0ee20b764..e9d4f2569 100644
+--- a/include/linux/dma-mapping.h
++++ b/include/linux/dma-mapping.h
+@@ -103,8 +103,13 @@ static inline int dma_mapping_error(struct device *dev, dma_addr_t dma_addr)
+ dma_addr_t dma_map_page_attrs(struct device *dev, struct page *page,
+ 		size_t offset, size_t size, enum dma_data_direction dir,
+ 		unsigned long attrs);
++dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, bool first_iova, 
++		size_t offset, size_t size, enum dma_data_direction dir,
++		unsigned long attrs);
+ void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
+ 		enum dma_data_direction dir, unsigned long attrs);
++void dma_unmap_page_attrs_iova(struct device *dev, dma_addr_t addr, size_t size, size_t iova_size, bool free_iova,
++		enum dma_data_direction dir, unsigned long attrs);
+ unsigned int dma_map_sg_attrs(struct device *dev, struct scatterlist *sg,
+ 		int nents, enum dma_data_direction dir, unsigned long attrs);
+ void dma_unmap_sg_attrs(struct device *dev, struct scatterlist *sg,
+diff --git a/include/linux/iommu.h b/include/linux/iommu.h
+index ea30f00dc..30e8d860a 100644
+--- a/include/linux/iommu.h
++++ b/include/linux/iommu.h
+@@ -434,7 +434,7 @@ extern struct iommu_domain *iommu_get_domain_for_dev(struct device *dev);
+ extern struct iommu_domain *iommu_get_dma_domain(struct device *dev);
+ extern int iommu_map(struct iommu_domain *domain, unsigned long iova,
+ 		     phys_addr_t paddr, size_t size, int prot);
+-extern int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova,
++extern int iommu_map_atomic(struct iommu_domain *domain, unsigned long iova, bool first_iova,
+ 			    phys_addr_t paddr, size_t size, int prot);
+ extern size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova,
+ 			  size_t size);
+diff --git a/kernel/dma/mapping.c b/kernel/dma/mapping.c
+index 27f272381..aac684596 100644
+--- a/kernel/dma/mapping.c
++++ b/kernel/dma/mapping.c
+@@ -8,6 +8,7 @@
+ #include <linux/memblock.h> /* for max_pfn */
+ #include <linux/acpi.h>
+ #include <linux/dma-map-ops.h>
++#include <linux/dma-iommu.h>
+ #include <linux/export.h>
+ #include <linux/gfp.h>
+ #include <linux/of_device.h>
+@@ -162,6 +163,36 @@ dma_addr_t dma_map_page_attrs(struct device *dev, struct page *page,
+ }
+ EXPORT_SYMBOL(dma_map_page_attrs);
+ 
++dma_addr_t dma_map_page_attrs_iova(struct device *dev, struct page *page, dma_addr_t iova, bool first_iova, 
++		size_t offset, size_t size, enum dma_data_direction dir,
++		unsigned long attrs)
++{
++	const struct dma_map_ops *ops = get_dma_ops(dev);
++	dma_addr_t addr;
++
++	BUG_ON(!valid_dma_direction(dir));
++
++	if (WARN_ON_ONCE(!dev->dma_mask))
++		return DMA_MAPPING_ERROR;
++
++	if (dma_map_direct(dev, ops) ||
++	    arch_dma_map_page_direct(dev, page_to_phys(page) + offset + size))
++		addr = dma_direct_map_page(dev, page, offset, size, dir, attrs);
++	else {
++		if (ops->map_page == iommu_dma_map_page) { 
++			//printk("debug: map_attr, iommu map, iova: %llu", iova);
++			addr = iommu_dma_map_page_iova(dev, page, iova, first_iova, offset, size, dir, attrs);
++		} else {
++			//printk("debug: map_attr, NOT iommu map, iova: %llu", iova);
++			addr = ops->map_page(dev, page, offset, size, dir, attrs);
++		}
++	}
++	debug_dma_map_page(dev, page, offset, size, dir, addr, attrs);
++
++	return addr;
++}
++EXPORT_SYMBOL(dma_map_page_attrs_iova);
++
+ void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
+ 		enum dma_data_direction dir, unsigned long attrs)
+ {
+@@ -177,6 +208,28 @@ void dma_unmap_page_attrs(struct device *dev, dma_addr_t addr, size_t size,
+ }
+ EXPORT_SYMBOL(dma_unmap_page_attrs);
+ 
++void dma_unmap_page_attrs_iova(struct device *dev, dma_addr_t addr, size_t size, size_t iova_size, bool free_iova,
++		enum dma_data_direction dir, unsigned long attrs)
++{
++	const struct dma_map_ops *ops = get_dma_ops(dev);
++
++	BUG_ON(!valid_dma_direction(dir));
++	if (dma_map_direct(dev, ops) ||
++	    arch_dma_unmap_page_direct(dev, addr + size))
++		dma_direct_unmap_page(dev, addr, size, dir, attrs);
++	else if (ops->unmap_page) {
++		if (ops->unmap_page == iommu_dma_unmap_page) {
++			//printk("debug: unmap_attr, iommu map, iova: %llu", addr);
++			iommu_dma_unmap_page_iova(dev, addr, size, iova_size, free_iova, dir, attrs);
++		} else {
++			//printk("debug: unmap_attr, NOT iommu map, iova: %llu", addr);
++			ops->unmap_page(dev, addr, size, dir, attrs);
++		}
++	}
++	debug_dma_unmap_page(dev, addr, size, dir);
++}
++EXPORT_SYMBOL(dma_unmap_page_attrs_iova);
++
+ static int __dma_map_sg_attrs(struct device *dev, struct scatterlist *sg,
+ 	 int nents, enum dma_data_direction dir, unsigned long attrs)
+ {

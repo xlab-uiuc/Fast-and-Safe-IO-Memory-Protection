@@ -50,10 +50,10 @@ lat_app_port=5050
 mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
-num_runs=3
+num_runs=1
 home="/home/benny"
-setup_dir=$home/hostCC/utils
-exp_dir=$home/hostCC/utils/tcp
+setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
 mlc_dir=$home/mlc/Linux
 
 # echo -n "Enter SSH Username for client:"

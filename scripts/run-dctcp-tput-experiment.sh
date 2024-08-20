@@ -40,22 +40,22 @@ server="192.168.11.116"
 client="192.168.11.117"
 server_intf="ens2f1np1"
 client_intf="ens2f1"
-num_servers=4
-num_clients=4
+num_servers=5
+num_clients=5
 init_port=3000
 ddio=0
 mtu=4000
-dur=15
-cpu_mask="4,8,12,16"
+dur=20
+cpu_mask="0,4,8,12,16"
 mlc_cores="none"
 mlc_dur=100
-ring_buffer=1024
+ring_buffer=256
 buf=1
 bandwidth="100g"
 num_runs=1
 home="/home/benny"
-setup_dir=$home/hostCC/utils
-exp_dir=$home/hostCC/utils/tcp
+setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
 mlc_dir=$home/mlc/Linux
 
 #echo -n "Enter SSH Username for client:"
@@ -233,12 +233,12 @@ progress_bar 10 1
 #record stats
 ##start sender side logging
 echo "starting logging at client..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 1 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
 
 ##start receiver side logging
 echo "starting logging at server..."
 cd $setup_dir
-sudo bash record-host-metrics.sh -f 1 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
+sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
 echo "done logging..."
 cd -
 
