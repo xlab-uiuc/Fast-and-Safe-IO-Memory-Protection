@@ -14,59 +14,44 @@ We run Ubuntu 20.04 (LTS) with Linux kernel v6.0.3.
 
 Many experiments require the same scripts to be run with different kernels and IOMMU configurations: Linux, Linux + IOMMU On, Linux + IOMMU On + F&S. We have included which configurations are required for each figure (e.g. **[Linux, Linux + IOMMU On]** or **[Linux, Linux + IOMMU On, Linux + IOMMU On + F&S]**). Instructions for booting into the correct kernel configuration are below. To save time, we recommend running all the scripts before changing the configuration and then running them all again rather than changing the configuration for each figure. 
 
-#### Loading different kernel configurations (12 compute-mins)
+#### Loading different kernel configurations (12 reboo mins)
 Assuming the kernels have already been compiled with the names in [Getting Started Guide](https://github.com/host-architecture/Fast-and-Safe-IO-Memory-Protection/tree/artifact_eval#2-getting-started-guide), the following instructions show how to setup each configuration.
+
+To further simplify setup for artifact evaluators, we have provided pre-made grub files for each configuration.
 
 **Linux (IOMMU Off):**
 
-Edit `/etc/default/grub` to boot with Linux 6.0.3 as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3+ version. For example:
-```bash
-#GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
-GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3+"
-#GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
+Copy the Linux with IOMMU Off grub file to the default grub file: 
 ```
-At the bottom of the `/etc/default/grub` file, make sure the default kernel command line disables IOMMU. For example:
-```bash
-#GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=on iommu.strict=1"
-GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=off"
+sudo cp /etc/default/grub_linux_off /etc/default/grub
+sudo update-grub2
 ```
-Reboot the machine and confirm that the correct kernel is being used and that the IOMMU is disabled
+Reboot the machine and confirm that the correct kernel (6.0.3+) is being used and that the IOMMU is disabled
 ```bash
 uname -r
 dmesg | grep -i "iommu"
 ```
 **Linux + IOMMU On:**
 
-Edit `/etc/default/grub` to boot with Linux 6.0.3 as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3+ version. For example:
-```bash
-#GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
-GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3+"
-#GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
+Copy the Linux with IOMMU On grub file to the default grub file: 
 ```
-At the bottom of the `/etc/default/grub` file, make sure the kernel command line enables the IOMMU in strict mode:
-```bash
-GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=on iommu.strict=1"
-#GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=off"
+sudo cp /etc/default/grub_linux_on /etc/default/grub
+sudo update-grub2
 ```
-Reboot the machine and confirm that the correct kernel is being used and that the IOMMU is enabled in strict mode
+Reboot the machine and confirm that the correct kernel (6.0.3+) is being used and that the IOMMU is disabled
 ```bash
 uname -r
 dmesg | grep -i "iommu"
 ```
+
 **Linux + IOMMU On + F&S:**
 
-Edit `/etc/default/grub` to boot with Linux 6.0.3 + F&S as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3fands+ version. For example:
-```bash
-#GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
-GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3fands+"
-#GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
+Copy the Linux with IOMMU On grub file to the default grub file: 
 ```
-At the bottom of the `/etc/default/grub` file, make sure the kernel command line enables the IOMMU in strict mode:
-```bash
-GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=on iommu.strict=1"
-#GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=off"
+sudo cp /etc/default/grub_linux_fs /etc/default/grub
+sudo update-grub2
 ```
-Reboot the machine and confirm that the correct kernel is being used and that the IOMMU is enabled in strict mode
+Reboot the machine and confirm that the correct kernel (6.0.3fands+) is being used and that the IOMMU is disabled
 ```bash
 uname -r
 dmesg | grep -i "iommu"
@@ -142,22 +127,17 @@ Linux + hostCC + F&S (green bar) **[Linux + IOMMU On + F&S]**
 ### Figure 9 - F&S Performance Breakdown (10 reboot-min + 20 compute-mins)
 For this experiment, we provide an additional kernel that only implements one of the F&S key ideas: preserving page table caches during IOTLB invalidations. Please follow these instructions to boot into it:
 
-Edit `/etc/default/grub` to boot with Linux 6.0.3 + Preserve as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3preserve+ version. For example:
-```bash
-#GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
-GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3preserve+"
-#GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
+Copy the Linux with IOMMU cache preservation grub file to the default grub file: 
 ```
-At the bottom of the `/etc/default/grub` file, make sure the kernel command line enables the IOMMU in strict mode:
-```bash
-GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=on iommu.strict=1"
-#GRUB_CMDLINE_LINUX_DEFAULT="intel_iommu=off"
+sudo cp /etc/default/grub_linux_preserve /etc/default/grub
+sudo update-grub2
 ```
-Reboot the machine and confirm that the correct kernel is being used and that the IOMMU is enabled in strict mode
+Reboot the machine and confirm that the correct kernel (6.0.3preserve+) is being used and that the IOMMU is disabled
 ```bash
 uname -r
 dmesg | grep -i "iommu"
 ```
+
 Run the experiment with the updated kernel:
 ```bash
 ./ringbuffer_exp.sh
