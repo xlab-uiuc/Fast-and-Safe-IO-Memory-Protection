@@ -55,10 +55,10 @@ dmesg | grep -i "iommu"
 ```
 **Linux + IOMMU On + F&S:**
 
-Edit `/etc/default/grub` to boot with Linux 6.0.3 + F&S as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3sol+ version. For example:
+Edit `/etc/default/grub` to boot with Linux 6.0.3 + F&S as default. Comment all `GRUB_DEFAULT=` lines except for the 6.0.3fands+ version. For example:
 ```bash
 #GRUB_DEFAULT="1>Ubuntu, with Linux 3.4.5"
-GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3sol+"
+GRUB_DEFAULT="1>Ubuntu, with Linux 6.0.3fands+"
 #GRUB_DEFAULT="1>Ubuntu, with Linux 5.4.3"
 ```
 At the bottom of the `/etc/default/grub` file, make sure the kernel command line enables the IOMMU in strict mode:
