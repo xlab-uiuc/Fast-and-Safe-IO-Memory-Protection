@@ -14,7 +14,7 @@ We run Ubuntu 20.04 (LTS) with Linux kernel v6.0.3.
 
 Many experiments require the same scripts to be run with different kernels and IOMMU configurations: Linux, Linux + IOMMU On, Linux + IOMMU On + F&S. We have included which configurations are required for each figure (e.g. **[Linux, Linux + IOMMU On]** or **[Linux, Linux + IOMMU On, Linux + IOMMU On + F&S]**). Instructions for booting into the correct kernel configuration are below. To save time, we recommend running all the scripts before changing the configuration and then running them all again rather than changing the configuration for each figure. 
 
-#### Loading different kernel configurations (12 reboo mins)
+#### Loading different kernel configurations (12 reboot mins)
 Assuming the kernels have already been compiled with the names in [Getting Started Guide](https://github.com/host-architecture/Fast-and-Safe-IO-Memory-Protection/tree/artifact_eval#2-getting-started-guide), the following instructions show how to setup each configuration.
 
 To further simplify setup for artifact evaluators, we have provided pre-made grub files for each configuration.

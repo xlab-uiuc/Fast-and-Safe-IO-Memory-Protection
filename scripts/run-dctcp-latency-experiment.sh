@@ -162,6 +162,7 @@ function cleanup() {
     sshpass -p $password ssh $uname@$addr 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
     sshpass -p $password ssh $uname@$addr 'screen -wipe'
     sshpass -p $password ssh $uname@$addr 'sudo pkill -9 -f iperf'
+    sudo bash /home/benny/restart.sh
 }
 
 
