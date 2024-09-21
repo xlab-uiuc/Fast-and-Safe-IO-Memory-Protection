@@ -121,7 +121,7 @@ for i in range(NUM_RUNS):
 
 
 net_tput_mean = statistics.mean(net_tputs)
-retx_rate_mean = statistics.mean(retx_rates)
+retx_rate_mean = statistics.mean(retx_rates) if retx_rates else 0
 sent_packets_mean = statistics.mean(sent_packets)
 mem_bw_mean = statistics.mean(mem_bws)
 pcie_wr_tput_mean = statistics.mean(pcie_wr_tput)

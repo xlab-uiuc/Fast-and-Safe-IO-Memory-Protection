@@ -154,10 +154,10 @@ fi
 cd $home/ddio-bench/
 if [ "$ddio" = 1 ]; then
     echo "Enabling DDIO..."
-    ./change-ddio-on
+    sudo ./change-ddio-on
 else
     echo "Disabling DDIO..."
-    ./change-ddio-off
+    sudo ./change-ddio-off
 fi
 cd -
 

@@ -243,6 +243,7 @@ echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
+sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
 sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
 
 sleep $(($dur * 2))
@@ -295,7 +296,7 @@ fi
 if [ "$mlc_cores" = "none" ]; then
     sudo python3 collect-tput-stats.py $exp $num_runs 0
 else
-    sudo python3 collect-tput-stats.py $exp $num_runs 1
+    sudo python3 collect-tput-stats.py $exp $num_runs 0 #TODO: Change back to 1
 fi
 
 

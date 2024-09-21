@@ -197,6 +197,8 @@ sudo bash /home/benny/restart.sh
 #### start MLC
 sudo bash ../utils/set_mba_levels.sh
 cd /home/benny/hostCC/src
+sudo rm hostcc-module.ko
+sudo make
 if [ "$mlc_cores" = "none" ]; then
     echo "No MLC instance used..."
     echo "sudo insmod hostcc-module.ko mode=0 target_iio_wr_thresh=70 target_pcie_thresh=84"

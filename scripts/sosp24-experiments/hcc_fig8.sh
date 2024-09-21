@@ -1,6 +1,7 @@
 # same 3 experiments of MLC increase bandwidth contention
 # need to be careful how I present breakdown of the 3 configurations:
 # IOMMU Off (top plot), Linux + IOMMU On (bottom), Linux + IOMMU On + F&S (bottom)
+./clean_logs.sh
 cd ..
 
 echo "Running hostcc mlc0 experiment... this may take a few minutes"

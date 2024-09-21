@@ -15,7 +15,7 @@ os.chdir(script_dir)
 exp_name = sys.argv[1]
 metrics_arg = sys.argv[2]
 metrics = metrics_arg.split(",")
-metrics = map(str.lower, metrics)
+metrics = list(map(str.lower, metrics))
 
 # Combine the base path with the filename
 full_path = os.path.join("../utils/reports/", exp_name, "tput_metrics.dat")
@@ -38,6 +38,7 @@ def misses_per_page(misses, tput_mean):
 tput = results['net_tput_mean']
 sent_packets = results['sent_packets_mean']/20
 drop_rate = results["retx_rate_mean"]
+cpu = results["cpu_utils_mean"]
 
 acks_page = misses_per_page(sent_packets, tput)
 iotlb_miss_page = misses_per_page(results['iotlb_misses_mean'], tput)
@@ -47,16 +48,38 @@ l3_miss_page = misses_per_page(results['l3_misses_mean'], tput)
 
 print(f"------- {exp_name} Run Metrics -------")
 
-if "tput" in metrics:
+if "tput" in metrics or "all" in metrics:
     print(f"Throughput: {tput}")
-if "drops" in metrics:
+if "cpu" in metrics or "all" in metrics:
+    print(f"CPU Util: {cpu}")
+if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {drop_rate}")
-if "acks" in metrics:
+if "acks" in metrics or "all" in metrics:
     print(f"Acks per page: {acks_page}")
-if "iommu" in metrics:
+if "iommu" in metrics or "all" in metrics:
     print(f"Misses per page:")
     print(f"\tIOTLB: {iotlb_miss_page}")
     print(f"\tL1: {l1_miss_page}")
     print(f"\tL2: {l2_miss_page}")
     print(f"\tL3: {l3_miss_page}")
+
+if (not results['net_tput_stddev']):
+    print("")
+    exit()
+
+print(f"------- {exp_name} Run Metrics stddev -------")
+if "tput" in metrics or "all" in metrics:
+    print(f"Throughput: {results['net_tput_stddev']}")
+if "cpu" in metrics or "all" in metrics:
+    print(f"CPU Util: {results['cpu_utils_stddev']}")
+if "drops" in metrics or "all" in metrics:
+    print(f"Drop rate: {results['retx_rate_stddev']}")
+if "acks" in metrics or "all" in metrics:
+    print(f"Acks per page: {misses_per_page(results['sent_packets_stddev'], tput)}")
+if "iommu" in metrics or "all" in metrics:
+    print(f"Misses per page:")
+    print(f"\tIOTLB: {misses_per_page(results['iotlb_misses_stddev'],tput)}")
+    print(f"\tL1: {misses_per_page(results['l1_misses_stddev'],tput)}")
+    print(f"\tL2: {misses_per_page(results['l2_misses_stddev'],tput)}")
+    print(f"\tL3: {misses_per_page(results['l3_misses_stddev'],tput)}")
 print("")
