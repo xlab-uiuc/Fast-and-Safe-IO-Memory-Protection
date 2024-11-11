@@ -227,7 +227,7 @@ index 17dd683b2..5364cd288 100644
  	if (*handle == DMA_MAPPING_ERROR) {
  		__iommu_dma_free(dev, size, cpu_addr);
 diff --git a/drivers/iommu/intel/dmar.c b/drivers/iommu/intel/dmar.c
-index 5a8f780e7..9e4b95e8b 100644
+index 5a8f780e7..d0d0b55c7 100644
 --- a/drivers/iommu/intel/dmar.c
 +++ b/drivers/iommu/intel/dmar.c
 @@ -1470,7 +1470,7 @@ void qi_flush_iotlb(struct intel_iommu *iommu, u16 did, u64 addr,
@@ -235,12 +235,12 @@ index 5a8f780e7..9e4b95e8b 100644
  
  	struct qi_desc desc;
 -	int ih = 0;
-+	int ih = 1;
++	int ih = (addr & (1ULL << 6)) ? 1 : 0; //get ih from the address passed in
  
  	if (cap_write_drain(iommu->cap))
  		dw = 1;
 diff --git a/drivers/iommu/intel/iommu.c b/drivers/iommu/intel/iommu.c
-index 31bc50e53..79297217f 100644
+index 31bc50e53..fec72297d 100644
 --- a/drivers/iommu/intel/iommu.c
 +++ b/drivers/iommu/intel/iommu.c
 @@ -2477,12 +2477,15 @@ static int domain_add_dev_info(struct dmar_domain *domain, struct device *dev)
@@ -260,15 +260,6 @@ index 31bc50e53..79297217f 100644
  		if (ret) {
  			dev_err(dev, "Setup RID2PASID failed\n");
  			dmar_remove_one_dev_info(dev);
-@@ -4359,7 +4362,7 @@ static void intel_iommu_tlb_sync(struct iommu_domain *domain,
- 	xa_for_each(&dmar_domain->iommu_array, i, info)
- 		iommu_flush_iotlb_psi(info->iommu, dmar_domain,
- 				      start_pfn, nrpages,
--				      list_empty(&gather->freelist), 0);
-+				      1, 0);
- 
- 	put_pages_list(&gather->freelist);
- }
 diff --git a/drivers/iommu/iommu.c b/drivers/iommu/iommu.c
 index 3a808146b..76d48870d 100644
 --- a/drivers/iommu/iommu.c
@@ -462,7 +453,7 @@ index 02eb2f0fa..9108334de 100644
  
  	xdp_rxq_info_unreg(&rq->xdp_rxq);
 diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
-index 24de37b79..0cff6d339 100644
+index 24de37b79..bab114f3c 100644
 --- a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
 +++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
 @@ -35,6 +35,8 @@
@@ -570,9 +561,9 @@ index 24de37b79..0cff6d339 100644
 -			mlx5e_page_release(rq, &dma_info[i], recycle);
 +	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++) {
 +		if (no_xdp_xmit || !test_bit(i, wi->xdp_xmit_bitmap)) { 
-+			WARN_ON(!dma_info[i].batch_iova);
++			//WARN_ON(!dma_info[i].batch_iova);
 +		//	if (dma_info[i].batch_iova) {
-+			if (true) {
++			if (device_iommu_mapped(rq->pdev)) {
 +				//printk("debug: yes_batch, iova_size: %lu, iova: %llu, addr: %llu", dma_info[i].iova_size,dma_info[i].iova,dma_info[i].addr);
 +				dma_info[i].iova_size = 4096 * 64;
 +				dma_info[i].batch_iova = true;
@@ -622,7 +613,7 @@ index 24de37b79..0cff6d339 100644
  	struct mlx5_wq_cyc *wq = &sq->wq;
  	struct mlx5e_umr_wqe *umr_wqe;
 +	unsigned long iova_allocation_size;
-+	bool batch_iova;
++	bool fands;
 +	dma_addr_t iova_base;
 +	dma_addr_t iova;
  	u16 pi;
@@ -640,11 +631,11 @@ index 24de37b79..0cff6d339 100644
  
 +	/* Batch IOVA allocation changes */
 +	iova_allocation_size = 4096 * MLX5_MPWRQ_PAGES_PER_WQE;
-+	batch_iova = true;
++	fands = device_iommu_mapped(rq->pdev);
 +
 +	iova_base = 0;
 +	iova = 0;
-+	if (batch_iova) {
++	if (fands) {
 +		iova_base = iommu_dma_alloc_iova(iommu_get_dma_domain(rq->pdev), iova_allocation_size, dma_get_mask(rq->pdev), rq->pdev);
 +		WARN_ON(!iova_base);
 +	}
@@ -652,11 +643,11 @@ index 24de37b79..0cff6d339 100644
 +	/* End of Batch IOVA allocation changes*/
 +
  	for (i = 0; i < MLX5_MPWRQ_PAGES_PER_WQE; i++, dma_info++) {
-+		dma_info->batch_iova = batch_iova;
++		dma_info->batch_iova = fands;
 +		dma_info->iova = 0;
 +		dma_info->iova_size = 0;
 +		dma_info->first_iova = false;
-+		if (batch_iova) {
++		if (fands) {
 +			iova = iova_base + (i * 4096);
 +			//printk("DEBUG: alloc page with iova %llu, cpu: %d", iova, smp_processor_id());
 +			dma_info->iova = iova;
