@@ -55,6 +55,11 @@ install_netperf () {
     cd netperf
     cp $home/Fast-and-Safe-IO-Memory-Protection/utils/tcp/netperf-logging.diff .
     git apply netperf-logging.diff
+
+    ./autogen.sh
+    ./configure
+    sudo apt install texinfo
+    
     make CFLAGS=-fcommon
     sudo make install
 }
@@ -65,7 +70,7 @@ cd $home
 git clone https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021
 git clone https://github.com/aliireza/ddio-bench.git
 
-sudo utils/setup-envir.sh --home /users/schai \
+sudo utils/setup-envir.sh --home $home \
     --intf enp202s0f0np0 \
     --addr 10.10.1.2
 
