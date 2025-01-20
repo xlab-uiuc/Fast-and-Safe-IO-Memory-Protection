@@ -53,7 +53,7 @@ install_netperf () {
     cd $home
     git clone https://github.com/HewlettPackard/netperf.git
     cd netperf
-    cp ~/Fast-and-Safe-IO-Memory-Protection/utils/tcp/netperf-logging.diff .
+    cp $home/Fast-and-Safe-IO-Memory-Protection/utils/tcp/netperf-logging.diff .
     git apply netperf-logging.diff
     make CFLAGS=-fcommon
     sudo make install
