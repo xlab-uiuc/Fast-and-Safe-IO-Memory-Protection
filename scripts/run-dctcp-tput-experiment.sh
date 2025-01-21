@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# set -x
 help()
 {
     echo "Usage: run-rdma-tput-experiment
@@ -52,11 +53,8 @@ mlc_dur=100
 ring_buffer=256
 buf=1
 bandwidth="100g"
-num_runs=1
+num_runs=5
 home="/home/benny"
-setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
-exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
-mlc_dir=$home/mlc/Linux
 
 #echo -n "Enter SSH Username for client:"
 #read uname
@@ -64,10 +62,11 @@ mlc_dir=$home/mlc/Linux
 #read addr
 #echo -n "Enter SSH Password for client:"
 #read -s password
-uname=benny
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
-password=benny
+
+uname=schai
+# addr=192.168.11.117
+ssh_hostname=clnode275.clemson.cloudlab.us
+# password=benny
 
 
 while :
@@ -147,6 +146,10 @@ do
   esac
 done
 
+setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+mlc_dir=$home/mlc/Linux
+
 
 # Function to display the progress bar
 function progress_bar() {
@@ -169,20 +172,26 @@ function cleanup() {
     sudo pkill -9 -f iperf
     rm -f $home/hostCC/utils/out.perf-folded
     rm -f $home/hostCC/utils/perf.data
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -wipe'
-    sshpass -p $password ssh $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
+    # sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
+    # sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
+    # sshpass -p $password ssh $uname@$ssh_hostname 'screen -wipe'
+    # sshpass -p $password ssh $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
+    
+    ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
+    ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
+    ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'screen -wipe'
+    ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
+    
     ## IOVA logging
-    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo 5000 > /sys/kernel/debug/tracing/buffer_size_kb
+    sudo bash -c "echo 0 > /sys/kernel/debug/tracing/tracing_on"
+    sudo bash -c "echo 0 > /sys/kernel/debug/tracing/options/overwrite"
+    sudo bash -c "echo 5000 > /sys/kernel/debug/tracing/buffer_size_kb"
     # reset interface
     sudo ip link set $server_intf down
     sleep 2
     sudo ip link set $server_intf up
     sleep 2
-    sudo bash /home/benny/restart.sh
+    # sudo bash /home/benny/restart.sh
 }
 
 
@@ -207,9 +216,9 @@ fi
 
 #### setup and start servers
 echo "setting up server config..."
-sudo bash /home/benny/restart.sh
+# sudo bash /home/benny/restart.sh
 cd $setup_dir
-sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1
+sudo bash setup-envir.sh --home $home -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1 
 cd -
 
 echo "starting server instances..."
@@ -219,12 +228,15 @@ sleep 2
 cd -
 
 echo "turning on IOVA logging via ftrace"
-sudo echo > /sys/kernel/debug/tracing/trace
-sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
+sudo bash -c "echo > /sys/kernel/debug/tracing/trace"
+sudo bash -c "echo 1 > /sys/kernel/debug/tracing/tracing_on"
 
 #### setup and start clients
 echo "setting up and starting clients..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+# sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh --home '$home' -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+
+
 
 #### warmup
 echo "warming up..."
@@ -233,18 +245,26 @@ progress_bar 10 1
 #record stats
 ##start sender side logging
 echo "starting logging at client..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+# sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh --home '$home' -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+
 
 ##start receiver side logging
 echo "starting logging at server..."
 cd $setup_dir
-sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
+sudo bash record-host-metrics.sh --home $home -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
 echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
-sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
-sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+# sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
+# sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+
+# TODO confirm on why we need to reset /dev/null
+ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
+sudo chmod +666 -R $setup_dir
+scp -i $home/.ssh/id_rsa $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+
 
 sleep $(($dur * 2))
 
@@ -293,6 +313,7 @@ else
 fi
 
 #collect info from all runs
+cd scripts
 if [ "$mlc_cores" = "none" ]; then
     sudo python3 collect-tput-stats.py $exp $num_runs 0
 else

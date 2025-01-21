@@ -149,21 +149,26 @@ function dump_netstat() {
 }
 
 function dump_pciebw() {
-    modprobe msr
-    sudo taskset -c 31 $home/pcm/build/bin/pcm-iio 1 -csv=logs/$outdir/pcie.csv &
+    sudo modprobe msr
+    # sudo taskset -c 31 $home/pcm/build/bin/pcm-iio 1 -csv=logs/$outdir/pcie.csv &
+    cd $home/pcm/build/bin/
+    sudo taskset -c 31 ./pcm-iio 1 -csv=$home/Fast-and-Safe-IO-Memory-Protection/utils/logs/$outdir/pcie.csv &
+    cd -
 }
 
 function parse_pciebw() {
     #TODO: make more general, parse PCIe bandwidth for any given socket and IIO stack
-    echo "PCIe_wr_tput: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $4/1000000000.0; n++ } END { if (n > 0) printf "%.3f", sum / n * 8 ; }') > reports/$outdir/pcie.rpt
-    echo "PCIe_rd_tput: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $5/1000000000.0; n++ } END { if (n > 0) printf "%0.3f", sum / n * 8 ; }') >> reports/$outdir/pcie.rpt
-    echo "IOTLB_hits: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $8; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "IOTLB_misses: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $9; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "CTXT_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $10; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "L1_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $11; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "L2_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $12; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "L3_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $13; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
-    echo "Mem_Read: " $(cat logs/$outdir/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $14; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+
+    # Socket1,IIO Stack 3 - PCIe2,Part0
+    echo "PCIe_wr_tput: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $4/1000000000.0; n++ } END { if (n > 0) printf "%.3f", sum / n * 8 ; }') > reports/$outdir/pcie.rpt
+    echo "PCIe_rd_tput: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $5/1000000000.0; n++ } END { if (n > 0) printf "%0.3f", sum / n * 8 ; }') >> reports/$outdir/pcie.rpt
+    echo "IOTLB_hits: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $8; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "IOTLB_misses: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $9; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "CTXT_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $10; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "L1_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $11; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "L2_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $12; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "L3_Miss: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $13; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
+    echo "Mem_Read: " $(cat logs/$outdir/pcie.csv | grep "Socket1,IIO Stack 3 - PCIe2,Part0" | awk -F ',' '{ sum += $14; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$outdir/pcie.rpt
 }
 
 function dump_membw() {
@@ -314,7 +319,7 @@ then
     echo "Collecting IIO occupancy..."
     # gcc collect_iio_occ.c -o collect_iio_occ
     compile_if_needed collect_iio_occ.c collect_iio_occ
-    taskset -c 28 ./collect_iio_occ &
+    sudo taskset -c 28 ./collect_iio_occ &
     sleep 5
     sudo pkill -2 -f collect_iio_occ
     sleep 5
