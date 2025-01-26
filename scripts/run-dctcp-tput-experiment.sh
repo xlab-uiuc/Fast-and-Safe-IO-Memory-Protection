@@ -12,6 +12,7 @@ help()
                [ --client_intf (interface name for the client, for eg., ens2f0)]
                [ --num_clients (number of clients)]
                [ -E | --exp (experiment name, this name will be used to create output directories; default='rdma-test')]
+               [ --num_runs (number of runs)]
                [ -M | --MTU (=256/512/1024/2048/4096; MTU size used;default=4096) ]
                [ -d | --ddio (=0/1, whether DDIO is disabled or enabled) ]
                [ -c | --cpu_mask (comma separated CPU mask to run the app on, recommended to run on NUMA node local to the NIC for maximum performance; default=0) ]
@@ -24,7 +25,7 @@ help()
 }
 
 SHORT=H:,S:,C:,E:,M:,d:,c:,b:,h
-LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
+LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,num_runs:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
 OPTS=$(getopt -a -n run-rdma-tput-experiment --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -78,6 +79,10 @@ do
       ;;
     -E | --exp )
       exp="$2"
+      shift 2
+      ;;
+    --num_runs )
+      num_runs="$2"
       shift 2
       ;;
     -S | --server )
@@ -320,4 +325,16 @@ else
     sudo python3 collect-tput-stats.py $exp $num_runs 0 #TODO: Change back to 1
 fi
 
+cd -
+
+config_path="utils/reports/$exp/configs"
+
+echo "server cmdline" > $config_path
+cat /proc/cmdline >> $config_path
+echo "client cmdline" >> $config_path
+ssh -i $home/.ssh/id_rsa $uname@$ssh_hostname "cat /proc/cmdline" >> $config_path
+
+
+echo "Results saved in utils/reports/$exp/tput_metrics.dat"
+echo "Configs saved in utils/reports/$exp/configs"
 
