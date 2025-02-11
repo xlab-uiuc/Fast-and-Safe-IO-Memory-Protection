@@ -38,8 +38,8 @@ eval set -- "$OPTS"
 exp="benny-test"
 server="192.168.11.116"
 client="192.168.11.117"
-server_intf="ens2f1np1"
-client_intf="ens2f1"
+server_intf="ens2f0np0"
+client_intf="ens2f0"
 num_servers=5
 num_clients=5
 init_port=3000
@@ -182,7 +182,7 @@ function cleanup() {
     sleep 2
     sudo ip link set $server_intf up
     sleep 2
-    sudo bash /home/benny/restart.sh
+#     sudo bash /home/benny/restart.sh
 }
 
 
@@ -207,7 +207,7 @@ fi
 
 #### setup and start servers
 echo "setting up server config..."
-sudo bash /home/benny/restart.sh
+# sudo bash /home/benny/restart.sh
 cd $setup_dir
 sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1
 cd -
@@ -243,7 +243,7 @@ echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
-sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
+# sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
 sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
 
 sleep $(($dur * 2))
