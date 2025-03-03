@@ -22,18 +22,18 @@ OPTS=$(getopt -a -n setup-envir --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
 
-#if [ "$VALID_ARGUMENTS" -eq 0 ]; then
-#  help
-#fi
+if [ "$VALID_ARGUMENTS" -eq 0 ]; then
+  help
+fi
 
-#eval set -- "$OPTS"
+eval set -- "$OPTS"
 
 #default values
 home='/home/schai'
 mtu=4000
 ddio=1
 intf="enp8s0"
-addr="192.168.11.126"
+addr="192.168.11.127"
 opt=1
 buf=1
 ecn=1
@@ -44,6 +44,70 @@ ring_buffer=1024
 
 
 
+while :
+do
+  case "$1" in
+     -H | --home )
+      home="$2"
+      shift 2
+      ;;
+    -m | --mtu )
+      mtu="$2"
+      shift 2
+      ;;
+    -d | --ddio )
+      ddio="$2"
+      shift 2
+      ;;
+    -i | --intf )
+      intf="$2"
+      shift 2
+      ;;
+    -a | --addr )
+      addr="$2"
+      shift 2
+      ;;
+    -o | --opt )
+      opt="$2"
+      shift 2
+      ;;
+    -b | --buf )
+      buf="$2"
+      shift 2
+      ;;
+    -e | --ecn )
+      ecn="$2"
+      shift 2
+      ;;
+    -f | --hwpref )
+      hwpref="$2"
+      shift 2
+      ;;
+    -p | --pfc )
+      pfc="$2"
+      shift 2
+      ;;
+    -r | --rdma )
+      rdma="$2"
+      shift 2
+      ;;
+    --ring_buffer )
+      ring_buffer="$2"
+      shift 2
+      ;; 
+    -h | --help)
+      help
+      ;;
+    --)
+      shift;
+      break
+      ;;
+    *)
+      echo "Unexpected option: $1"
+      help
+      ;;
+  esac
+done
 
 if [ "$rdma" = 1 ]
 then
@@ -87,15 +151,15 @@ fi
 
 
 #Enable/disable DDIO
-#cd $home/ddio-bench/
-#if [ "$ddio" = 1 ]; then
-#    echo "Enabling DDIO..."
-#    sudo ./change-ddio-on
-#else
-#    echo "Disabling DDIO..."
-#    sudo ./change-ddio-off
-#fi
-#cd -
+cd $home/ddio-bench/
+if [ "$ddio" = 1 ]; then
+    echo "Enabling DDIO..."
+    sudo ./change-ddio-on
+else
+    echo "Disabling DDIO..."
+    sudo ./change-ddio-off
+fi
+cd -
 
 
 #Enable prefetching

@@ -32,7 +32,7 @@ fi
 eval set -- "$OPTS"
 
 #default values
-home='/home/benny'
+home='/home/schai'
 outdir='test'
 dur=30
 type=1
@@ -46,7 +46,7 @@ pcie=1
 membw=1
 iio=0
 pfc=0
-intf=ens2f0
+intf=enp8s0
 
 cur_dir=$PWD
 
@@ -150,7 +150,7 @@ function dump_netstat() {
 
 function dump_pciebw() {
     modprobe msr
-    sudo taskset -c 31 $home/pcm/build/bin/pcm-iio 1 -csv=logs/$outdir/pcie.csv &
+    sudo taskset -c 15 $home/pcm/build/bin/pcm-iio 1 -csv=logs/$outdir/pcie.csv &
 }
 
 function parse_pciebw() {
@@ -168,7 +168,7 @@ function parse_pciebw() {
 
 function dump_membw() {
     modprobe msr
-    sudo taskset -c 31 $home/pcm/build/bin/pcm-memory 1 -columns=5
+    sudo taskset -c 15 $home/pcm/build/bin/pcm-memory 1 -columns=5
 }
 
 function parse_membw() {
@@ -314,7 +314,7 @@ then
     echo "Collecting IIO occupancy..."
     # gcc collect_iio_occ.c -o collect_iio_occ
     compile_if_needed collect_iio_occ.c collect_iio_occ
-    taskset -c 28 ./collect_iio_occ &
+    taskset -c 14 ./collect_iio_occ &
     sleep 5
     sudo pkill -2 -f collect_iio_occ
     sleep 5

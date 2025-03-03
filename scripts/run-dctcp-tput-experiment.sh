@@ -4,6 +4,7 @@ help()
 {
     echo "Usage: run-rdma-tput-experiment
                [ -H | --home (home directory)]
+	       [ -D | --home_client (home directory client)]
                [ -S | --server (ip address of the server)]
                [ --server_intf (interface name for the server, for eg., ens2f0)]
                [ --num_servers (number of servers)]
@@ -14,6 +15,7 @@ help()
                [ -M | --MTU (=256/512/1024/2048/4096; MTU size used;default=4096) ]
                [ -d | --ddio (=0/1, whether DDIO is disabled or enabled) ]
                [ -c | --cpu_mask (comma separated CPU mask to run the app on, recommended to run on NUMA node local to the NIC for maximum performance; default=0) ]
+	       [ -m | --cpu_mask_client (comma separated CPU mask to run the app on client, recommended to run on NUMA node local to the NIC for maximum performance; default=0) ]
                [ -b | --bandwidth (bandwidth to send at in bits/sec)]
                [ --mlc_cores (comma separated values for MLC cores, for eg., '1,2,3' for using cores 1,2 and 3. Use 'none' to skip running MLC.) ]
                [ --ring_buffer (size of NIC Rx buffer)]
@@ -22,8 +24,8 @@ help()
     exit 2
 }
 
-SHORT=H:,S:,C:,E:,M:,d:,c:,b:,h
-LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
+SHORT=H:,D:,S:,C:,E:,M:,d:,c:,m:,b:,h
+LONG=home:,home_client:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,cpu_mask_client:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
 OPTS=$(getopt -a -n run-rdma-tput-experiment --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -35,39 +37,44 @@ fi
 eval set -- "$OPTS"
 
 #default values
-exp="benny-test"
-server="192.168.11.116"
-client="192.168.11.117"
-server_intf="ens2f0np0"
-client_intf="ens2f0"
+exp="tput-test"
+server="192.168.11.127"
+client="192.168.11.125"
+server_intf="enp8s0"
+client_intf="ens2f1np1"
 num_servers=5
 num_clients=5
 init_port=3000
-ddio=0
+ddio=1
 mtu=4000
 dur=20
-cpu_mask="0,4,8,12,16"
+cpu_mask="0,1,2,3,4"
+cpu_mask_client="0,4,8,12,16"
 mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
 buf=1
 bandwidth="100g"
 num_runs=1
-home="/home/benny"
-setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
-exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+home="/home/schai"
+setup_dir=$home/viommu/utils #HARDCODED
+exp_dir=$home/viommu/utils/tcp #HARDCODED
 mlc_dir=$home/mlc/Linux
 
+home_client="/home/saksham"
+setup_dir_client=$home_client/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir_client=$home_client/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+mlc_dir_client=$home_client/mlc/Linux
 #echo -n "Enter SSH Username for client:"
 #read uname
 #echo -n "Enter SSH Address for client:"
 #read addr
 #echo -n "Enter SSH Password for client:"
 #read -s password
-uname=benny
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
-password=benny
+uname=saksham
+addr=192.168.11.125
+ssh_hostname=genie12.cs.cornell.edu
+password=saksham
 
 
 while :
@@ -75,6 +82,10 @@ do
   case "$1" in
     -H | --home )
       home="$2"
+      shift 2
+      ;;
+    -D | --home_client )
+      home_client="$2"
       shift 2
       ;;
     -E | --exp )
@@ -115,6 +126,10 @@ do
       ;;
     -c | --cpu_mask )
       cpu_mask="$2"
+      shift 2
+      ;;
+    -m | --cpu_mask_client )
+      cpu_mask_client="$2"
       shift 2
       ;;
     --mlc_cores )
@@ -209,7 +224,7 @@ fi
 echo "setting up server config..."
 # sudo bash /home/benny/restart.sh
 cd $setup_dir
-sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1
+sudo bash setup-envir-unmodified.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1
 cd -
 
 echo "starting server instances..."
@@ -224,7 +239,7 @@ sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
 
 #### setup and start clients
 echo "setting up and starting clients..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir_client'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir_client'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask_client' -b '$bandwidth'; exec bash"'
 
 #### warmup
 echo "warming up..."
@@ -233,7 +248,7 @@ progress_bar 10 1
 #record stats
 ##start sender side logging
 echo "starting logging at client..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir_client'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask_client' ; exec bash"'
 
 ##start receiver side logging
 echo "starting logging at server..."
@@ -244,7 +259,7 @@ cd -
 
 #transfer sender-side info back to receiver
 # sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
-sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+sshpass -p $password scp $uname@$ssh_hostname:$setup_dir_client/reports/$exp-RUN-$j/retx.rpt $setup_dir_client/reports/$exp-RUN-$j/retx.rpt
 
 sleep $(($dur * 2))
 
@@ -294,9 +309,7 @@ fi
 
 #collect info from all runs
 if [ "$mlc_cores" = "none" ]; then
-    sudo python3 collect-tput-stats.py $exp $num_runs 0
+    sudo python3 collect-vm-tput-stats.py $exp $num_runs 0
 else
-    sudo python3 collect-tput-stats.py $exp $num_runs 0 #TODO: Change back to 1
+    sudo python3 collect-vm-tput-stats.py $exp $num_runs 0 #TODO: Change back to 1
 fi
-
-

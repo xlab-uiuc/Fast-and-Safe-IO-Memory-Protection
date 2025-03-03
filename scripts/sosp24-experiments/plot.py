@@ -207,10 +207,10 @@ def plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, title_key
     )
 
 
-def plot_tput_f_and_s():
+def plot_tput_f_and_s(timestamp):
     x_labels =  ["05", "10", "20", "40"]
-    iommu_off_all_data = get_data(prefix="", iommu_str="iommu-off")
-    iommu_on_all_data = get_data(prefix="", iommu_str="iommu-on")
+    iommu_off_all_data = get_data(prefix=timestamp, iommu_str="iommu-off")
+    iommu_on_all_data = get_data(prefix=timestamp, iommu_str="iommu-on")
     
     plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, 'Fast-safe-setup')
     
@@ -243,10 +243,12 @@ def plot_ring_buf_exp():
     
     plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-ring-buffer')
 
-# plot_tput_f_and_s()
-# plot_tput_new_kernel()
-# plot_tput_new_ofed()
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python script.py <filename>")
+        sys.exit(1)
 
-# plot_tput_new_ofed2()
+    timestamp = sys.argv[1]
 
-plot_ring_buf_exp()
+    plot_tput_f_and_s(timestamp)
+    #plot_ring_buf_exp(timestamp)

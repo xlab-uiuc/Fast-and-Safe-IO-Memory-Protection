@@ -29,10 +29,11 @@ eval set -- "$OPTS"
 #default values
 mode="server"
 outdir="tcptest"
-addr="192.168.10.122"
-cores="4,8,12,16"
-num_servers=4
-num_clients=4
+addr="192.168.11.127"
+cores="0,1,2,3,4"
+cores_client="0,4,8,12,16"
+num_servers=5
+num_clients=5
 port=3000
 bandwidth="100g"
 
@@ -87,6 +88,7 @@ do
 done
 
 IFS=',' read -ra core_values <<< $cores
+IFS=',' read -ra core_values_client <<< $cores_client
 
 mkdir -p ../reports #Directory to store collected logs
 mkdir -p ../reports/$outdir #Directory to store collected logs
@@ -107,7 +109,7 @@ then
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
         echo "Starting server $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -s --port $(($port + $counter)) -i 30 -f m --logfile ../logs/$outdir/iperf.bw.log &
+        sudo taskset -c $core nice -n -20 iperf3 -s --port $(($port + $counter)) -i 30 -f m --logfile ../logs/$outdir/iperf.bw.log &
         ((counter++))
     done
     echo "waiting for few minutes before collecting stats..."
@@ -118,8 +120,8 @@ elif [ "$mode" = "client" ]
 then
     sudo pkill -9 -f iperf #kill existing iperf servers/clients
     while [ $counter -lt $num_clients ]; do
-        index=$(( counter % ${#core_values[@]} ))
-        core=${core_values[index]}
+        index=$(( counter % ${#core_values_client[@]} ))
+        core=${core_values_client[index]}
         echo "Starting client $counter on core $core"
         taskset -c $core nice -n -20 iperf3 -c $addr --port $(($port+$(($counter%$num_servers)))) -t 10000 -C dctcp -b $bandwidth &
         ((counter++))

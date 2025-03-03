@@ -1,151 +1,40 @@
 #!/bin/bash
 
-help()
-{
-    echo "Usage: run-rdma-tput-experiment
-               [ -H | --home (home directory)]
-               [ -S | --server (ip address of the server)]
-               [ --server_intf (interface name for the server, for eg., ens2f0)]
-               [ --num_servers (number of servers)]
-               [ -C | --client (ip address of the client)]
-               [ --client_intf (interface name for the client, for eg., ens2f0)]
-               [ --num_clients (number of clients)]
-               [ -E | --exp (experiment name, this name will be used to create output directories; default='rdma-test')]
-               [ -M | --MTU (=256/512/1024/2048/4096; MTU size used;default=4096) ]
-               [ -d | --ddio (=0/1, whether DDIO is disabled or enabled) ]
-               [ -c | --cpu_mask (comma separated CPU mask to run the app on, recommended to run on NUMA node local to the NIC for maximum performance; default=0) ]
-               [ -b | --bandwidth (bandwidth to send at in bits/sec)]
-               [ --mlc_cores (comma separated values for MLC cores, for eg., '1,2,3' for using cores 1,2 and 3. Use 'none' to skip running MLC.) ]
-               [ --ring_buffer (size of NIC Rx buffer)]
-               [ --buf (TCP socket buffer size (in MB))]
-               [ -h | --help  ]"
-    exit 2
-}
-
-SHORT=H:,S:,C:,E:,M:,d:,c:,b:,h
-LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
-OPTS=$(getopt -a -n run-rdma-tput-experiment --options $SHORT --longoptions $LONG -- "$@")
-
-VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
-
-if [ "$VALID_ARGUMENTS" -eq 0 ]; then
-  help
-fi
-
-eval set -- "$OPTS"
 
 #default values
 exp="benny-test"
-server="192.168.11.116"
-client="192.168.11.117"
-server_intf="ens2f1np1"
-client_intf="ens2f1"
+server="192.168.11.127"
+client="192.168.11.125"
+server_intf="enp8s0"
+client_intf="ens2f1np1"
 num_servers=5
 num_clients=5
 init_port=3000
 ddio=0
 mtu=4000
 dur=20
-cpu_mask="0,4,8,12,16"
+cpu_mask_server="0,1,2,3,4"
+cpu_mask_client="0,4,8,12,16"
 mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
 buf=1
 bandwidth="100g"
 num_runs=1
-home="/home/benny"
-setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
-exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+home="/home/schai"
+setup_dir=$home/viommu/utils
+exp_dir=$home/viommu/utils/tcp
 mlc_dir=$home/mlc/Linux
 
-#echo -n "Enter SSH Username for client:"
-#read uname
-#echo -n "Enter SSH Address for client:"
-#read addr
-#echo -n "Enter SSH Password for client:"
-#read -s password
-uname=benny
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
-password=benny
+home_client="/home/saksham"
+setup_dir_client=$home_client/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir_client=$home_client/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+mlc_dir_client=$home_client/mlc/Linux
 
-
-while :
-do
-  case "$1" in
-    -H | --home )
-      home="$2"
-      shift 2
-      ;;
-    -E | --exp )
-      exp="$2"
-      shift 2
-      ;;
-    -S | --server )
-      server="$2"
-      shift 2
-      ;;
-    --num_servers )
-      num_servers="$2"
-      shift 2
-      ;;
-     --server_intf )
-      server_intf="$2"
-      shift 2
-      ;;
-    -C | --client )
-      client="$2"
-      shift 2
-      ;;
-    --num_clients )
-      num_clients="$2"
-      shift 2
-      ;;
-     --client_intf )
-      client_intf="$2"
-      shift 2
-      ;;
-    -M | --MTU )
-      mtu="$2"
-      shift 2
-      ;;
-    -d | --ddio )
-      ddio="$2"
-      shift 2
-      ;;
-    -c | --cpu_mask )
-      cpu_mask="$2"
-      shift 2
-      ;;
-    --mlc_cores )
-      mlc_cores="$2"
-      shift 2
-      ;;
-    --ring_buffer )
-      ring_buffer="$2"
-      shift 2
-      ;;
-    --buf )
-      buf="$2"
-      shift 2
-      ;;
-    -b | --bandwidth )
-      bandwidth="$2"
-      shift 2
-      ;;
-    -h | --help)
-      help
-      ;;
-    --)
-      shift;
-      break
-      ;;
-    *)
-      echo "Unexpected option: $1"
-      help
-      ;;
-  esac
-done
+uname=saksham
+addr=192.168.11.125
+ssh_hostname=genie12.cs.cornell.edu
+password=saksham
 
 
 # Function to display the progress bar
