@@ -1,0 +1,9 @@
+function,count,total_duration_ns,mean_ns,variance_us
+iommu_map,187,885760,4736.68,1.00
+__iommu_map,3077,1804671,586.50,2.37
+intel_iommu_iotlb_sync_map,756,674235,891.85,6.98
+__iommu_unmap,629,517110,822.11,-0.22
+intel_iommu_tlb_sync,627,1296286,2067.44,-1.53
+qemu:address_space_rw,123,1098054,8927.27,13.23
+qemu:vtd_mem_write,6,320560,53426.67,-31.08
+qemu:vtd_iommu_translate,9,155994,17332.67,230.47

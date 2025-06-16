@@ -88,8 +88,8 @@ def plot_tput(iommu_off_data, iommu_on_data, x_labels, title):
     bar_width = 0.35
     # plt.plot(iommu_off_data, iommu_on_data)
     x = np.arange(len(x_labels))
-    plt.bar(x - bar_width/2, iommu_off_data, bar_width, label='IOMMU off')
-    plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='IOMMU on')
+    plt.bar(x - bar_width/2, iommu_off_data, bar_width, label='Guest IOMMU off')
+    plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='Guest IOMMU on')
 
     plt.xlabel("# of flows")
 
@@ -206,13 +206,21 @@ def plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, title_key
         title = title_key + '-misses'
     )
 
+def plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, title_key):
+    plot_tput(
+        iommu_off_data = [ r['net_tput_mean'] for r in iommu_off_all_data ],
+        iommu_on_data = [ r['net_tput_mean'] for r in iommu_on_all_data ],
+        x_labels = x_labels,
+        title = title_key + '-tput'
+    )
 
-def plot_tput_f_and_s(timestamp):
+
+def plot_tput_f_and_s():
     x_labels =  ["05", "10", "20", "40"]
-    iommu_off_all_data = get_data(prefix=timestamp, iommu_str="iommu-off")
-    iommu_on_all_data = get_data(prefix=timestamp, iommu_str="iommu-on")
+    iommu_off_all_data = get_data(prefix="10-07_03-03-6.12.9-vanilla-", iommu_str="iommu-on", suffix="-ofed24.10")
+    iommu_on_all_data = get_data(prefix="13-20_03-03-6.12.9-vanilla-", iommu_str="iommu-on-strict-strict",  suffix="-ofed24.10")
     
-    plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, 'Fast-safe-setup')
+    plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-strict')
     
 
 def plot_tput_new_kernel():
@@ -238,17 +246,10 @@ def plot_tput_new_ofed2():
 
 def plot_ring_buf_exp():
     x_labels =  ["256", "512", "1024", "2048"]
-    iommu_off_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-off")
-    iommu_on_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-on")
+    iommu_off_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-on")
+    iommu_on_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-on-strict-strict")
     
-    plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-ring-buffer')
+    plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-strict-ring-buffer')
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <filename>")
-        sys.exit(1)
-
-    timestamp = sys.argv[1]
-
-    plot_tput_f_and_s(timestamp)
-    #plot_ring_buf_exp(timestamp)
+plot_tput_f_and_s()
+plot_ring_buf_exp()

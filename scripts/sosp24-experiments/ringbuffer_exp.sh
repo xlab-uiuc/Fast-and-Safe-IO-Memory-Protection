@@ -5,9 +5,9 @@ echo "Running ring buffer 2048 experiment... this may take a few minutes"
 iommu_on=$(grep -o intel_iommu=on /proc/cmdline)
 iommu_config=""
 if [ -z $iommu_on ]; then
-    iommu_config="iommu-off-lazy"
+    iommu_config="iommu-off-strict-off"
 else
-    iommu_config="iommu-on-lazy"
+    iommu_config="iommu-on-strict-off"
 fi
 
 sudo ethtool --pause enp8s0 tx off rx off
