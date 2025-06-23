@@ -56,12 +56,19 @@ DEFAULT_CLIENT_CPU_MASK="0,4,8,12,16"
 DEFAULT_CLIENT_BANDWIDTH="100g"
 CLIENT_SSH_UNAME="Leshna"
 CLIENT_SSH_IP="128.110.220.127"
+CLIENT_SSH_HOSTNAME="genie12.cs.cornell.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_SSH_PASS=0 #set if want to use sshpass to login, else provide a valid identity file
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
 
 # --- Host Machine Configuration ---
 DEFAULT_HOST_HOME="/users/Leshna"
 DEFAULT_HOST_IP="192.168.122.1"
 DEFAULT_HOST_INTF="enp101s0f1np1"
 HOST_SSH_UNAME="Leshna"
+HOST_SSH_PASSWORD="saksham"
+HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+HOST_USE_SSH_PASS=0
 
 # --- Network & System Parameters ---
 DEFAULT_MTU=4000
@@ -194,6 +201,18 @@ ebpf_guest_loader="${guest_home}/viommu/tracing/guest_loader"
 ebpf_host_loader="${host_home}/viommu/iommu-vm/tracing/host_loader"
 profiling_logging_duration_s=$((core_duration_s))
 
+if [ "$CLIENT_USE_PASS_SSH" -eq 1 ]; then
+	ssh_client_cmd="sshpass -p $CLIENT_SSH_PASSWORD ssh $CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME"
+else
+	ssh_client_cmd="ssh -i $CLIENT_SSH_IDENTITY_FILE $CLIENT_SSH_UNAME@$CLIENT_SSH_IP"
+fi
+
+if [ "$HOST_USE_PASS_SSH" -eq 1 ]; then
+        ssh_host_cmd="sshpass -p $HOST_SSH_PASSWORD ssh $HOST_SSH_UNAME@$host_ip"
+else
+        ssh_host_cmd="ssh -i $HOST_SSH_IDENTITY_FILE $HOST_SSH_UNAME@$host_ip"
+fi
+
 log_info() {
     echo "[INFO] - $1"
 }
@@ -247,7 +266,7 @@ cleanup() {
     # sudo pkill -9 -f "$guest_perf_executable record"
 
     # log_info "Killing remote 'perf record' on HOST ($host_ip)..."
-    # sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    # $ssh_host_cmd \
       #  "sudo pkill -SIGINT -f '$host_perf_executable record'; sleep 1; sudo pkill -9 -f '$host_perf_executable record'"
 
     if [ "$ebpf_tracing_enabled" -eq 1 ]; then
@@ -258,7 +277,7 @@ cleanup() {
         host_loader_basename=$(basename "$ebpf_host_loader")
 	
 	sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
-        sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+        $ssh_host_cmd \
         "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
 	
 	sleep 5
@@ -266,13 +285,13 @@ cleanup() {
     fi
 
     log_info "Terminating screen sessions..."
-    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" \
+    $ssh_client_cmd \
         'screen -ls | grep -E "\.client_session|\.logging_session_client" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" \
+    $ssh_client_cmd \
         'sudo pkill -9 -f iperf; screen -wipe || true'
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_client_cmd \
 	'screen -ls | grep -E "\.host_session|\.perf_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_host_cmd \
         'screen -wipe || true'
 
     log_info "Resetting GUEST ftrace..."
@@ -281,7 +300,7 @@ cleanup() {
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
     log_info "Resetting HOST ftrace..."
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_host_cmd \
     "sudo bash -c 'echo 0 > /sys/kernel/debug/tracing/tracing_on; \
                     echo 0 > /sys/kernel/debug/tracing/options/overwrite; \
                     echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb'"
@@ -325,7 +344,7 @@ for ((j = 0; j < num_runs; j += 1)); do
 
 
     sudo mkdir -p "$current_guest_reports_dir"
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" "sudo mkdir -p '$host_reports_dir_remote'"
+    $ssh_host_cmd "sudo mkdir -p '$host_reports_dir_remote'"
 
 
     # --- Pre-run cleanup ---
@@ -350,7 +369,7 @@ for ((j = 0; j < num_runs; j += 1)); do
 
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $host_ip..."
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_host_cmd \
         "screen -dmS host_session sudo bash -c \"cd '$host_setup_utils_dir'; sudo bash setup-envir.sh -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
@@ -371,7 +390,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "GUEST IOVA ftrace is ON."
 
     log_info "Configuring HOST ftrace for IOVA logging on $host_ip..."
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_host_cmd \
     "sudo bash -c 'sudo echo '$FTRACE_BUFFER_SIZE_KB' > /sys/kernel/debug/tracing/buffer_size_kb; \
          sudo echo '$FTRACE_OVERWRITE_ON_FULL' > /sys/kernel/debug/tracing/options/overwrite; \
          sudo echo > /sys/kernel/debug/tracing/trace; \
@@ -384,7 +403,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOSTNAME..."
     client_cmd="cd '$client_setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client_ip' -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; "
     client_cmd+="cd '$client_exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server_ip' -C '$num_clients' -S '$num_servers' -o '${exp_name}-RUN-${j}' -p '$init_port' -c '$client_cpu_mask' -b '$client_bandwidth'; exec bash"
-    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    $ssh_client_cmd "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
     log_info "Warming up experiment (10 seconds)..."
@@ -396,7 +415,7 @@ for ((j = 0; j < num_runs; j += 1)); do
         sudo taskset -c 13 "$ebpf_guest_loader" -o "$ebpf_guest_stats" &
         log_info "Starting HOST eBPF tracer on $host_ip..."
         host_loader_cmd="sudo taskset -c 33 $ebpf_host_loader -o $ebpf_host_stats"
-        sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
+        $ssh_host_cmd "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
         sleep 2 # Allow eBPF loaders to initialize
     fi
 
@@ -405,15 +424,15 @@ for ((j = 0; j < num_runs; j += 1)); do
     # sudo "$guest_perf_executable" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$profiling_logging_duration_s" &
     # log_info "Starting HOST perf record (CPU profiling) on $host_ip..."
     # host_perf_cmd="cd '$host_exp_dir'; sudo '$host_perf_executable' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$profiling_logging_duration_s'; exec bash"
-    # sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    # $ssh_host_cmd "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOSTNAME..."
     client_logging_cmd="cd '$client_setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$core_duration_s' --cores '$client_cpu_mask'; exec bash"
-    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
+    $ssh_client_cmd "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $host_ip..."
     host_logging_cmd="cd '$host_exp_dir'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$core_duration_s'; exec bash"
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
+    $ssh_host_cmd "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$guest_setup_dir" || { log_error "Failed to cd to $guest_setup_dir"; exit 1; }
@@ -432,7 +451,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "GUEST IOVA ftrace data saved to $iova_ftrace_guest_output_file"
 
     log_info "Stopping and saving HOST IOVA ftrace data on $host_ip..."
-    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+    $ssh_host_cmd \
         "sudo bash -c 'sudo echo 0 > /sys/kernel/debug/tracing/tracing_on; \
          sudo cat /sys/kernel/debug/tracing/trace > '$iova_ftrace_host_output_file_remote'; \
          sudo echo > /sys/kernel/debug/tracing/trace'"
@@ -445,25 +464,25 @@ for ((j = 0; j < num_runs; j += 1)); do
         sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null && log_info "SIGINT sent to GUEST eBPF loader." || log_info "WARN: GUEST eBPF loader process not found or SIGINT failed."
         local host_loader_basename
         host_loader_basename=$(basename "$ebpf_host_loader")
-        sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" "sudo pkill -SIGINT -f '$host_loader_basename'"
+        $ssh_host_cmd "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
 
  
-    # --- Transfer Report Files from Remote Machines ---
+    # --- Transfer Report Files from Remote Machines --- TODO: FIX THESE
     log_info "Transferring report files from CLIENT and HOST..."
     # Client files
-    scp -i "$identity_file" \
+    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_IP}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
 
     # Host files
-    scp -i "$identity_file" \
+    scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
-    scp -i "$identity_file" \
+    scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-    scp -i "$identity_file" \
+    scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/membw.rpt" \
         "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     
