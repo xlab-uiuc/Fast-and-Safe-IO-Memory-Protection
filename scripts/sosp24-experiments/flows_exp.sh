@@ -3,9 +3,13 @@ cd ..
 
 echo "Running flow experiment... this may take a few minutes"
 
-client_intf="eno12409np1"
 server_intf="enp8s0np1"
-client_ip="128.110.220.127"
+server_ip="10.10.1.50"
+host_ip="192.168.122.1"
+host_intf="enp101s0f1np1"
+client_intf="eno12409np1"
+client_ip="10.10.1.2"
+client_ip_ssh="128.110.220.127"
 client_user="Leshna"
 
 
@@ -19,7 +23,7 @@ fi
 
 # pause the frame
 sudo ethtool --pause $server_intf tx off rx off
-ssh $client_user@$client_ip "sudo ethtool --pause $client_intf tx off rx off"
+ssh $client_user@$client_ip_ssh "sudo ethtool --pause $client_intf tx off rx off"
 
 sleep 1
 
@@ -29,8 +33,15 @@ for i in 5 ; do
     format_i=$(printf "%02d\n" $i)
     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}"
     echo $exp_name
-    sudo bash run-dctcp-tput-experiment.sh -E $exp_name -M 4000 --num_servers $i --num_clients $i -c "0,1,2,3,4" -m "4,8,12,16,20" --ring_buffer 256 --buf 1 --mlc_cores 'none' --bandwidth "100g" --server_intf $server_intf --client_intf $client_intf
-# > /dev/null 2>&1
+
+    sudo bash run-dctcp-tput-experiment.sh \
+    --server-home "/home/schai" --server-ip "$server_ip" --server-intf "$server_intf" -n "$i" -c "0,1,2,3,4" \
+    --client-home "/users/Leshna/" --client-ip "$client_ip" --client-intf "$client_intf" -N "$i" -C "4,8,12,16,20" \
+    --host-home "/users/Leshna" --host-ip "$host_ip_exp" --host-intf "$host_intf" \
+    -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1\
+    --socket-buf 1 --mlc-cores 'none'
+
+    # > /dev/null 2>&1
     #sudo bash run-dctcp-tput-experiment.sh -E $exp_name -M 4000 --num_servers $i --num_clients $i -c "4" -m "20" --ring_buffer 256 --buf 1 --mlc_cores 'none' --bandwidth "100g" --server_intf $server_intf --client_intf $client_intf    
     python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu
     echo $PWD

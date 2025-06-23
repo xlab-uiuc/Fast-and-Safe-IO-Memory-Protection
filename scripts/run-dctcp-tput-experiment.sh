@@ -1,119 +1,135 @@
 #!/bin/bash
 
+# Treat unset variables as an error when substituting.
+set -u
+
+#-------------------------------------------------------------------------------
+# CONFIGURATION AND PATHS
+#-------------------------------------------------------------------------------
 SCRIPT_NAME="run-rdma-tput-experiment"
-
-help() {
-    echo "Usage: $SCRIPT_NAME"
-    echo "    [ -H | --home (Guest home directory; default: /home/schai) ]"
-    echo "    [ -D | --home_client (Client home directory; default: /home/saksham) ]"
-    echo "    [ --home_host (Host home directory; default: /home/saksham) ]"
-    echo "    [ -S | --server (IP address of the server/guest; default: 192.168.11.127) ]"
-    echo "    [ --server_intf (Interface name for the server/guest; default: enp8s0) ]"
-    echo "    [ --num_servers (Number of server instances; default: 5) ]"
-    echo "    [ -C | --client (IP address of the client; default: 192.168.11.125) ]"
-    echo "    [ --client_intf (Interface name for the client; default: ens2f1np1) ]"
-    echo "    [ --num_clients (Number of client instances; default: 5) ]"
-    echo "    [ --host (IP address of the host; default: 192.168.123.1) ]"
-    echo "    [ --host_intf (Interface name for the host; default: enp101s0f1np1) ]"
-    echo "    [ -E | --exp (Experiment name for output directories; default: tput-test) ]"
-    echo "    [ -M | --MTU (MTU size: 256/512/1024/2048/4096; default: 4000) ]"
-    echo "    [ -d | --ddio (DDIO enabled: 0/1; default: 1) ]"
-    echo "    [ -c | --cpu_mask (Guest CPU mask, comma-separated; default: 0,1,2,3,4) ]"
-    echo "    [ -m | --cpu_mask_client (Client CPU mask, comma-separated; default: 0,4,8,12,16) ]"
-    echo "    [ -b | --bandwidth (Client bandwidth in bits/sec, e.g., 100g; default: 100g) ]"
-    echo "    [ --mlc_cores (MLC cores, comma-separated, 'none' to skip; default: none) ]"
-    echo "    [ --ring_buffer (NIC Rx ring buffer size; default: 256) ]"
-    echo "    [ --buf (TCP socket buffer size in MB; default: 1) ]"
-    echo "    [ --dur (Core experiment duration in seconds; default: 20) ]"
-    echo "    [ --num_runs (Number of experiment repetitions; default: 1) ]"
-    echo "    [ --ebpf_tracing (Enable eBPF tracing: 0/1; default: 0) ]"
-    echo "    [ -h | --help ]"
-    exit 2
-}
-
-#-------------------------------------------------------------------------------
-# DEFAULT CONFIGURATION AND PATHS
-#-------------------------------------------------------------------------------
-# --- Experiment Setup ---
-DEFAULT_EXP_NAME="tput-test"
-DEFAULT_NUM_RUNS=1
-DEFAULT_CORE_DURATION_S=20 # Duration for the main workload
-DEFAULT_INIT_PORT=3000
-
-# --- Guest (Server) Machine Configuration ---
-DEFAULT_GUEST_HOME="/home/schai"
-DEFAULT_GUEST_IP="10.10.1.50"
-DEFAULT_GUEST_INTF="enp8s0np1"
-DEFAULT_GUEST_NUM_SERVERS=5
-DEFAULT_GUEST_CPU_MASK="0,1,2,3,4"
-
-# --- Client Machine Configuration ---
-DEFAULT_CLIENT_HOME="/users/Leshna/"
-DEFAULT_CLIENT_IP="10.10.1.2"
-DEFAULT_CLIENT_INTF="eno12409np1"
-DEFAULT_CLIENT_NUM_CLIENTS=5
-DEFAULT_CLIENT_CPU_MASK="0,4,8,12,16"
-DEFAULT_CLIENT_BANDWIDTH="100g"
-CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_IP="128.110.220.127"
-CLIENT_SSH_HOSTNAME="genie12.cs.cornell.edu"
-CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_SSH_PASS=0 #set if want to use sshpass to login, else provide a valid identity file
-CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-
-# --- Host Machine Configuration ---
-DEFAULT_HOST_HOME="/users/Leshna"
-DEFAULT_HOST_IP="192.168.122.1"
-DEFAULT_HOST_INTF="enp101s0f1np1"
-HOST_SSH_UNAME="Leshna"
-HOST_SSH_PASSWORD="saksham"
-HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-HOST_USE_SSH_PASS=0
-
-# --- Network & System Parameters ---
-DEFAULT_MTU=4000
-DEFAULT_DDIO_ENABLED=1
-DEFAULT_RING_BUFFER_SIZE=256
-DEFAULT_TCP_SOCKET_BUF_MB=1
-
-# --- MLC (Memory Latency Checker) Configuration ---
-DEFAULT_MLC_CORES="none"
-DEFAULT_MLC_DURATION_S=100
+INIT_PORT=3000
+MLC_DURATION_S=100
 GUEST_MLC_DIR_REL="mlc/Linux"
 
-# Ftrace settings
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-GUEST_SETUP_DIR_REL="viommu/utils"
-GUEST_EXP_DIR_REL="$GUEST_SETUP_DIR_REL/tcp"
-CLIENT_SETUP_DIR_REL="Fast-and-Safe-IO-Memory-Protection/utils"
-CLIENT_EXP_DIR_REL="$CLIENT_SETUP_DIR_REL/tcp"
-HOST_EXP_DIR_REL="viommu"
-HOST_SETUP_UTILS_DIR_REL="Fast-and-Safe-IO-Memory-Protection/utils" # For setup-envir.sh on host
+GUEST_FandS_REL="viommu"
+GUEST_PERF_REL="linux-6.12.9/tools/perf/perf"
+CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
+HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
+HOST_VIOMMU_REL="viommu/iommu-vm"
+HOST_RESULTS_REL="viommu"
+HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf"
 
-# --- Profiling & Tracing Tools ---
-GUEST_PERF_EXECUTABLE_DEFAULT="$DEFAULT_GUEST_HOME/linux-6.12.9/tools/perf/perf"
-HOST_PERF_EXECUTABLE_REL_TO_EXP_DIR="linux-6.12.9/tools/perf/perf"
-DEFAULT_EBPF_TRACING_ENABLED=0 #test
-EBPF_GUEST_LOADER_DEFAULT="$DEFAULT_GUEST_HOME/viommu/tracing/guest_loader"
-EBPF_HOST_LOADER_DEFAULT="$DEFAULT_HOST_HOME/viommu/iommu-vm/tracing/host_loader"
-EBPF_GUEST_BASE_TRACE_DIR_REL="viommu/ebpf_traces"
-EBPF_HOST_BASE_TRACE_DIR_REL="ebpf_traces" # Relative to HOST_EXP_DIR
+# --- F and S Directory Paths (Relative to respective F and S directories) ---
+GUEST_SETUP_DIR_REL="utils"
+GUEST_EXP_DIR_REL="utils/tcp"
+CLIENT_SETUP_DIR_REL="utils"
+CLIENT_EXP_DIR_REL="utils/tcp"
+HOST_SETUP_DIR_REL="utils"
 
+EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
+EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
-identity_file="/home/schai/.ssh/id_ed25519"
+# --- Remote Access (SSH) Configuration ---
+CLIENT_SSH_UNAME="Leshna"
+CLIENT_SSH_HOST="128.110.220.127" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+HOST_SSH_UNAME="Leshna"
+HOST_SSH_PASSWORD="saksham"
+HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+HOST_USE_PASS_AUTH=0
 
 #-------------------------------------------------------------------------------
-# SECTION 3: COMMAND-LINE ARGUMENT PARSING
+# DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
 #-------------------------------------------------------------------------------
-SHORT_OPTS="H:D:S:C:E:M:d:c:m:b:h"
-LONG_OPTS="home:,home_client:,home_host:,server:,client:,host:,\
-server_intf:,client_intf:,host_intf:,\
-num_servers:,num_clients:,\
-exp:,MTU:,ddio:,cpu_mask:,cpu_mask_client:,mlc_cores:,\
-ring_buffer:,bandwidth:,buf:,dur:,num_runs:,ebpf_tracing:,help"
+# --- Experiment Setup ---
+EXP_NAME="tput-test"
+NUM_RUNS=1
+CORE_DURATION_S=20 # Duration for the main workload
+MLC_CORES="none"
+EBPF_TRACING_ENABLED=0 #test
+
+# --- Guest (Server) Machine Configuration ---
+GUEST_HOME="/home/schai"
+GUEST_IP="10.10.1.50"
+GUEST_INTF="enp8s0np1"
+GUEST_NUM_SERVERS=5
+GUEST_CPU_MASK="0,1,2,3,4"
+
+# --- Client Machine Configuration ---
+CLIENT_HOME="/users/Leshna/"
+CLIENT_IP="10.10.1.2"
+CLIENT_INTF="eno12409np1"
+CLIENT_NUM_CLIENTS=5
+CLIENT_CPU_MASK="0,4,8,12,16"
+CLIENT_BANDWIDTH="100g"
+
+# --- Host Machine Configuration ---
+HOST_HOME="/users/Leshna"
+HOST_IP="192.168.122.1"
+HOST_INTF="enp101s0f1np1"
+
+# --- Network & System Parameters ---
+MTU=4000
+DDIO_ENABLED=1
+RING_BUFFER_SIZE=256
+TCP_SOCKET_BUF_MB=1
+
+#-------------------------------------------------------------------------------
+# Help/usage
+#-------------------------------------------------------------------------------
+help() {
+    echo "Usage: $SCRIPT_NAME"
+    echo "Server/Guest Configuration:"
+    echo "    [ --server-home <path> (Guest home directory) ]"
+    echo "    [ --server-ip <ip> (IP address of the server/guest) ]"
+    echo "    [ --server-intf <name> (Network interface for the server/guest) ]"
+    echo "    [ -n | --server-num <count> (Number of server instances; default: 5) ]"
+    echo "    [ -c | --server-cpu-mask <csv> (Guest CPU mask, comma-separated; default: 0,1,2,3,4) ]"
+    echo
+    echo "Client Configuration:"
+    echo "    [ --client-home <path> (Client home directory) ]"
+    echo "    [ --client-ip <ip> (IP address of the client) ]"
+    echo "    [ --client-intf <name> (Interface name for the client) ]"
+    echo "    [ -N | --client-num <count> (Number of client instances; default: 5) ]"
+    echo "    [ -C | --client-cpu-mask <csv> (Client CPU mask, comma-separated; default: 0,4,8,12,16) ]"
+    echo
+    echo "Host Configuration:"
+    echo "    [ --host-home <path> (Host home directory) ]"
+    echo "    [ --host-ip <ip> (IP address of the host) ]"
+    echo "    [ --host-intf <name> (Interface name for the host) ]"
+    echo
+    echo "Experiment Parameters:"
+    echo "    [ -e | --exp-name <name> (Experiment name for output directories; default: tput-test) ]"
+    echo "    [ -m | --mtu <size> (MTU size: 256/512/1024/2048/4096; default: 4000) ]"
+    echo "    [ -d | --ddio <0|1> (DDIO enabled; default: 1) ]"
+    echo "    [ -b | --bandwidth <rate> (Client bandwidth in bits/sec, e.g., 100g; default: 100g) ]"
+    echo "    [ -r | --ring-buffer <size> (NIC Rx ring buffer size; default: 256) ]"
+    echo "    [ --mlc-cores <csv|'none'> (MLC cores; default: none) ]"
+    echo "    [ --socket-buf <MB> (TCP socket buffer size in MB; default: 1) ]"
+    echo "    [ --dur <seconds> (Core experiment duration in seconds; default: 20) ]"
+    echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
+    echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
+    echo
+    echo "Help:"
+    echo "    [ -h | --help ]"
+    exit 2
+}
+
+
+#-------------------------------------------------------------------------------
+# COMMAND-LINE ARGUMENT PARSING
+#-------------------------------------------------------------------------------
+SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
+LONG_OPTS="server-home:,server-ip:,server-intf:,server-num:,server-cpu-mask:,\
+client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
+host-home:,host-ip:,host-intf:,\
+exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,help"
 
 PARSED_OPTS=$(getopt -a -n "$SCRIPT_NAME" --options "$SHORT_OPTS" --longoptions "$LONG_OPTS" -- "$@")
 VALID_ARGUMENTS=$#
@@ -122,95 +138,60 @@ if [ "$VALID_ARGUMENTS" -eq 0 ]; then
 fi
 eval set -- "$PARSED_OPTS"
 
-# Initialize variables with defaults
-guest_home="$DEFAULT_GUEST_HOME"
-client_home="$DEFAULT_CLIENT_HOME"
-host_home="$DEFAULT_HOST_HOME"
-
-server_ip="$DEFAULT_GUEST_IP"
-guest_intf="$DEFAULT_GUEST_INTF"
-num_servers="$DEFAULT_GUEST_NUM_SERVERS"
-
-client_ip="$DEFAULT_CLIENT_IP"
-client_intf="$DEFAULT_CLIENT_INTF"
-num_clients="$DEFAULT_CLIENT_NUM_CLIENTS"
-
-host_ip="$DEFAULT_HOST_IP"
-host_intf="$DEFAULT_HOST_INTF"
-
-exp_name="$DEFAULT_EXP_NAME"
-mtu="$DEFAULT_MTU"
-ddio_enabled="$DEFAULT_DDIO_ENABLED"
-guest_cpu_mask="$DEFAULT_GUEST_CPU_MASK"
-client_cpu_mask="$DEFAULT_CLIENT_CPU_MASK"
-client_bandwidth="$DEFAULT_CLIENT_BANDWIDTH"
-mlc_cores="$DEFAULT_MLC_CORES"
-ring_buffer_size="$DEFAULT_RING_BUFFER_SIZE"
-tcp_socket_buf_mb="$DEFAULT_TCP_SOCKET_BUF_MB"
-core_duration_s="$DEFAULT_CORE_DURATION_S"
-num_runs="$DEFAULT_NUM_RUNS"
-ebpf_tracing_enabled="$DEFAULT_EBPF_TRACING_ENABLED"
-
-# Tool paths using defaults that might be updated if $guest_home changes
-guest_perf_executable="$GUEST_PERF_EXECUTABLE_DEFAULT" # Will be updated
-
 while :; do
     case "$1" in
-        -H | --home) guest_home="$2"; shift 2 ;;
-        -D | --home_client) client_home="$2"; shift 2 ;;
-        --home_host) host_home="$2"; shift 2 ;;
-        -S | --server) server_ip="$2"; shift 2 ;;
-        -C | --client) client_ip="$2"; shift 2 ;;
-        --host) host_ip="$2"; shift 2 ;;
-        --server_intf) guest_intf="$2"; shift 2 ;;
-        --client_intf) client_intf="$2"; shift 2 ;;
-        --host_intf) host_intf="$2"; shift 2 ;;
-        --num_servers) num_servers="$2"; shift 2 ;;
-        --num_clients) num_clients="$2"; shift 2 ;;
-        -E | --exp) exp_name="$2"; shift 2 ;;
-        -M | --MTU) mtu="$2"; shift 2 ;;
-        -d | --ddio) ddio_enabled="$2"; shift 2 ;;
-        -c | --cpu_mask) guest_cpu_mask="$2"; shift 2 ;;
-        -m | --cpu_mask_client) client_cpu_mask="$2"; shift 2 ;;
-        -b | --bandwidth) client_bandwidth="$2"; shift 2 ;;
-        --mlc_cores) mlc_cores="$2"; shift 2 ;;
-        --ring_buffer) ring_buffer_size="$2"; shift 2 ;;
-        --buf) tcp_socket_buf_mb="$2"; shift 2 ;;
-        --dur) core_duration_s="$2"; shift 2 ;;
-        --num_runs) num_runs="$2"; shift 2 ;;
-        --ebpf_tracing) ebpf_tracing_enabled="$2"; shift 2 ;;
+        --server-home) GUEST_HOME="$2"; shift 2 ;;
+        --server-ip) GUEST_IP="$2"; shift 2 ;;
+        --server-intf) GUEST_INTF="$2"; shift 2 ;;
+        -n | --server-num) GUEST_NUM_SERVERS="$2"; shift 2 ;;
+        -c | --server-cpu-mask) GUEST_CPU_MASK="$2"; shift 2 ;;
+        --client-home) CLIENT_HOME="$2"; shift 2 ;;
+        --client-ip) CLIENT_IP="$2"; shift 2 ;;
+        --client-intf) CLIENT_INTF="$2"; shift 2 ;;
+        -N | --client-num) CLIENT_NUM_CLIENTS="$2"; shift 2 ;;
+        -C | --client-cpu-mask) CLIENT_CPU_MASK="$2"; shift 2 ;;
+        --host-home) HOST_HOME="$2"; shift 2 ;;
+        --host-ip) HOST_IP="$2"; shift 2 ;;
+        --host-intf) HOST_INTF="$2"; shift 2 ;;
+        -e | --exp-name) EXP_NAME="$2"; shift 2 ;;
+        -m | --mtu) MTU="$2"; shift 2 ;;
+        -d | --ddio) DDIO_ENABLED="$2"; shift 2 ;;
+        -b | --bandwidth) CLIENT_BANDWIDTH="$2"; shift 2 ;;
+        -r | --ring-buffer) RING_BUFFER_SIZE="$2"; shift 2 ;;
+        --mlc-cores) MLC_CORES="$2"; shift 2 ;;
+        --socket-buf) TCP_SOCKET_BUF_MB="$2"; shift 2 ;;
+        --dur) CORE_DURATION_S="$2"; shift 2 ;;
+        --runs) NUM_RUNS="$2"; shift 2 ;;
+        --ebpf-tracing) EBPF_TRACING_ENABLED="$2"; shift 2 ;;
         -h | --help) help ;;
         --) shift; break ;;
         *) echo "Unexpected option: $1"; help ;;
     esac
 done
 
-guest_setup_dir="${guest_home}/${GUEST_SETUP_DIR_REL}"
-guest_exp_dir="${guest_home}/${GUEST_EXP_DIR_REL}"
-guest_mlc_dir="${guest_home}/${GUEST_MLC_DIR_REL}"
-guest_perf_executable="${guest_home}/linux-6.12.9/tools/perf/perf"
+GUEST_SETUP_DIR="${GUEST_HOME}/${GUEST_FandS_REL}/${GUEST_SETUP_DIR_REL}"
+GUEST_EXP_DIR="${GUEST_HOME}/${GUEST_FandS_REL}/${GUEST_EXP_DIR_REL}"
+GUEST_MLC_DIR="${GUEST_HOME}/${GUEST_MLC_DIR_REL}"
+GUEST_PERF="${GUEST_HOME}/${GUEST_PERF_REL}"
+CLIENT_SETUP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_SETUP_DIR_REL}"
+CLIENT_EXP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_EXP_DIR_REL}"
+HOST_RESULTS_DIR="${HOST_HOME}/${HOST_RESULTS_REL}" # TODO: Siyuan (Better name suggestion)
+HOST_SETUP_DIR="${HOST_HOME}/${HOST_FandS_REL}/${HOST_SETUP_DIR_REL}"
+HOST_PERF="${HOST_HOME}/${HOST_PERF_REL}" # Path on host for perf
+EBPF_GUEST_LOADER="${GUEST_HOME}/${EBPF_GUEST_LOADER_REL}"
+EBPF_HOST_LOADER="${HOST_HOME}/${EBPF_HOST_LOADER_REL}"
+PROFILING_LOGGING_DUR_S=$((CORE_DURATION_S))
 
-client_setup_dir="${client_home}/${CLIENT_SETUP_DIR_REL}"
-client_exp_dir="${client_home}/${CLIENT_EXP_DIR_REL}"
-
-host_exp_dir="${host_home}/${HOST_EXP_DIR_REL}"
-host_setup_utils_dir="${host_exp_dir}/${HOST_SETUP_UTILS_DIR_REL}"
-host_perf_executable="${host_exp_dir}/${HOST_PERF_EXECUTABLE_REL_TO_EXP_DIR}" # Path on host for perf
-
-ebpf_guest_loader="${guest_home}/viommu/tracing/guest_loader"
-ebpf_host_loader="${host_home}/viommu/iommu-vm/tracing/host_loader"
-profiling_logging_duration_s=$((core_duration_s))
-
-if [ "$CLIENT_USE_PASS_SSH" -eq 1 ]; then
-	ssh_client_cmd="sshpass -p $CLIENT_SSH_PASSWORD ssh $CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME"
+if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
+	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh $CLIENT_SSH_UNAME@$CLIENT_SSH_HOST"
 else
-	ssh_client_cmd="ssh -i $CLIENT_SSH_IDENTITY_FILE $CLIENT_SSH_UNAME@$CLIENT_SSH_IP"
+	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE $CLIENT_SSH_UNAME@$CLIENT_SSH_HOST"
 fi
 
-if [ "$HOST_USE_PASS_SSH" -eq 1 ]; then
-        ssh_host_cmd="sshpass -p $HOST_SSH_PASSWORD ssh $HOST_SSH_UNAME@$host_ip"
+if [ "$HOST_USE_PASS_AUTH" -eq 1 ]; then
+        SSH_HOST_CMD="sshpass -p $HOST_SSH_PASSWORD ssh $HOST_SSH_UNAME@$HOST_IP"
 else
-        ssh_host_cmd="ssh -i $HOST_SSH_IDENTITY_FILE $HOST_SSH_UNAME@$host_ip"
+        SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE $HOST_SSH_UNAME@$HOST_IP"
 fi
 
 log_info() {
@@ -261,37 +242,35 @@ cleanup() {
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf 
-    # sudo pkill -SIGINT -f "$guest_perf_executable record"
+    # sudo pkill -SIGINT -f "$GUEST_PERF record"
     # sleep 1
-    # sudo pkill -9 -f "$guest_perf_executable record"
+    # sudo pkill -9 -f "$GUEST_PERF record"
 
-    # log_info "Killing remote 'perf record' on HOST ($host_ip)..."
-    # $ssh_host_cmd \
-      #  "sudo pkill -SIGINT -f '$host_perf_executable record'; sleep 1; sudo pkill -9 -f '$host_perf_executable record'"
+    # log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
+    # $SSH_HOST_CMD \
+      #  "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
 
-    if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
         local guest_loader_basename
-        guest_loader_basename=$(basename "$ebpf_guest_loader")
-	local host_loader_basename
-        host_loader_basename=$(basename "$ebpf_host_loader")
-	
-	sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
-        $ssh_host_cmd \
+        guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
+	    local host_loader_basename
+        host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+	    sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
+        $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
-	
-	sleep 5
+	    sleep 5
         sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
     fi
 
     log_info "Terminating screen sessions..."
-    $ssh_client_cmd \
+    $SSH_CLIENT_CMD \
         'screen -ls | grep -E "\.client_session|\.logging_session_client" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    $ssh_client_cmd \
+    $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
-    $ssh_client_cmd \
+    $SSH_CLIENT_CMD \
 	'screen -ls | grep -E "\.host_session|\.perf_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    $ssh_host_cmd \
+    $SSH_HOST_CMD \
         'screen -wipe || true'
 
     log_info "Resetting GUEST ftrace..."
@@ -300,60 +279,54 @@ cleanup() {
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
     log_info "Resetting HOST ftrace..."
-    $ssh_host_cmd \
+    $SSH_HOST_CMD \
     "sudo bash -c 'echo 0 > /sys/kernel/debug/tracing/tracing_on; \
                     echo 0 > /sys/kernel/debug/tracing/options/overwrite; \
                     echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb'"
 
-    log_info "Resetting GUEST network interface $guest_intf..."
-    sudo ip link set "$guest_intf" down
+    log_info "Resetting GUEST network interface $GUEST_INTF..."
+    sudo ip link set "$GUEST_INTF" down
     sleep 2
-    sudo ip link set "$guest_intf" up
+    sudo ip link set "$GUEST_INTF" up
     sleep 2
     log_info "--- Cleanup Phase Finished ---"
 }
 
 
-log_info "Starting experiment: $exp_name"
-log_info "Number of runs: $num_runs"
+log_info "Starting experiment: $EXP_NAME"
+log_info "Number of runs: $NUM_RUNS"
 
-for ((j = 0; j < num_runs; j += 1)); do
+for ((j = 0; j < NUM_RUNS; j += 1)); do
     echo
     log_info "############################################################"
-    log_info "### Starting Experiment Run: $j / $(($num_runs - 1)) for EXP: $exp_name"
+    log_info "### Starting Experiment Run: $j / $(($NUM_RUNS - 1)) for EXP: $EXP_NAME"
     log_info "############################################################"
 
     # --- Per-Run Directory and File Definitions ---
     # Guest (Server) side paths for reports and data
-    current_guest_reports_dir="${guest_setup_dir}/reports/${exp_name}-RUN-${j}"
-    host_reports_dir_remote="${host_exp_dir}/reports/${exp_name}-RUN-${j}"
-    client_reports_dir_remote="${client_setup_dir}/reports/${exp_name}-RUN-${j}"
+    current_guest_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
+    host_reports_dir_remote="${HOST_RESULTS_DIR}/reports/${EXP_NAME}-RUN-${j}"
+    client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 
     perf_guest_data_file="${current_guest_reports_dir}/perf_guest_cpu.data"
     iova_ftrace_guest_output_file="${current_guest_reports_dir}/iova_ftrace_guest.txt"
     ebpf_guest_stats="${current_guest_reports_dir}/ebpf_guest_stats.csv"
-    guest_ebpf_events_file="${current_guest_reports_dir}/ebpf_events.bin"
-    guest_ebpf_stack_trace="${current_guest_reports_dir}/ebpf_stack_trace.bin"
     guest_server_app_log_file="${current_guest_reports_dir}/server_app.log"
     guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
     perf_host_data_file_remote="${host_reports_dir_remote}/perf_host_cpu.data"
     iova_ftrace_host_output_file_remote="${host_reports_dir_remote}/iova_ftrace_host.txt"
     ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
-    host_ebpf_events_file="${host_reports_dir_remote}/ebpf_host_events.bin"
-    host_ebpf_stack_trace="${host_reports_dir_remote}/ebpf_host_stack_trace.bin"
-
 
     sudo mkdir -p "$current_guest_reports_dir"
-    $ssh_host_cmd "sudo mkdir -p '$host_reports_dir_remote'"
-
+    $SSH_HOST_CMD "sudo mkdir -p '$host_reports_dir_remote'"
 
     # --- Pre-run cleanup ---
     cleanup
 
     # --- Start MLC (Memory Latency Checker) if configured ---
-    if [ "$mlc_cores" != "none" ]; then
-        log_info "Starting MLC on cores: $mlc_cores..."
-        "$guest_mlc_dir/mlc" --loaded_latency -T -d0 -e -k"$mlc_cores" -j0 -b1g -t10000 -W2 &> "$guest_mlc_log_file" &
+    if [ "$MLC_CORES" != "none" ]; then
+        log_info "Starting MLC on cores: $MLC_CORES; logs at $guest_mlc_log_file..."
+        "$GUEST_MLC_DIR/mlc" --loaded_latency -T -d0 -e -k"$MLC_CORES" -j0 -b1g -t10000 -W2 &> "$guest_mlc_log_file" &
         log_info "Waiting for MLC to ramp up (30 seconds)..."
         progress_bar 30 1
     else
@@ -362,21 +335,21 @@ for ((j = 0; j < num_runs; j += 1)); do
 
     # --- Setup Guest (Server) Environment ---
     log_info "Setting up GUEST server environment..."
-    cd "$guest_setup_dir" || { log_error "Failed to cd to $guest_setup_dir"; exit 1; }
-    sudo bash setup-envir-unmodified.sh -i "$guest_intf" -a "$server_ip" -m "$mtu" -d "$ddio_enabled" \
-        --ring_buffer "$ring_buffer_size" --buf "$tcp_socket_buf_mb" -f 1 -r 0 -p 0 -e 1 -o 1
+    cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
+    sudo bash setup-envir-unmodified.sh -i "$GUEST_INTF" -a "$SERVER_IP" -m "$MTU" -d "$DDIO_ENABLED" \
+        --ring_buffer "$RING_BUFFER_SIZE" --buf "$TCP_SOCKET_BUF_MB" -f 1 -r 0 -p 0 -e 1 -o 1
     cd - > /dev/null # Go back to previous directory silently
 
      # --- Setup Host Environment ---
-    log_info "Setting up HOST environment on $host_ip..."
-    $ssh_host_cmd \
-        "screen -dmS host_session sudo bash -c \"cd '$host_setup_utils_dir'; sudo bash setup-envir.sh -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
+    log_info "Setting up HOST environment on $HOST_IP..."
+    $SSH_HOST_CMD \
+        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-envir.sh -m '$MTU' -d '$DDIO_ENABLED' --ring_buffer '$RING_BUFFER_SIZE' --buf '$TCP_SOCKET_BUF_MB' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
-    log_info "Starting GUEST server application..."
-    cd "$guest_exp_dir" || { log_error "Failed to cd to $guest_exp_dir"; exit 1; }
-    sudo bash run-netapp-tput.sh -m server -S "$num_servers" -o "${exp_name}-RUN-${j}" \
-        -p "$init_port" -c "$guest_cpu_mask" &> "$guest_server_app_log_file" &
+    log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
+    cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
+    sudo bash run-netapp-tput.sh -m server -S "$GUEST_NUM_SERVERS" -o "${EXP_NAME}-RUN-${j}" \
+        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" &> "$guest_server_app_log_file" &
     sleep 2 # Allow server app to initialize
     cd - > /dev/null
 
@@ -389,55 +362,53 @@ for ((j = 0; j < num_runs; j += 1)); do
     sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
     log_info "GUEST IOVA ftrace is ON."
 
-    log_info "Configuring HOST ftrace for IOVA logging on $host_ip..."
-    $ssh_host_cmd \
+    log_info "Configuring HOST ftrace for IOVA logging on $HOST_IP..."
+    $SSH_HOST_CMD \
     "sudo bash -c 'sudo echo '$FTRACE_BUFFER_SIZE_KB' > /sys/kernel/debug/tracing/buffer_size_kb; \
          sudo echo '$FTRACE_OVERWRITE_ON_FULL' > /sys/kernel/debug/tracing/options/overwrite; \
          sudo echo > /sys/kernel/debug/tracing/trace; \
          sudo echo 1 > /sys/kernel/debug/tracing/tracing_on'"
     log_info "HOST IOVA ftrace is ON."
 
-
-
     # --- Setup and Start Clients ---
-    log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOSTNAME..."
-    client_cmd="cd '$client_setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client_ip' -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; "
-    client_cmd+="cd '$client_exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server_ip' -C '$num_clients' -S '$num_servers' -o '${exp_name}-RUN-${j}' -p '$init_port' -c '$client_cpu_mask' -b '$client_bandwidth'; exec bash"
-    $ssh_client_cmd "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
+    client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh -i '$CLIENT_INTF' -a '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' --ring_buffer '$RING_BUFFER_SIZE' --buf '$TCP_SOCKET_BUF_MB' -f 1 -r 0 -p 0 -e 1 -o 1; "
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh -m client -a '$SERVER_IP' -C '$CLIENT_NUM_CLIENTS' -S '$GUEST_NUM_SERVERS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
     log_info "Warming up experiment (10 seconds)..."
     progress_bar 10 1
 
     # --- Start eBPF Tracers (if enabled) ---
-    if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting GUEST eBPF tracer..."
-        sudo taskset -c 13 "$ebpf_guest_loader" -o "$ebpf_guest_stats" &
-        log_info "Starting HOST eBPF tracer on $host_ip..."
-        host_loader_cmd="sudo taskset -c 33 $ebpf_host_loader -o $ebpf_host_stats"
-        $ssh_host_cmd "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
+        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -o "$ebpf_guest_stats" &
+        log_info "Starting HOST eBPF tracer on $HOST_IP..."
+        host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
+        $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
         sleep 2 # Allow eBPF loaders to initialize
     fi
 
     # --- Start Main Profiling & Logging Phase ---
     # log_info "Starting GUEST perf record (CPU profiling)..."
-    # sudo "$guest_perf_executable" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$profiling_logging_duration_s" &
-    # log_info "Starting HOST perf record (CPU profiling) on $host_ip..."
-    # host_perf_cmd="cd '$host_exp_dir'; sudo '$host_perf_executable' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$profiling_logging_duration_s'; exec bash"
-    # $ssh_host_cmd "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    # sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+    # log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
+    # host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
+    # $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
 
-    log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOSTNAME..."
-    client_logging_cmd="cd '$client_setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$core_duration_s' --cores '$client_cpu_mask'; exec bash"
-    $ssh_client_cmd "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
+    log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
+    client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$CLIENT_INTF' -o '${EXP_NAME}-RUN-${j}' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$CORE_DURATION_S' --cores '$CLIENT_CPU_MASK'; exec bash"
+    $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
-    log_info "Starting HOST-side logging on $host_ip..."
-    host_logging_cmd="cd '$host_exp_dir'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$core_duration_s'; exec bash"
-    $ssh_host_cmd "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
+    log_info "Starting HOST-side logging on $HOST_IP..."
+    host_logging_cmd="cd '$HOST_RESULTS_DIR'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -o '${EXP_NAME}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$CORE_DURATION_S'; exec bash"
+    $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
-    cd "$guest_setup_dir" || { log_error "Failed to cd to $guest_setup_dir"; exit 1; }
-    sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i "$guest_intf" -o "${exp_name}-RUN-${j}" \
-        --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur "$core_duration_s" --cores "$guest_cpu_mask" 
+    cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
+    sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i "$GUEST_INTF" -o "${EXP_NAME}-RUN-${j}" \
+        --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur "$CORE_DURATION_S" --cores "$GUEST_CPU_MASK" 
     cd - > /dev/null
 
     log_info "Logging done."
@@ -450,21 +421,21 @@ for ((j = 0; j < num_runs; j += 1)); do
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer after saving
     log_info "GUEST IOVA ftrace data saved to $iova_ftrace_guest_output_file"
 
-    log_info "Stopping and saving HOST IOVA ftrace data on $host_ip..."
-    $ssh_host_cmd \
+    log_info "Stopping and saving HOST IOVA ftrace data on $HOST_IP..."
+    $SSH_HOST_CMD \
         "sudo bash -c 'sudo echo 0 > /sys/kernel/debug/tracing/tracing_on; \
          sudo cat /sys/kernel/debug/tracing/trace > '$iova_ftrace_host_output_file_remote'; \
          sudo echo > /sys/kernel/debug/tracing/trace'"
 
     # --- Stop eBPF Tracers (if enabled) ---
-    if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
         local guest_loader_basename # Ensure local scope if not already
-        guest_loader_basename=$(basename "$ebpf_guest_loader")
+        guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
         sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null && log_info "SIGINT sent to GUEST eBPF loader." || log_info "WARN: GUEST eBPF loader process not found or SIGINT failed."
         local host_loader_basename
-        host_loader_basename=$(basename "$ebpf_host_loader")
-        $ssh_host_cmd "sudo pkill -SIGINT -f '$host_loader_basename'"
+        host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+        $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
 
  
@@ -477,32 +448,32 @@ for ((j = 0; j < num_runs; j += 1)); do
 
     # Host files
     scp -i "$HOST_SSH_IDENTITY_FILE" \
-        "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/retx.rpt" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
     scp -i "$HOST_SSH_IDENTITY_FILE" \
-        "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/pcie.rpt" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
     scp -i "$HOST_SSH_IDENTITY_FILE" \
-        "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/membw.rpt" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
         "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     
     # SCP profiling data to host (as guest has limited space)
-    # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/perf_guest_cpu.data"
-    # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$iova_ftrace_guest_output_file" "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/iova_ftrace_guest.data"
+    # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
+    # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$iova_ftrace_guest_output_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/iova_ftrace_guest.data"
 
-    log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($core_duration_s * 2))s)..."
-    sleep $((core_duration_s * 2))
+    log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
+    sleep $((CORE_DURATION_S * 2))
 
     # --- Post-run cleanup ---
     cleanup
     log_info "############################################################"
-    log_info "### Finished Experiment Run: $j / $(($num_runs - 1))"
+    log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
 done
 
 
-if [ "$mlc_cores" != "none" ]; then
+if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."
 else
     log_info "No MLC instance used, or MLC throughput collection phase skipped."
@@ -510,10 +481,10 @@ fi
 
 log_info "Collecting and processing statistics from all runs..."
 # The '0' or '1' at the end of collect-tput-stats.py might indicate whether MLC was run. Adjust as needed.
-if [ "$mlc_cores" = "none" ]; then
-    sudo python3 collect-tput-stats.py "$exp_name" "$num_runs" 0
+if [ "$MLC_CORES" = "none" ]; then
+    sudo python3 collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
 else
-    sudo python3 collect-tput-stats.py "$exp_name" "$num_runs" 0 # TODO: Change back to 1
+    sudo python3 collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
-log_info "Experiment $exp_name finished."
+log_info "Experiment $EXP_NAME finished."
