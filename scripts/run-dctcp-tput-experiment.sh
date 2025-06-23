@@ -42,28 +42,26 @@ DEFAULT_INIT_PORT=3000
 
 # --- Guest (Server) Machine Configuration ---
 DEFAULT_GUEST_HOME="/home/schai"
-DEFAULT_GUEST_IP="192.168.11.127"
-DEFAULT_GUEST_INTF="enp8s0"
+DEFAULT_GUEST_IP="10.10.1.50"
+DEFAULT_GUEST_INTF="enp8s0np1"
 DEFAULT_GUEST_NUM_SERVERS=5
 DEFAULT_GUEST_CPU_MASK="0,1,2,3,4"
 
 # --- Client Machine Configuration ---
-DEFAULT_CLIENT_HOME="/home/saksham"
-DEFAULT_CLIENT_IP="192.168.11.125"
-DEFAULT_CLIENT_INTF="ens2f1np1"
+DEFAULT_CLIENT_HOME="/users/Leshna/"
+DEFAULT_CLIENT_IP="10.10.1.2"
+DEFAULT_CLIENT_INTF="eno12409np1"
 DEFAULT_CLIENT_NUM_CLIENTS=5
 DEFAULT_CLIENT_CPU_MASK="0,4,8,12,16"
 DEFAULT_CLIENT_BANDWIDTH="100g"
-CLIENT_SSH_HOSTNAME="genie12.cs.cornell.edu"
-CLIENT_SSH_UNAME="saksham"
-CLIENT_SSH_PASSWORD="saksham"
+CLIENT_SSH_UNAME="Leshna"
+CLIENT_SSH_IP="128.110.220.127"
 
 # --- Host Machine Configuration ---
-DEFAULT_HOST_HOME="/home/saksham"
-DEFAULT_HOST_IP="192.168.123.1"
+DEFAULT_HOST_HOME="/users/Leshna"
+DEFAULT_HOST_IP="192.168.122.1"
 DEFAULT_HOST_INTF="enp101s0f1np1"
-HOST_SSH_UNAME="saksham"
-HOST_SSH_PASSWORD="saksham"
+HOST_SSH_UNAME="Leshna"
 
 # --- Network & System Parameters ---
 DEFAULT_MTU=4000
@@ -91,12 +89,14 @@ HOST_SETUP_UTILS_DIR_REL="Fast-and-Safe-IO-Memory-Protection/utils" # For setup-
 # --- Profiling & Tracing Tools ---
 GUEST_PERF_EXECUTABLE_DEFAULT="$DEFAULT_GUEST_HOME/linux-6.12.9/tools/perf/perf"
 HOST_PERF_EXECUTABLE_REL_TO_EXP_DIR="linux-6.12.9/tools/perf/perf"
-DEFAULT_EBPF_TRACING_ENABLED=1 #test
+DEFAULT_EBPF_TRACING_ENABLED=0 #test
 EBPF_GUEST_LOADER_DEFAULT="$DEFAULT_GUEST_HOME/viommu/tracing/guest_loader"
 EBPF_HOST_LOADER_DEFAULT="$DEFAULT_HOST_HOME/viommu/iommu-vm/tracing/host_loader"
 EBPF_GUEST_BASE_TRACE_DIR_REL="viommu/ebpf_traces"
 EBPF_HOST_BASE_TRACE_DIR_REL="ebpf_traces" # Relative to HOST_EXP_DIR
 
+
+identity_file="/home/schai/.ssh/id_ed25519"
 
 #-------------------------------------------------------------------------------
 # SECTION 3: COMMAND-LINE ARGUMENT PARSING
@@ -187,7 +187,7 @@ client_setup_dir="${client_home}/${CLIENT_SETUP_DIR_REL}"
 client_exp_dir="${client_home}/${CLIENT_EXP_DIR_REL}"
 
 host_exp_dir="${host_home}/${HOST_EXP_DIR_REL}"
-host_setup_utils_dir="${host_home}/${HOST_SETUP_UTILS_DIR_REL}"
+host_setup_utils_dir="${host_exp_dir}/${HOST_SETUP_UTILS_DIR_REL}"
 host_perf_executable="${host_exp_dir}/${HOST_PERF_EXECUTABLE_REL_TO_EXP_DIR}" # Path on host for perf
 
 ebpf_guest_loader="${guest_home}/viommu/tracing/guest_loader"
@@ -266,13 +266,13 @@ cleanup() {
     fi
 
     log_info "Terminating screen sessions..."
-    sshpass -p "$CLIENT_SSH_PASSWORD" ssh "$CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME" \
+    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" \
         'screen -ls | grep -E "\.client_session|\.logging_session_client" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    sshpass -p "$CLIENT_SSH_PASSWORD" ssh "$CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME" \
+    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" \
         'sudo pkill -9 -f iperf; screen -wipe || true'
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
 	'screen -ls | grep -E "\.host_session|\.perf_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
         'screen -wipe || true'
 
     log_info "Resetting GUEST ftrace..."
@@ -281,7 +281,7 @@ cleanup() {
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
     log_info "Resetting HOST ftrace..."
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
     "sudo bash -c 'echo 0 > /sys/kernel/debug/tracing/tracing_on; \
                     echo 0 > /sys/kernel/debug/tracing/options/overwrite; \
                     echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb'"
@@ -325,7 +325,7 @@ for ((j = 0; j < num_runs; j += 1)); do
 
 
     sudo mkdir -p "$current_guest_reports_dir"
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" "sudo mkdir -p '$host_reports_dir_remote'"
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" "sudo mkdir -p '$host_reports_dir_remote'"
 
 
     # --- Pre-run cleanup ---
@@ -350,8 +350,8 @@ for ((j = 0; j < num_runs; j += 1)); do
 
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $host_ip..."
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
-        "screen -dmS host_session sudo bash -c \"cd '$host_setup_utils_dir'; sudo bash setup-envir.sh -i '$host_intf' -a '192.168.11.126' -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
+        "screen -dmS host_session sudo bash -c \"cd '$host_setup_utils_dir'; sudo bash setup-envir.sh -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
     log_info "Starting GUEST server application..."
@@ -371,7 +371,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "GUEST IOVA ftrace is ON."
 
     log_info "Configuring HOST ftrace for IOVA logging on $host_ip..."
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
     "sudo bash -c 'sudo echo '$FTRACE_BUFFER_SIZE_KB' > /sys/kernel/debug/tracing/buffer_size_kb; \
          sudo echo '$FTRACE_OVERWRITE_ON_FULL' > /sys/kernel/debug/tracing/options/overwrite; \
          sudo echo > /sys/kernel/debug/tracing/trace; \
@@ -384,7 +384,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOSTNAME..."
     client_cmd="cd '$client_setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client_ip' -m '$mtu' -d '$ddio_enabled' --ring_buffer '$ring_buffer_size' --buf '$tcp_socket_buf_mb' -f 1 -r 0 -p 0 -e 1 -o 1; "
     client_cmd+="cd '$client_exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server_ip' -C '$num_clients' -S '$num_servers' -o '${exp_name}-RUN-${j}' -p '$init_port' -c '$client_cpu_mask' -b '$client_bandwidth'; exec bash"
-    sshpass -p "$CLIENT_SSH_PASSWORD" ssh "$CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME" "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
     log_info "Warming up experiment (10 seconds)..."
@@ -409,11 +409,11 @@ for ((j = 0; j < num_runs; j += 1)); do
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOSTNAME..."
     client_logging_cmd="cd '$client_setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$core_duration_s' --cores '$client_cpu_mask'; exec bash"
-    sshpass -p "$CLIENT_SSH_PASSWORD" ssh "$CLIENT_SSH_UNAME@$CLIENT_SSH_HOSTNAME" "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
+    ssh -i "$identity_file" "$CLIENT_SSH_UNAME@$CLIENT_SSH_IP" "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $host_ip..."
-    host_logging_cmd="cd '$host_exp_dir'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -i '$host_intf' -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$core_duration_s'; exec bash"
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
+    host_logging_cmd="cd '$host_exp_dir'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -o '${exp_name}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$core_duration_s'; exec bash"
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$guest_setup_dir" || { log_error "Failed to cd to $guest_setup_dir"; exit 1; }
@@ -432,7 +432,7 @@ for ((j = 0; j < num_runs; j += 1)); do
     log_info "GUEST IOVA ftrace data saved to $iova_ftrace_guest_output_file"
 
     log_info "Stopping and saving HOST IOVA ftrace data on $host_ip..."
-    sshpass -p "$HOST_SSH_PASSWORD" ssh "$HOST_SSH_UNAME@$host_ip" \
+    ssh -i "$identity_file" "$HOST_SSH_UNAME@$host_ip" \
         "sudo bash -c 'sudo echo 0 > /sys/kernel/debug/tracing/tracing_on; \
          sudo cat /sys/kernel/debug/tracing/trace > '$iova_ftrace_host_output_file_remote'; \
          sudo echo > /sys/kernel/debug/tracing/trace'"
@@ -452,18 +452,18 @@ for ((j = 0; j < num_runs; j += 1)); do
     # --- Transfer Report Files from Remote Machines ---
     log_info "Transferring report files from CLIENT and HOST..."
     # Client files
-    sshpass -p "$CLIENT_SSH_PASSWORD" scp \
-        "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOSTNAME}:${client_reports_dir_remote}/retx.rpt" \
+    scp -i "$identity_file" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_IP}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
 
     # Host files
-    sshpass -p "$HOST_SSH_PASSWORD" scp \
+    scp -i "$identity_file" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
-    sshpass -p "$HOST_SSH_PASSWORD" scp \
+    scp -i "$identity_file" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-    sshpass -p "$HOST_SSH_PASSWORD" scp \
+    scp -i "$identity_file" \
         "${HOST_SSH_UNAME}@${host_ip}:${host_reports_dir_remote}/membw.rpt" \
         "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     

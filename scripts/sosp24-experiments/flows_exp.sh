@@ -3,8 +3,8 @@ cd ..
 
 echo "Running flow experiment... this may take a few minutes"
 
-client_intf="ens2f1np1"
-server_intf="enp8s0"
+client_intf="eno12409np1"
+server_intf="enp8s0np1"
 
 
 iommu_on=$(grep -o intel_iommu=on /proc/cmdline)
@@ -17,13 +17,13 @@ fi
 
 # pause the frame
 sudo ethtool --pause $server_intf tx off rx off
-ssh saksham@genie12.cs.cornell.edu "sudo ethtool --pause ${client_intf} tx off rx off"
+ssh Leshna@128.110.220.127 "sudo ethtool --pause ${client_intf} tx off rx off"
 
 sleep 1
 
 timestamp=$(date '+%H-%M_%m-%d')
 # 5 10 20 40
-for i in 5 10 40; do
+for i in 5 ; do
     format_i=$(printf "%02d\n" $i)
     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}"
     echo $exp_name

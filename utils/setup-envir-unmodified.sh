@@ -32,8 +32,8 @@ eval set -- "$OPTS"
 home='/home/schai'
 mtu=4000
 ddio=1
-intf="enp8s0"
-addr="192.168.11.127"
+intf="enp8s0np1"
+addr="10.10.1.50"
 opt=1
 buf=1
 ecn=1
