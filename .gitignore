@@ -51,6 +51,13 @@
 Module.symvers
 modules.order
 
+# Results and logs
+utils/reports/
+utils/logs/
+plots/
+*.log
+*.out
+
 #
 # Top-level generic files
 #
