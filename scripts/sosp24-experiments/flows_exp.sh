@@ -5,6 +5,8 @@ echo "Running flow experiment... this may take a few minutes"
 
 client_intf="eno12409np1"
 server_intf="enp8s0np1"
+client_ip="128.110.220.127"
+client_user="Leshna"
 
 
 iommu_on=$(grep -o intel_iommu=on /proc/cmdline)
@@ -17,7 +19,7 @@ fi
 
 # pause the frame
 sudo ethtool --pause $server_intf tx off rx off
-ssh Leshna@128.110.220.127 "sudo ethtool --pause ${client_intf} tx off rx off"
+ssh $client_user@$client_ip "sudo ethtool --pause $client_intf tx off rx off"
 
 sleep 1
 
