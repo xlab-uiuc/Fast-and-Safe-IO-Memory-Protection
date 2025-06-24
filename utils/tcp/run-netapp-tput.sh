@@ -25,7 +25,7 @@ help()
     exit 2
 }
 
-SHORT=o:,n:,N:,p:,c:,b:h
+SHORT=o:,n:,N:,p:,c:,b:,h
 LONG=mode:,outdir:,num_servers:,num_clients:,port:,server-ip:,cores:,bandwidth:,help
 OPTS=$(getopt -a -n run-netapp-tput --options $SHORT --longoptions $LONG -- "$@")
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -56,7 +56,7 @@ mkdir -p ../reports #Directory to store collected logs
 mkdir -p ../reports/$OUT_DIR #Directory to store collected logs
 mkdir -p ../logs #Directory to store collected logs
 mkdir -p ../logs/$OUT_DIR #Directory to store collected logs
-rm ../logs/$OUT_DIR/iperf.bw.log
+rm -f ../logs/$OUT_DIR/iperf.bw.log
 
 function collect_stats() {
   echo "Collecting app throughput for TCP server..."
@@ -64,8 +64,7 @@ function collect_stats() {
 }
 
 counter=0
-if [ "$mode" = "server" ]
-then
+if [ "$MODE" = "server" ]; then
     sudo pkill -9 -f iperf #kill existing iperf servers/clients
     while [ $counter -lt $NUM_SERVERS ]; do
         index=$(( counter % ${#core_values[@]} ))
@@ -78,8 +77,7 @@ then
     sleep 120
     echo "collecting stats..."
     collect_stats
-elif [ "$mode" = "client" ]
-then
+elif [ "$MODE" = "client" ]; then
     sudo pkill -9 -f iperf #kill existing iperf servers/clients
     while [ $counter -lt $NUM_CLIENTS ]; do
         index=$(( counter % ${#core_values[@]} ))

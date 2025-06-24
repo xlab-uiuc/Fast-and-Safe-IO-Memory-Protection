@@ -308,7 +308,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Per-Run Directory and File Definitions ---
     # Guest (Server) side paths for reports and data
     current_guest_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
-    host_reports_dir_remote="${HOST_RESULTS_DIR}/reports/${EXP_NAME}-RUN-${j}"
+    host_reports_dir_remote="${HOST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
     client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 
     perf_guest_data_file="${current_guest_reports_dir}/perf_guest_cpu.data"
@@ -376,7 +376,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-bare-metal.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
     client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
-    echo $client_cmd
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
@@ -409,7 +408,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     log_info "Starting HOST-side logging on $HOST_IP..."
     host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
-        --dep '$HOST_RESULTS_REL' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
+        --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
         --cpu-util 0 --retx 1 --tcplog 1 --bw 1 --flame 0 \
         --pcie 1 --membw 1 --iio 1 --pfc 0 --type 0; exec bash"
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
@@ -417,7 +416,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu_util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 1 --bw 1 --flame 0 \
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 1 --bw 1 --flame 0 \
     --pcie 1 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
     cd - > /dev/null
 
@@ -453,7 +452,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Transferring report files from CLIENT and HOST..."
     # Client files
     scp -i "$CLIENT_SSH_IDENTITY_FILE" \
-	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_IP}:${client_reports_dir_remote}/retx.rpt" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
 
     # Host files
@@ -472,7 +471,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$iova_ftrace_guest_output_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/iova_ftrace_guest.data"
 
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
-    sleep $((CORE_DURATION_S * 2))
+    progress_bar $((CORE_DURATION_S * 2)) 2
 
     # --- Post-run cleanup ---
     cleanup
