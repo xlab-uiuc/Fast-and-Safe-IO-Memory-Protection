@@ -110,7 +110,7 @@ function parse_pciebw() {
 
 function dump_membw() {
     modprobe msr
-    sudo taskset -c 15 $home/pcm/build/bin/pcm-memory 1 -columns=5
+    sudo taskset -c 15 $DEP_DIR/pcm/build/bin/pcm-memory 1 -columns=5
 }
 
 function parse_membw() {
