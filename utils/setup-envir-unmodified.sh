@@ -1,202 +1,160 @@
+SCRIPT_NAME="setup-envir"
+
+#default values
+HOME='/home/schai'
+MTU=4000
+DDIO_ENABLED=1
+INTF="enp8s0np1"
+IP="10.10.1.50"
+TCP_OPTIMIZATION_ENABLED=1
+TCP_SOCKET_BUF_MB=1
+ECN_ENABLED=1
+HWPREF_ENABLED=1
+RDMA=0
+PFC_ENABLED=0
+RING_BUFFER_SIZE=1024
+DEPS_DIR="$HOME"
+
 help()
 {
-    echo "Usage: setup-envir [ -H | --home (home directory)]
-               [ -m | --mtu (MTU size in bytes; default=4000 for TCP, 4096 for RDMA) ] 
-               [ -d | --ddio (=0/1, whether DDIO should be disabled/enabled; default=0) ]
-               [ -i | --intf (interface name, eg. ens2f0) ]
-               [ -a | --addr (ip address for the interface) ]
-               [ -o | --opt (enable TCP optimization TSO,GRO,aRFS) ]
-               [ -b | --buf (TCP socket buffer size (in MB)) ]
-               [ -e | --ecn (Enable ECN support in Linux stack) ]
-               [ -f | --hwpref (Enable hardware prefetching) ]
-               [ -r | --rdma (=0/1, whether the setup is for running RDMA experiments (MTU offset will be different)) ]
-               [ -p | --pfc (=0/1, disable or enable PFC) ]
-               [--ring_buffer (size of Rx ring buffer. Note: opt must be set to change this)]
-               [ -h | --help  ]"
+    echo "Usage: $SCRIPT_NAME 
+              [ --home (home directory)]
+              [ --dep (path to dependencies directories)]
+              [ -m | --mtu (MTU size in bytes; default=4000 for TCP, 4096 for RDMA) ] 
+              [ -d | --ddio (=0/1, whether DDIO should be disabled/enabled; default=0) ]
+              [ -r | --ring-buffer (size of Rx ring buffer. Note: opt must be set to change this)]
+              [ --intf (interface name, eg. ens2f0) ]
+              [ --ip (ip address for the interface) ]
+              [ --opt (enable TCP optimization TSO,GRO,aRFS) ]
+              [ --socket-buf (TCP socket buffer size (in MB)) ]
+              [ --ecn (Enable ECN support in Linux stack) ]
+              [ --hwpref (Enable hardware prefetching) ]
+              [ --rdma (=0/1, whether the setup is for running RDMA experiments (MTU offset will be different)) ]
+              [ --pfc (=0/1, disable or enable PFC) ]
+              [ -h | --help  ]"
     exit 2
 }
 
-SHORT=H:,m:,d:,i:,a:,o:,b:,e:,f:,r:,p:,h
-LONG=home:,mtu:,ddio:,intf:,addr:,opt:,buf:,ecn:,hwpref:,rdma:,pfc:,ring_buffer:,help
-OPTS=$(getopt -a -n setup-envir --options $SHORT --longoptions $LONG -- "$@")
+SHORT=m:,d:,r:,h
+LONG=home:,dep:,mtu:,ddio:,ring-buffer:,intf:,ip:,opt:,socket-buf:,ecn:,hwpref:,rdma:,pfc:,help
+PARSED_OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
-VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
-
+VALID_ARGUMENTS=$#
 if [ "$VALID_ARGUMENTS" -eq 0 ]; then
   help
 fi
+eval set -- "$PARSED_OPTS"
 
-eval set -- "$OPTS"
-
-#default values
-home='/home/schai'
-mtu=4000
-ddio=1
-intf="enp8s0np1"
-addr="10.10.1.50"
-opt=1
-buf=1
-ecn=1
-hwpref=1
-rdma=0
-pfc=0
-ring_buffer=1024
-
-
-
-while :
-do
+while :;do
   case "$1" in
-     -H | --home )
-      home="$2"
-      shift 2
-      ;;
-    -m | --mtu )
-      mtu="$2"
-      shift 2
-      ;;
-    -d | --ddio )
-      ddio="$2"
-      shift 2
-      ;;
-    -i | --intf )
-      intf="$2"
-      shift 2
-      ;;
-    -a | --addr )
-      addr="$2"
-      shift 2
-      ;;
-    -o | --opt )
-      opt="$2"
-      shift 2
-      ;;
-    -b | --buf )
-      buf="$2"
-      shift 2
-      ;;
-    -e | --ecn )
-      ecn="$2"
-      shift 2
-      ;;
-    -f | --hwpref )
-      hwpref="$2"
-      shift 2
-      ;;
-    -p | --pfc )
-      pfc="$2"
-      shift 2
-      ;;
-    -r | --rdma )
-      rdma="$2"
-      shift 2
-      ;;
-    --ring_buffer )
-      ring_buffer="$2"
-      shift 2
-      ;; 
-    -h | --help)
-      help
-      ;;
-    --)
-      shift;
-      break
-      ;;
-    *)
-      echo "Unexpected option: $1"
-      help
-      ;;
+    --home ) HOME="$2"; shift 2 ;;
+    --dep ) DEPS_DIR="$2"; shift 2 ;;
+    -m | --mtu ) MTU="$2"; shift 2 ;;
+    -d | --ddio ) DDIO_ENABLED="$2"; shift 2 ;;
+    -r | --ring-buffer ) RING_BUFFER_SIZE="$2"; shift 2 ;;
+    --intf ) INTF="$2"; shift 2 ;;
+    --ip ) IP="$2"; shift 2 ;;
+    --opt ) TCP_OPTIMIZATION_ENABLED="$2"; shift 2 ;;
+    --socket-buf ) TCP_SOCKET_BUF_MB="$2"; shift 2 ;;
+    --ecn ) ECN_ENABLED="$2"; shift 2 ;;
+    --hwpref ) HWPREF_ENABLED="$2"; shift 2 ;;
+    --rdma ) RDMA="$2"; shift 2 ;;
+    --pfc ) PFC_ENABLED="$2"; shift 2 ;;
+    -h | --help) help ;;
+    --) shift; break ;;
+    *) echo "Unexpected option: $1"; help ;;
   esac
 done
 
-if [ "$rdma" = 1 ]
-then
-  echo "Configuring MTU according to RDMA supported values..."
-  mtu=$(($mtu + 96))
-  if [ "$mtu" -lt 1280 ]; then
-      echo "Requested physical MTU size is $mtu, updating to 1280"
-      mtu=1280
+log_info() {
+    echo "[INFO] - $1"
+}
+
+if [ "$RDMA" -eq 1 ]; then
+  log_info "Configuring MTU according to RDMA supported values..."
+  MTU=$(($MTU + 96))
+  if [ "$MTU" -lt 1280 ]; then
+      log_info "Requested physical MTU size is $MTU, updating to 1280"
+      MTU=1280
   fi
+  log_info "MTU configured to $MTU"
 fi
 
 # setup the interface
-echo "Setting up the interface...$intf"
-ifconfig $intf up
-ifconfig $intf $addr
-ifconfig $intf mtu $mtu
+log_info "Setting up the interface $INTF..."
+ifconfig $INTF up
+ifconfig $INTF $IP
+ifconfig $INTF mtu $MTU
 
 #disable TCP buffer auto-tuning, and set the buffer size to the specified size
-echo "Setting up the socket buffer size to be ${buf}MB"
+log_info "Setting up the socket buffer size to be ${TCP_SOCKET_BUF_MB}MB"
 echo 0 > /proc/sys/net/ipv4/tcp_moderate_rcvbuf 
 #Set TCP receive buffer size to be 1MB (other 1MB is for the application buffer)
-echo "$(($buf * 2000000)) $(($buf * 2000000)) $(($buf * 2000000))" > /proc/sys/net/ipv4/tcp_rmem 
+echo "$(($TCP_SOCKET_BUF_MB * 2000000)) $(($TCP_SOCKET_BUF_MB * 2000000)) $(($TCP_SOCKET_BUF_MB * 2000000))" > /proc/sys/net/ipv4/tcp_rmem 
 #Set TCP send buffer size to be 1MB
-echo "$(($buf * 1000000)) $(($buf * 1000000)) $(($buf * 1000000))" > /proc/sys/net/ipv4/tcp_wmem
+echo "$(($TCP_SOCKET_BUF_MB * 1000000)) $(($TCP_SOCKET_BUF_MB * 1000000)) $(($TCP_SOCKET_BUF_MB * 1000000))" > /proc/sys/net/ipv4/tcp_wmem
 
 #Enable TCP ECN support at the senders/receivers
-if [ "$ecn" = 1 ]
-then
-    echo "Enabling ECN support..."
+if [ "$ECN_ENABLED" = 1 ]; then
+    log_info "Enabling ECN support..."
     echo 1 > /proc/sys/net/ipv4/tcp_ecn
 fi
 
 #Enable aRFS, TSO, GRO for the interface
-if [ "$opt" = 1 ]
-then
-    cd $home/Understanding-network-stack-overheads-SIGCOMM-2021/
-    echo "Enabling TCP optimizations (TSO, GRO, aRFS)..."
-    sudo python3 network_setup.py $intf --arfs --mtu $mtu --sock-size --tso --gro --ring-buffer $ring_buffer
+if [ "$TCP_OPTIMIZATION_ENABLED" -eq 1 ]; then
+    cd ${DEPS_DIR}/Understanding-network-stack-overheads-SIGCOMM-2021
+    log_info "Enabling TCP optimizations (TSO, GRO, aRFS)..."
+    sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE
     cd -
 fi
 
 
 #Enable/disable DDIO
-cd $home/ddio-bench/
-if [ "$ddio" = 1 ]; then
-    echo "Enabling DDIO..."
+cd ${DEPS_DIR}/ddio-bench/
+if [ "$DDIO_ENABLED" -eq 1 ]; then
+    log_info "Enabling DDIO..."
     sudo ./change-ddio-on
 else
-    echo "Disabling DDIO..."
+    log_info "Disabling DDIO..."
     sudo ./change-ddio-off
 fi
 cd -
 
 
 #Enable prefetching
-if [ "$hwpref" = 1 ]
-then
-    echo "Enabling hardware prefetching..."
+if [ "$HWPREF_ENABLED" -eq 1 ]; then
+    log_info "Enabling hardware prefetching..."
     modprobe msr
     wrmsr -a 0x1a4 0
 else
-    echo "Disabling hardware prefetching..."
+    log_info "Disabling hardware prefetching..."
     modprobe msr
     wrmsr -a 0x1a4 1
 fi
 
 #Enable PFC (on QoS 0)
-if [ "$pfc" = 1 ]
+if [ "$PFC_ENABLED" -eq 1 ]
 then
-    echo "Enabling PFC..."
-    mlnx_qos -i $intf --pfc 1,0,0,0,0,0,0,0
-    tc_wrap.py -i $intf
-    tc_wrap.py -i $intf -u 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    log_info "Enabling PFC..."
+    mlnx_qos -i $INTF --pfc 1,0,0,0,0,0,0,0
+    tc_wrap.py -i $INTF
+    tc_wrap.py -i $INTF -u 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
     # To enable on other QoS, modify the above code accordingly
     # For eg., to enable PFC on QoS 1 or 2 us the code below
 
     # Qos 1
-    #  mlnx_qos -i $intf --pfc 0,1,0,0,0,0,0,0
-    #  tc_wrap.py -i $intf
-    #  tc_wrap.py -i $intf -u 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+    #  mlnx_qos -i $INTF --pfc 0,1,0,0,0,0,0,0
+    #  tc_wrap.py -i $INTF
+    #  tc_wrap.py -i $INTF -u 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 
     # Qos 2
-    # mlnx_qos -i $intf --pfc 0,0,1,0,0,0,0,0
-    # tc_wrap.py -i $intf
-    # tc_wrap.py -i $intf -u 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+    # mlnx_qos -i $INTF --pfc 0,0,1,0,0,0,0,0
+    # tc_wrap.py -i $INTF
+    # tc_wrap.py -i $INTF -u 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
 else
-    echo "Disabling PFC..."
-    sudo mlnx_qos -i $intf --pfc 0,0,0,0,0,0,0,0
+    log_info "Disabling PFC..."
+    sudo mlnx_qos -i $INTF --pfc 0,0,0,0,0,0,0,0
 fi
 
 
