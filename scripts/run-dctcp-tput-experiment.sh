@@ -183,15 +183,15 @@ EBPF_HOST_LOADER="${HOST_HOME}/${EBPF_HOST_LOADER_REL}"
 PROFILING_LOGGING_DUR_S=$((CORE_DURATION_S))
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
-	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh $CLIENT_SSH_UNAME@$CLIENT_SSH_HOST"
+	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 else
-	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE $CLIENT_SSH_UNAME@$CLIENT_SSH_HOST"
+	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
 
 if [ "$HOST_USE_PASS_AUTH" -eq 1 ]; then
-        SSH_HOST_CMD="sshpass -p $HOST_SSH_PASSWORD ssh $HOST_SSH_UNAME@$HOST_IP"
+        SSH_HOST_CMD="sshpass -p $HOST_SSH_PASSWORD ssh ${HOST_SSH_UNAME}@${HOST_IP}"
 else
-        SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE $HOST_SSH_UNAME@$HOST_IP"
+        SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE ${HOST_SSH_UNAME}@${HOST_IP}"
 fi
 
 log_info() {
@@ -268,7 +268,7 @@ cleanup() {
         'screen -ls | grep -E "\.client_session|\.logging_session_client" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
     $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
-    $SSH_CLIENT_CMD \
+    $SSH_HOST_CMD \
 	'screen -ls | grep -E "\.host_session|\.perf_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
     $SSH_HOST_CMD \
         'screen -wipe || true'
@@ -336,7 +336,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup Guest (Server) Environment ---
     log_info "Setting up GUEST server environment..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
-    sudo bash setup-envir-unmodified.sh -i "$GUEST_INTF" -a "$SERVER_IP" -m "$MTU" -d "$DDIO_ENABLED" \
+    sudo bash setup-envir-unmodified.sh -i "$GUEST_INTF" -a "$GUEST_IP" -m "$MTU" -d "$DDIO_ENABLED" \
         --ring_buffer "$RING_BUFFER_SIZE" --buf "$TCP_SOCKET_BUF_MB" -f 1 -r 0 -p 0 -e 1 -o 1
     cd - > /dev/null # Go back to previous directory silently
 
@@ -373,7 +373,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh -i '$CLIENT_INTF' -a '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' --ring_buffer '$RING_BUFFER_SIZE' --buf '$TCP_SOCKET_BUF_MB' -f 1 -r 0 -p 0 -e 1 -o 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh -m client -a '$SERVER_IP' -C '$CLIENT_NUM_CLIENTS' -S '$GUEST_NUM_SERVERS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh -m client -a '$GUEST_IP' -C '$CLIENT_NUM_CLIENTS' -S '$GUEST_NUM_SERVERS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---

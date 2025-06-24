@@ -1,4 +1,4 @@
-./clean_logs.sh
+#!/bin/bash
 cd ..
 
 echo "Running flow experiment... this may take a few minutes"
@@ -37,7 +37,7 @@ for i in 5 ; do
     sudo bash run-dctcp-tput-experiment.sh \
     --server-home "/home/schai" --server-ip "$server_ip" --server-intf "$server_intf" -n "$i" -c "0,1,2,3,4" \
     --client-home "/users/Leshna/" --client-ip "$client_ip" --client-intf "$client_intf" -N "$i" -C "4,8,12,16,20" \
-    --host-home "/users/Leshna" --host-ip "$host_ip_exp" --host-intf "$host_intf" \
+    --host-home "/users/Leshna" --host-ip "$host_ip" --host-intf "$host_intf" \
     -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1\
     --socket-buf 1 --mlc-cores 'none'
 
