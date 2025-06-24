@@ -336,8 +336,10 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup Guest (Server) Environment ---
     log_info "Setting up GUEST server environment..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
-    sudo bash setup-envir-unmodified.sh -i "$GUEST_INTF" -a "$GUEST_IP" -m "$MTU" -d "$DDIO_ENABLED" \
-        --ring_buffer "$RING_BUFFER_SIZE" --buf "$TCP_SOCKET_BUF_MB" -f 1 -r 0 -p 0 -e 1 -o 1
+    sudo bash setup-envir-vm.sh --dep "$GUEST_HOME" --intf "$GUEST_INTF" --ip "$GUEST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
+        --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1
+    echo "bash setup-envir-vm.sh --dep \"$GUEST_HOME\" --intf \"$GUEST_INTF\" --ip \"$GUEST_IP\" -m \"$MTU\" -d \"$DDIO_ENABLED\" -r \"$RING_BUFFER_SIZE\" \
+        --socket-buf \"$TCP_SOCKET_BUF_MB\" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1"
     cd - > /dev/null # Go back to previous directory silently
 
      # --- Setup Host Environment ---
