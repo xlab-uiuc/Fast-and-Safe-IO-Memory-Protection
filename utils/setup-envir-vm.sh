@@ -123,20 +123,17 @@ cd -
 
 #Enable prefetching
 if [ "$HWPREF_ENABLED" -eq 1 ]; then
-    log_info "Enabling hardware prefetching..."
-    modprobe msr
-    wrmsr -a 0x1a4 0
+    log_info "hardware prefetching needs to be setup in host..."
 else
-    log_info "Disabling hardware prefetching..."
-    modprobe msr
-    wrmsr -a 0x1a4 1
+    log_info "hardware prefetching needs to be disabled in host..."
 fi
 
 #Enable PFC (on QoS 0)
 if [ "$PFC_ENABLED" -eq 1 ]
 then
     log_info "Enabling PFC..."
-    mlnx_qos -i $INTF --pfc 1,0,0,0,0,0,0,0
+    # mlnx_qos -i $INTF --pfc 1,0,0,0,0,0,0,0
+    sudo lldptool -T -i $INTF -V PFC willing=no enabled=0
     tc_wrap.py -i $INTF
     tc_wrap.py -i $INTF -u 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
@@ -154,7 +151,8 @@ then
     # tc_wrap.py -i $INTF -u 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
 else
     log_info "Disabling PFC..."
-    sudo mlnx_qos -i $INTF --pfc 0,0,0,0,0,0,0,0
+    # sudo mlnx_qos -i $INTF --pfc 0,0,0,0,0,0,0,0
+    sudo lldptool -T -i $INTF -V PFC willing=no enabled=
 fi
 
 

@@ -341,14 +341,12 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash setup-envir-vm.sh --dep "$GUEST_HOME" --intf "$GUEST_INTF" --ip "$GUEST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
         --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$GUEST_NIC_BUS"
-    echo "bash setup-envir-vm.sh --dep \"$GUEST_HOME\" --intf \"$GUEST_INTF\" --ip \"$GUEST_IP\" -m \"$MTU\" -d \"$DDIO_ENABLED\" -r \"$RING_BUFFER_SIZE\" \
-        --socket-buf \"$TCP_SOCKET_BUF_MB\" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1"
     cd - > /dev/null # Go back to previous directory silently
 
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $HOST_IP..."
     $SSH_HOST_CMD \
-        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-envir.sh -m '$MTU' -d '$DDIO_ENABLED' --ring_buffer '$RING_BUFFER_SIZE' --buf '$TCP_SOCKET_BUF_MB' -f 1 -r 0 -p 0 -e 1 -o 1; exec bash\""
+        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh --intf '$HOST_INTF' --ip '$HOST_IP' -m '$MTU' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
     log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
@@ -357,7 +355,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         -p "$INIT_PORT" -c "$GUEST_CPU_MASK" &> "$guest_server_app_log_file" &
     sleep 2 # Allow server app to initialize
     cd - > /dev/null
-
    
     # --- Ftrace Setup (Guest & Host) ---
     log_info "Configuring GUEST ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
@@ -377,8 +374,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
-    client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh -i '$CLIENT_INTF' -a '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' --ring_buffer '$RING_BUFFER_SIZE' --buf '$TCP_SOCKET_BUF_MB' -f 1 -r 0 -p 0 -e 1 -o 1; "
+    client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-bare-metal.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
     client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh -m client -a '$GUEST_IP' -C '$CLIENT_NUM_CLIENTS' -S '$GUEST_NUM_SERVERS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    echo $client_cmd
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
