@@ -55,6 +55,8 @@ modules.order
 utils/reports/
 utils/logs/
 plots/
+*.log
+*.out
 
 #
 # Top-level generic files

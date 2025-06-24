@@ -58,6 +58,7 @@ EBPF_TRACING_ENABLED=0 #test
 GUEST_HOME="/home/schai"
 GUEST_IP="10.10.1.50"
 GUEST_INTF="enp8s0np1"
+GUEST_NIC_BUS="0x08"
 GUEST_NUM_SERVERS=5
 GUEST_CPU_MASK="0,1,2,3,4"
 
@@ -86,11 +87,12 @@ TCP_SOCKET_BUF_MB=1
 help() {
     echo "Usage: $SCRIPT_NAME"
     echo "Server/Guest Configuration:"
-    echo "    [ --server-home <path> (Guest home directory) ]"
-    echo "    [ --server-ip <ip> (IP address of the server/guest) ]"
-    echo "    [ --server-intf <name> (Network interface for the server/guest) ]"
-    echo "    [ -n | --server-num <count> (Number of server instances; default: 5) ]"
-    echo "    [ -c | --server-cpu-mask <csv> (Guest CPU mask, comma-separated; default: 0,1,2,3,4) ]"
+    echo "    [ --guest-home <path> (Guest home directory) ]"
+    echo "    [ --guest-ip <ip> (IP address of the server/guest) ]"
+    echo "    [ --guest-intf <name> (Network interface for the server/guest) ]"
+    echo "    [ --guest-bus <bus> (NIC’s PCI bus number) ]"
+    echo "    [ -n | --guest-num <count> (Number of server instances; default: 5) ]"
+    echo "    [ -c | --guest-cpu-mask <csv> (Guest CPU mask, comma-separated; default: 0,1,2,3,4) ]"
     echo
     echo "Client Configuration:"
     echo "    [ --client-home <path> (Client home directory) ]"
@@ -126,7 +128,7 @@ help() {
 # COMMAND-LINE ARGUMENT PARSING
 #-------------------------------------------------------------------------------
 SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
-LONG_OPTS="server-home:,server-ip:,server-intf:,server-num:,server-cpu-mask:,\
+LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
 host-home:,host-ip:,host-intf:,\
 exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,help"
@@ -140,11 +142,12 @@ eval set -- "$PARSED_OPTS"
 
 while :; do
     case "$1" in
-        --server-home) GUEST_HOME="$2"; shift 2 ;;
-        --server-ip) GUEST_IP="$2"; shift 2 ;;
-        --server-intf) GUEST_INTF="$2"; shift 2 ;;
-        -n | --server-num) GUEST_NUM_SERVERS="$2"; shift 2 ;;
-        -c | --server-cpu-mask) GUEST_CPU_MASK="$2"; shift 2 ;;
+        --guest-home) GUEST_HOME="$2"; shift 2 ;;
+        --guest-ip) GUEST_IP="$2"; shift 2 ;;
+        --guest-intf) GUEST_INTF="$2"; shift 2 ;;
+	--guest-bus) GUEST_NIC_BUS="$2"; shift 2 ;;
+        -n | --guest-num) GUEST_NUM_SERVERS="$2"; shift 2 ;;
+        -c | --guest-cpu-mask) GUEST_CPU_MASK="$2"; shift 2 ;;
         --client-home) CLIENT_HOME="$2"; shift 2 ;;
         --client-ip) CLIENT_IP="$2"; shift 2 ;;
         --client-intf) CLIENT_INTF="$2"; shift 2 ;;
@@ -337,7 +340,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Setting up GUEST server environment..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash setup-envir-vm.sh --dep "$GUEST_HOME" --intf "$GUEST_INTF" --ip "$GUEST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
-        --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1
+        --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$GUEST_NIC_BUS"
     echo "bash setup-envir-vm.sh --dep \"$GUEST_HOME\" --intf \"$GUEST_INTF\" --ip \"$GUEST_IP\" -m \"$MTU\" -d \"$DDIO_ENABLED\" -r \"$RING_BUFFER_SIZE\" \
         --socket-buf \"$TCP_SOCKET_BUF_MB\" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1"
     cd - > /dev/null # Go back to previous directory silently

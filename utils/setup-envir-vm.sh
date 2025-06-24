@@ -5,6 +5,7 @@ MTU=4000
 DDIO_ENABLED=1
 INTF="enp8s0np1"
 IP="10.10.1.50"
+NIC_BUS="0x08"
 TCP_OPTIMIZATION_ENABLED=1
 TCP_SOCKET_BUF_MB=1
 ECN_ENABLED=1
@@ -20,6 +21,7 @@ help()
               [ --dep (path to dependencies directories)]
               [ --intf (interface name, eg. ens2f0) ]
               [ --ip (ip address for the interface) ]
+	      [ --nic-bus (NIC's PCI bus number) ]
               [ -m | --mtu (MTU size in bytes; default=4000 for TCP, 4096 for RDMA) ] 
               [ -d | --ddio (=0/1, whether DDIO should be disabled/enabled; default=0) ]
               [ -r | --ring-buffer (size of Rx ring buffer. Note: opt must be set to change this)]
@@ -34,7 +36,7 @@ help()
 }
 
 SHORT=m:,d:,r:,h
-LONG=dep:,mtu:,ddio:,ring-buffer:,intf:,ip:,opt:,socket-buf:,ecn:,hwpref:,rdma:,pfc:,help
+LONG=dep:,nic-bus:,mtu:,ddio:,ring-buffer:,intf:,ip:,opt:,socket-buf:,ecn:,hwpref:,rdma:,pfc:,help
 PARSED_OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$#
@@ -45,18 +47,19 @@ eval set -- "$PARSED_OPTS"
 
 while :;do
   case "$1" in
-    --dep ) DEPS_DIR="$2"; shift 2 ;;
-    -m | --mtu ) MTU="$2"; shift 2 ;;
-    -d | --ddio ) DDIO_ENABLED="$2"; shift 2 ;;
-    -r | --ring-buffer ) RING_BUFFER_SIZE="$2"; shift 2 ;;
-    --intf ) INTF="$2"; shift 2 ;;
-    --ip ) IP="$2"; shift 2 ;;
-    --opt ) TCP_OPTIMIZATION_ENABLED="$2"; shift 2 ;;
-    --socket-buf ) TCP_SOCKET_BUF_MB="$2"; shift 2 ;;
-    --ecn ) ECN_ENABLED="$2"; shift 2 ;;
-    --hwpref ) HWPREF_ENABLED="$2"; shift 2 ;;
-    --rdma ) RDMA="$2"; shift 2 ;;
-    --pfc ) PFC_ENABLED="$2"; shift 2 ;;
+    --dep) DEPS_DIR="$2"; shift 2 ;;
+    --nic-bus) NIC_BUS="$2"; shift 2 ;;
+    -m | --mtu) MTU="$2"; shift 2 ;;
+    -d | --ddio) DDIO_ENABLED="$2"; shift 2 ;;
+    -r | --ring-buffer) RING_BUFFER_SIZE="$2"; shift 2 ;;
+    --intf) INTF="$2"; shift 2 ;;
+    --ip) IP="$2"; shift 2 ;;
+    --opt) TCP_OPTIMIZATION_ENABLED="$2"; shift 2 ;;
+    --socket-buf) TCP_SOCKET_BUF_MB="$2"; shift 2 ;;
+    --ecn) ECN_ENABLED="$2"; shift 2 ;;
+    --hwpref) HWPREF_ENABLED="$2"; shift 2 ;;
+    --rdma) RDMA="$2"; shift 2 ;;
+    --pfc) PFC_ENABLED="$2"; shift 2 ;;
     -h | --help) help ;;
     --) shift; break ;;
     *) echo "Unexpected option: $1"; help ;;
@@ -110,10 +113,10 @@ fi
 cd ${DEPS_DIR}/ddio-bench/
 if [ "$DDIO_ENABLED" -eq 1 ]; then
     log_info "Enabling DDIO..."
-    sudo ./change-ddio-on
+    sudo ./ddio-tool -b $NIC_BUS enable
 else
     log_info "Disabling DDIO..."
-    sudo ./change-ddio-off
+    sudo ./ddio-tool -b $NIC_BUS disable
 fi
 cd -
 
