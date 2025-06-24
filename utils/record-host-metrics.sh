@@ -91,7 +91,7 @@ function dump_netstat() {
 }
 
 function dump_pciebw() {
-    modprobe msr
+    sudo modprobe msr
     sudo taskset -c 15 $DEP_DIR/pcm/build/bin/pcm-iio 1 -csv=logs/$OUT_DIR/pcie.csv &
 }
 
@@ -109,7 +109,7 @@ function parse_pciebw() {
 }
 
 function dump_membw() {
-    modprobe msr
+    sudo modprobe msr
     sudo taskset -c 15 $DEP_DIR/pcm/build/bin/pcm-memory 1 -columns=5
 }
 
