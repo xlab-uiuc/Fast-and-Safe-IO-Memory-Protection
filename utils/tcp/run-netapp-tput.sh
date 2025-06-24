@@ -1,113 +1,77 @@
 #!/bin/bash
+SCRIPT_NAME="run-netapp-tput"
+
+#default values
+MODE="server"
+OUT_DIR="tcptest"
+SERVER_IP="192.168.11.127"
+CPU_MASK="0,1,2,3,4"
+NUM_SERVERS=5
+NUM_CLIENTS=5
+PORT=3000
+BANDWIDTH="100g"
 
 help()
 {
-    echo "Usage: run-netapp-tput [ -m | --mode (=client/server) ]
+    echo "Usage: $SCRIPT_NAME [ --mode (=client/server) ]
                [ -o | --outdir (output directory to store the application stats log; default='test')]
-               [ -S | --num_servers (number of server instances)]
-               [ -C | --num_clients (number of client instances, only use this option at client)]
+               [ -n | --num_servers (number of server instances)]
+               [ -N | --num_clients (number of client instances, only use this option at client)]
                [ -p | --port (port number for the first connection) ]
-               [ -a | --addr (ip address of the server, only use this option at client) ]
+               [ --server-ip (ip address of the server, only use this option at client) ]
                [ -c | --cores (comma separated cpu core values to run the clients/servers at, for eg., cpu=4,8,12,16; if the number of clients/servers > the number of input cpu cores, the clients/servers will round-robin over the provided input cores; recommended to run on NUMA node local to the NIC for maximum performance) ]
                [ -b | --bandwidth (bandwidth to send at in bits/sec)]
                [ -h | --help  ]"
     exit 2
 }
 
-SHORT=m:,o:,S:,C:,p:,a:,c:,b:h
-LONG=mode:,outdir:,num_servers:,num_clients:,port:,addr:,cores:,bandwidth:,help
+SHORT=o:,n:,N:,p:,c:,b:h
+LONG=mode:,outdir:,num_servers:,num_clients:,port:,server-ip:,cores:,bandwidth:,help
 OPTS=$(getopt -a -n run-netapp-tput --options $SHORT --longoptions $LONG -- "$@")
-
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
-
 if [ "$VALID_ARGUMENTS" -eq 0 ]; then
   help
 fi
-
 eval set -- "$OPTS"
 
-#default values
-mode="server"
-outdir="tcptest"
-addr="192.168.10.122"
-cores="4,8,12,16"
-num_servers=4
-num_clients=4
-port=3000
-bandwidth="100g"
-
-
-while :
-do
+while :;do
   case "$1" in
-    -m | --mode )
-      mode="$2"
-      shift 2
-      ;;
-    -o | --outdir )
-      outdir="$2"
-      shift 2
-      ;;
-    -S | --num_servers )
-      num_servers="$2"
-      shift 2
-      ;;
-    -C | --num_clients )
-      num_clients="$2"
-      shift 2
-      ;;
-    -p | --port )
-      port="$2"
-      shift 2
-      ;;
-    -a | --addr )
-      addr="$2"
-      shift 2
-      ;;
-    -c | --cores )
-      cores="$2"
-      shift 2
-      ;;
-    -b | --bandwidth )
-      bandwidth="$2"
-      shift 2
-      ;;
-    -h | --help)
-      help
-      ;;
-    --)
-      shift;
-      break
-      ;;
-    *)
-      echo "Unexpected option: $1"
-      help
-      ;;
+    --mode) MODE="$2"; shift 2 ;;
+    -o | --outdir) OUT_DIR="$2"; shift 2 ;;
+    -n | --num_servers) NUM_SERVERS="$2"; shift 2 ;;
+    -N | --num_clients) NUM_CLIENTS="$2"; shift 2 ;;
+    -p | --port) PORT="$2"; shift 2 ;;
+    --server-ip) SERVER_IP="$2"; shift 2 ;;
+    -c | --cores) CPU_MASK="$2"; shift 2 ;;
+    -b | --bandwidth) BANDWIDTH="$2"; shift 2 ;;
+    -h | --help) help ;;
+    --) shift; break ;;
+    *) echo "Unexpected option: $1"; help ;;
   esac
 done
 
-IFS=',' read -ra core_values <<< $cores
+IFS=',' read -ra core_values <<< $CPU_MASK
 
 mkdir -p ../reports #Directory to store collected logs
-mkdir -p ../reports/$outdir #Directory to store collected logs
+mkdir -p ../reports/$OUT_DIR #Directory to store collected logs
 mkdir -p ../logs #Directory to store collected logs
-mkdir -p ../logs/$outdir #Directory to store collected logs
-rm ../logs/$outdir/iperf.bw.log
+mkdir -p ../logs/$OUT_DIR #Directory to store collected logs
+rm ../logs/$OUT_DIR/iperf.bw.log
 
 function collect_stats() {
   echo "Collecting app throughput for TCP server..."
-  echo "Avg_iperf_tput: " $(cat ../logs/$outdir/iperf.bw.log | grep "30.*-60.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > ../reports/$outdir/iperf.bw.rpt
+  echo "Avg_iperf_tput: " $(cat ../logs/$OUT_DIR/iperf.bw.log | grep "30.*-60.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > ../reports/$OUT_DIR/iperf.bw.rpt
 }
 
 counter=0
 if [ "$mode" = "server" ]
 then
     sudo pkill -9 -f iperf #kill existing iperf servers/clients
-    while [ $counter -lt $num_servers ]; do
+    while [ $counter -lt $NUM_SERVERS ]; do
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
         echo "Starting server $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -s --port $(($port + $counter)) -i 30 -f m --logfile ../logs/$outdir/iperf.bw.log &
+        sudo taskset -c $core nice -n -20 iperf3 -s --port $(($PORT + $counter)) -i 30 -f m --logfile ../logs/$OUT_DIR/iperf.bw.log &
         ((counter++))
     done
     echo "waiting for few minutes before collecting stats..."
@@ -117,11 +81,11 @@ then
 elif [ "$mode" = "client" ]
 then
     sudo pkill -9 -f iperf #kill existing iperf servers/clients
-    while [ $counter -lt $num_clients ]; do
+    while [ $counter -lt $NUM_CLIENTS ]; do
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
         echo "Starting client $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -c $addr --port $(($port+$(($counter%$num_servers)))) -t 10000 -C dctcp -b $bandwidth &
+        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -t 10000 -C dctcp -b $BANDWIDTH &
         ((counter++))
     done
 else
