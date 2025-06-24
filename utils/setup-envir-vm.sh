@@ -1,7 +1,6 @@
 SCRIPT_NAME="setup-envir"
 
 #default values
-HOME='/home/schai'
 MTU=4000
 DDIO_ENABLED=1
 INTF="enp8s0np1"
@@ -13,18 +12,17 @@ HWPREF_ENABLED=1
 RDMA=0
 PFC_ENABLED=0
 RING_BUFFER_SIZE=1024
-DEPS_DIR="$HOME"
+DEPS_DIR="/home/schai"
 
 help()
 {
     echo "Usage: $SCRIPT_NAME 
-              [ --home (home directory)]
               [ --dep (path to dependencies directories)]
+              [ --intf (interface name, eg. ens2f0) ]
+              [ --ip (ip address for the interface) ]
               [ -m | --mtu (MTU size in bytes; default=4000 for TCP, 4096 for RDMA) ] 
               [ -d | --ddio (=0/1, whether DDIO should be disabled/enabled; default=0) ]
               [ -r | --ring-buffer (size of Rx ring buffer. Note: opt must be set to change this)]
-              [ --intf (interface name, eg. ens2f0) ]
-              [ --ip (ip address for the interface) ]
               [ --opt (enable TCP optimization TSO,GRO,aRFS) ]
               [ --socket-buf (TCP socket buffer size (in MB)) ]
               [ --ecn (Enable ECN support in Linux stack) ]
@@ -36,7 +34,7 @@ help()
 }
 
 SHORT=m:,d:,r:,h
-LONG=home:,dep:,mtu:,ddio:,ring-buffer:,intf:,ip:,opt:,socket-buf:,ecn:,hwpref:,rdma:,pfc:,help
+LONG=dep:,mtu:,ddio:,ring-buffer:,intf:,ip:,opt:,socket-buf:,ecn:,hwpref:,rdma:,pfc:,help
 PARSED_OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$#
@@ -47,7 +45,6 @@ eval set -- "$PARSED_OPTS"
 
 while :;do
   case "$1" in
-    --home ) HOME="$2"; shift 2 ;;
     --dep ) DEPS_DIR="$2"; shift 2 ;;
     -m | --mtu ) MTU="$2"; shift 2 ;;
     -d | --ddio ) DDIO_ENABLED="$2"; shift 2 ;;
