@@ -100,15 +100,15 @@ function dump_pciebw() {
 
 function parse_pciebw() {
     #TODO: make more general, parse PCIe bandwidth for any given socket and IIO stack
-    echo "PCIe_wr_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $4/1000000000.0; n++ } END { if (n > 0) printf "%.3f", sum / n * 8 ; }') > reports/$OUT_DIR/pcie.rpt
-    echo "PCIe_rd_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $5/1000000000.0; n++ } END { if (n > 0) printf "%0.3f", sum / n * 8 ; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "IOTLB_hits: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $8; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "IOTLB_misses: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $9; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "CTXT_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $10; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L1_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $11; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L2_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $12; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L3_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $13; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "Mem_Read: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $14; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "PCIe_wr_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $6/1000000000.0; n++ } END { if (n > 0) printf "%.3f", sum / n * 8 ; }') > reports/$OUT_DIR/pcie.rpt
+    echo "PCIe_rd_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $7/1000000000.0; n++ } END { if (n > 0) printf "%0.3f", sum / n * 8 ; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "IOTLB_hits: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $10; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "IOTLB_misses: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $11; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "CTXT_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $12; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "L1_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $13; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "L2_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $14; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "L3_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $15; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    echo "Mem_Read: " $(cat logs/$OUT_DIR/pcie.csv | grep "$PCIE_PATTERN" | awk -F ',' '{ sum += $16; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
 }
 
 function dump_membw() {
