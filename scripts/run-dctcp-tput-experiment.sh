@@ -351,7 +351,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Start Guest (Server) Application ---
     log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
     cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
-    sudo bash run-netapp-tput.sh -m server -S "$GUEST_NUM_SERVERS" -o "${EXP_NAME}-RUN-${j}" \
+    sudo bash run-netapp-tput.sh --mode server -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
         -p "$INIT_PORT" -c "$GUEST_CPU_MASK" &> "$guest_server_app_log_file" &
     sleep 2 # Allow server app to initialize
     cd - > /dev/null
@@ -375,7 +375,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-bare-metal.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh -m client -a '$GUEST_IP' -C '$CLIENT_NUM_CLIENTS' -S '$GUEST_NUM_SERVERS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
     echo $client_cmd
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
@@ -401,17 +401,24 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
-    client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$CLIENT_INTF' -o '${EXP_NAME}-RUN-${j}' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$CORE_DURATION_S' --cores '$CLIENT_CPU_MASK'; exec bash"
+    client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
+        --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
+        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 1 --bw 1 --flame 0 \
+        --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
     $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $HOST_IP..."
-    host_logging_cmd="cd '$HOST_RESULTS_DIR'; sudo bash record-metrics.sh -f 0 -I 1 -t 1 -o '${EXP_NAME}-RUN-${j}' --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur '$CORE_DURATION_S'; exec bash"
+    host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
+        --dep '$HOST_RESULTS_REL' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
+        --cpu-util 0 --retx 1 --tcplog 1 --bw 1 --flame 0 \
+        --pcie 1 --membw 1 --iio 1 --pfc 0 --type 0; exec bash"
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
-    sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i "$GUEST_INTF" -o "${EXP_NAME}-RUN-${j}" \
-        --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur "$CORE_DURATION_S" --cores "$GUEST_CPU_MASK" 
+    sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
+    --dur "$CORE_DURATION_S" --cpu_util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 1 --bw 1 --flame 0 \
+    --pcie 1 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
     cd - > /dev/null
 
     log_info "Logging done."
