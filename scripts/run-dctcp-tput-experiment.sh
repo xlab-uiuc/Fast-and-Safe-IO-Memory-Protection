@@ -35,7 +35,7 @@ EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
 # --- Remote Access (SSH) Configuration ---
 CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_HOST="128.110.220.127" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
@@ -411,6 +411,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
         --cpu-util 0 --retx 1 --tcplog 1 --bw 1 --flame 0 \
         --pcie 1 --membw 1 --iio 1 --pfc 0 --type 0; exec bash"
+    echo $host_logging_cmd
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."

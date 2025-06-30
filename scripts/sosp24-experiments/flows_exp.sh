@@ -3,16 +3,16 @@ cd ..
 
 echo "Running flow experiment... this may take a few minutes"
 
-guest_intf="enp8s0np1"
-guest_ip="10.10.1.50"
-guest_nic_bus="0x08"
+guest_intf="enp0s1np0"
+guest_ip="10.10.1.1"
+guest_nic_bus="0x00"
 guest_home="/home/schai"
 host_ip="192.168.122.1"
-host_intf="enp101s0f1np1"
+host_intf="virbr0"
 host_home="/users/Leshna"
-client_intf="eno12409np1"
+client_intf="enp23s0f0np0"
 client_ip="10.10.1.2"
-client_ip_ssh="128.110.220.127"
+client_ip_ssh="128.110.220.29"
 client_user="Leshna"
 client_home="/users/Leshna"
 
@@ -32,7 +32,7 @@ sleep 1
 
 timestamp=$(date '+%H-%M_%m-%d')
 # 5 10 20 40
-for i in 5 ; do
+for i in 5; do
     format_i=$(printf "%02d\n" $i)
     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}"
     echo $exp_name
@@ -42,7 +42,7 @@ for i in 5 ; do
     --client-home "$client_home" --client-ip "$client_ip" --client-intf "$client_intf" -N "$i" -C "4,8,12,16,20" \
     --host-home "$host_home" --host-ip "$host_ip" --host-intf "$host_intf" \
     -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1\
-    --socket-buf 1 --mlc-cores 'none'
+    --socket-buf 1 --mlc-cores 'none' --runs 1
 
     # > /dev/null 2>&1
     #sudo bash run-dctcp-tput-experiment.sh -E $exp_name -M 4000 --num_servers $i --num_clients $i -c "4" -m "20" --ring_buffer 256 --buf 1 --mlc_cores 'none' --bandwidth "100g" --server_intf $server_intf --client_intf $client_intf    
