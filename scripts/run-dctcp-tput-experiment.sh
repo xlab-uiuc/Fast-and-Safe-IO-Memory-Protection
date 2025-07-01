@@ -36,10 +36,10 @@ eval set -- "$OPTS"
 
 #default values
 exp="benny-test"
-server="192.168.11.116"
-client="192.168.11.117"
-server_intf="ens2f0np0"
-client_intf="ens2f0"
+server="10.10.1.3"
+client="10.10.1.2"
+server_intf="enp23s0f0np0"
+client_intf="enp23s0f0np0"
 num_servers=5
 num_clients=5
 init_port=3000
@@ -53,10 +53,14 @@ ring_buffer=256
 buf=1
 bandwidth="100g"
 num_runs=1
-home="/home/benny"
-setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
-exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
-mlc_dir=$home/mlc/Linux
+home="/users/Leshna"
+viommu="/users/Leshna/viommu"
+setup_dir=$viommu/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir=$viommu/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+mlc_dir=$viommu/mlc/Linux
+setup_dir_client=$home/Fast-and-Safe-IO-Memory-Protection/utils
+exp_dir_client=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
+mlc_dir_client=$home/mlc/Linux
 
 #echo -n "Enter SSH Username for client:"
 #read uname
@@ -64,10 +68,11 @@ mlc_dir=$home/mlc/Linux
 #read addr
 #echo -n "Enter SSH Password for client:"
 #read -s password
-uname=benny
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
-password=benny
+CLIENT_SSH_UNAME="Leshna"
+CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_SSH_IDENTITY_FILE="/users/Leshna/.ssh/id_ed25519_wisc"
 
 
 while :
@@ -147,6 +152,14 @@ do
   esac
 done
 
+if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
+	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
+else
+	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
+fi
+
+#TODO fix this
+exp_name=$exp
 
 # Function to display the progress bar
 function progress_bar() {
@@ -167,12 +180,12 @@ function progress_bar() {
 function cleanup() {
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf
-    rm -f $home/hostCC/utils/out.perf-folded
-    rm -f $home/hostCC/utils/perf.data
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
-    sshpass -p $password ssh $uname@$ssh_hostname 'screen -wipe'
-    sshpass -p $password ssh $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
+#    rm -f $home/hostCC/utils/out.perf-folded
+#    rm -f $home/hostCC/utils/perf.data
+    $SSH_CLIENT_CMD 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
+    $SSH_CLIENT_CMD 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
+    $SSH_CLIENT_CMD 'screen -wipe'
+    $SSH_CLIENT_CMD 'sudo pkill -9 -f iperf'
     ## IOVA logging
     sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
     sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
@@ -192,6 +205,10 @@ echo "running instance $j"
 
 #### pre-run cleanup -- kill any existing clients/screen sessions
 cleanup
+
+reports_dir="${setup_dir}/reports/${exp_name}-RUN-${j}"
+server_app_log_file="${reports_dir}/server_app.log"
+sudo mkdir -p "$reports_dir"
 
 #### start MLC
 if [ "$mlc_cores" = "none" ]; then
@@ -214,7 +231,8 @@ cd -
 
 echo "starting server instances..."
 cd $exp_dir
-sudo bash run-netapp-tput.sh -m server -S $num_servers -o $exp-RUN-$j -p $init_port -c $cpu_mask &
+sudo bash run-netapp-tput.sh --mode server -n "$num_servers" -N "$num_clients" -o "${exp}-RUN-${j}" \
+        -p "$init_port" -c "$cpu_mask" &> "$server_app_log_file" &
 sleep 2
 cd -
 
@@ -224,7 +242,9 @@ sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
 
 #### setup and start clients
 echo "setting up and starting clients..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+client_cmd="cd '$setup_dir_client'; sudo bash setup-bare-metal.sh --dep '$home' --intf '$client_intf' --ip '$client' -m '$mtu' -d '$ddio' -r '$ring_buffer' --socket-buf '$buf' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
+client_cmd+="cd '$exp_dir_client'; sudo bash run-netapp-tput.sh --mode client --server-ip '$server' -n '$num_servers' -N '$num_clients'  -o '${exp_name}-RUN-${j}' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"
+$SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
 #### warmup
 echo "warming up..."
@@ -233,18 +253,26 @@ progress_bar 10 1
 #record stats
 ##start sender side logging
 echo "starting logging at client..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo bash -c "cd '$setup_dir'; sudo bash record-host-metrics.sh -f 0 -t 1 -i '$client_intf' -o '$exp-RUN-$j' --type 0 --cpu_util 1 --retx 1 --pcie 0 --membw 0 --dur '$dur' --cores '$cpu_mask' ; exec bash"'
+client_logging_cmd="cd '$setup_dir_client'; sudo bash record-host-metrics.sh \
+        --dep '$home' -o '${exp_name}-RUN-${j}' --dur '$dur' \
+        --cpu-util 1 -c '$cpu_mask' --retx 1 --tcplog 1 --bw 1 --flame 0 \
+	--pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$client_intf' --type 0; exec bash"
+$SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
 ##start receiver side logging
 echo "starting logging at server..."
 cd $setup_dir
-sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
+sudo bash record-host-metrics.sh --dep "$viommu" -o "${exp}-RUN-${j}" \
+    --dur "$dur" --cpu-util 1 -c "$cpu_mask" --retx 1 --tcplog 1 --bw 1 --flame 0 \
+    --pcie 1 --membw 1 --iio 1 --pfc 0 --intf "$server_intf" --type 0
 echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
 # sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
-sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+# sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$setup_dir_client/reports/$exp-RUN-$j/retx.rpt" "$setup_dir/reports/$exp-RUN-$j/retx.rpt"
 
 sleep $(($dur * 2))
 
