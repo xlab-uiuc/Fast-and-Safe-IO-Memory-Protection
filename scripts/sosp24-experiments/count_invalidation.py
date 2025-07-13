@@ -14,74 +14,60 @@ def count_invalidation(file: str) -> dict:
     
     count_dict = {
         "total": 0,
+        "total_packet": 0,
 
         "RX map": 0,
         "RX unmap": 0,
         "TX map": 0,
         "TX unmap": 0,
+        "RX packet": 0,
+        "TX packet": 0,
         
         "page_pool_put_unrefed_page": 0,
         "recycle_in_cache": 0,
-    
-        "start_time": -1.0,
-        "end_time": -1.0,
 
-        "total_per_sec" : 0.0,
-        "RX map_per_sec": 0.0,
-        "RX unmap_per_sec": 0.0,
-        "TX map_per_sec": 0.0,
-        "TX unmap_per_sec": 0.0,
+
+        "total_per_packet" : 0.0,
+        "RX map_per_packet": 0.0,
+        "RX unmap_per_packet": 0.0,
+        "TX map_per_packet": 0.0,
+        "TX unmap_per_packet": 0.0,
     }
     
     with open(file, "r") as f:
         for line in f:
             line = line.strip()
-            operation_happens = False
+            
             if line:
                 # Check if the line contains "RX map" or "TX map"
                 if "RX map" in line:
                     count_dict["RX map"] += 1
-                    operation_happens = True
                 elif "TX map" in line:
                     count_dict["TX map"] += 1
-                    operation_happens = True
                 elif "RX unmap" in line:
                     count_dict["RX unmap"] += 1
-                    operation_happens = True
                 elif "TX unmap" in line:
                     count_dict["TX unmap"] += 1
-                    operation_happens = True
+                elif "RX packet" in line:
+                    count_dict["RX packet"] += 1
+                elif "TX packet" in line:
+                    count_dict["TX packet"] += 1
                 elif "page_pool_put_unrefed_page" in line:
                     count_dict["page_pool_put_unrefed_page"] += 1
-                    operation_happens = True
                 elif "page_pool_recycle_in_cache" in line:
                     count_dict["recycle_in_cache"] += 1
-                    operation_happens = True
-                
-                
-                if operation_happens:
-                    # Extract the time from the line
-                    time_str = line.split()[3].strip()[:-1]
-                    time_val = float(time_str)
-                    
-                    # Update start and end times
-                    if count_dict["start_time"] < 0.0 or time_val < count_dict["start_time"]:
-                        count_dict["start_time"] = time_val
-                    if time_val > count_dict["end_time"]:
-                        count_dict["end_time"] = time_val
                 
     
     
     count_dict["total"] = count_dict["RX map"] + count_dict["TX map"] + count_dict["RX unmap"] + count_dict["TX unmap"]
+    count_dict["total_packet"] = count_dict["RX packet"] + count_dict["TX packet"]
         
-    # Calculate per second rate
-    duration_sec = count_dict["end_time"] - count_dict["start_time"]
-    if duration_sec > 0:
-        count_dict["total_per_sec"] = count_dict["total"] / duration_sec
-        count_dict["RX map_per_sec"] = count_dict["RX map"] / duration_sec
-        count_dict["RX unmap_per_sec"] = count_dict["RX unmap"] / duration_sec
-        count_dict["TX map_per_sec"] = count_dict["TX map"] / duration_sec
-        count_dict["TX unmap_per_sec"] = count_dict["TX unmap"] / duration_sec
+    # Calculate per packet rate
+    count_dict["total_per_packet"] = count_dict["total"] / count_dict["total_packet"]
+    count_dict["RX map_per_packet"] = count_dict["RX map"] / count_dict["total_packet"]
+    count_dict["RX unmap_per_packet"] = count_dict["RX unmap"] / count_dict["total_packet"]
+    count_dict["TX map_per_packet"] = count_dict["TX map"] / count_dict["total_packet"]
+    count_dict["TX unmap_per_packet"] = count_dict["TX unmap"] / count_dict["total_packet"]
         
     return count_dict
 

@@ -15,6 +15,7 @@ help()
                [ -d | --ddio (=0/1, whether DDIO is disabled or enabled) ]
                [ -c | --cpu_mask (comma separated CPU mask to run the app on, recommended to run on NUMA node local to the NIC for maximum performance; default=0) ]
                [ -b | --bandwidth (bandwidth to send at in bits/sec)]
+               [ -w | --warmup time (seconds)]
                [ --mlc_cores (comma separated values for MLC cores, for eg., '1,2,3' for using cores 1,2 and 3. Use 'none' to skip running MLC.) ]
                [ --ring_buffer (size of NIC Rx buffer)]
                [ --buf (TCP socket buffer size (in MB))]
@@ -23,7 +24,7 @@ help()
 }
 
 SHORT=H:,S:,C:,E:,M:,d:,c:,b:,h
-LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,help
+LONG=home:,server:,client:,num_servers:,num_clients:,server_intf:,client_intf:,exp:,txn:,MTU:,size:,ddio:,cpu_mask:,mlc_cores:,ring_buffer:,bandwidth:,buf:,warmup:,help
 OPTS=$(getopt -a -n run-rdma-tput-experiment --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -35,18 +36,18 @@ fi
 eval set -- "$OPTS"
 
 #default values
-exp="saksham-test"
-server="192.168.11.116"
-client="192.168.11.117"
-server_intf="ens2f1np1"
-client_intf="ens2f1"
+exp="ishv1k-test"
+server="192.168.11.126"
+client="192.168.11.125"
+server_intf="enp101s0f1np1"
+client_intf="ens2f1np1"
 num_servers=5
 num_clients=5
 init_port=3000
 ddio=0
 mtu=4000
 dur=20
-cpu_mask="0,4,8,12,16"
+cpu_mask="0,2,4,6,8"
 mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
@@ -57,6 +58,8 @@ home="/home/saksham"
 setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
 exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
 mlc_dir=$home/mlc/Linux
+# ebpf_tracing_enabled=1
+ebpf_loader=$home/viommu/iommu-vm/tracing/host_loader
 
 #echo -n "Enter SSH Username for client:"
 #read uname
@@ -65,10 +68,13 @@ mlc_dir=$home/mlc/Linux
 #echo -n "Enter SSH Password for client:"
 #read -s password
 uname=saksham
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
+addr=192.168.11.125
+ssh_hostname=genie12.cs.cornell.edu
 password=saksham
 
+# set -x
+
+warmup_time=100
 
 while :
 do
@@ -101,7 +107,7 @@ do
       num_clients="$2"
       shift 2
       ;;
-     --client_intf )
+    --client_intf )
       client_intf="$2"
       shift 2
       ;;
@@ -115,6 +121,10 @@ do
       ;;
     -c | --cpu_mask )
       cpu_mask="$2"
+      shift 2
+      ;;
+    --warmup )
+      warmup_time="$2"
       shift 2
       ;;
     --mlc_cores )
@@ -147,6 +157,9 @@ do
   esac
 done
 
+# set -x
+cpu_mask_s=$cpu_mask
+# cpu_mask_s="2,4,6,8,10,12,14,16"
 
 # Function to display the progress bar
 function progress_bar() {
@@ -169,20 +182,41 @@ function cleanup() {
     sudo pkill -9 -f iperf
     rm -f $home/hostCC/utils/out.perf-folded
     rm -f $home/hostCC/utils/perf.data
+    sudo echo off > /sys/devices/system/cpu/smt/control
     sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.client_session\t/ {print \$1}") -X quit'
     sshpass -p $password ssh $uname@$ssh_hostname 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
     sshpass -p $password ssh $uname@$ssh_hostname 'screen -wipe'
     sshpass -p $password ssh $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
-    ## IOVA logging
-    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo 5000 > /sys/kernel/debug/tracing/buffer_size_kb
-      # reset interface
-    sudo ip link set $server_intf down
-    sleep 2
-    sudo ip link set $server_intf up
-    sleep 2
-    sudo bash /home/saksham/restart.sh
+
+    # if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+    #   sudo pkill -SIGINT -f "host_loader" 2>/dev/null || true
+    #   sleep 2
+    #   sudo pkill -9 -f "host_loader" 2>/dev/null || true
+    # fi
+
+
+    # default ftrace
+    mkdir /sys/kernel/debug/tracing/instances/flow1
+    mkdir /sys/kernel/debug/tracing/instances/flow2
+    sudo echo 0 > /sys/kernel/debug/tracing/instances/flow2/tracing_on
+    # sudo echo 1 > /sys/kernel/debug/tracing/instances/flow2/options/overwrite
+    sudo echo 10 > /sys/kernel/debug/tracing/instances/flow2/tracing_cpumask
+    sudo echo nop > /sys/kernel/debug/tracing/instances/flow2/current_tracer
+    sudo echo 0 > /sys/kernel/debug/tracing/instances/flow2/events/enable
+    sudo echo 1 > /sys/kernel/debug/tracing/instances/flow2/options/trace_printk_dest
+    sudo echo 100000 > /sys/kernel/debug/tracing/instances/flow2/buffer_size_kb
+    # tcp ftrace
+    sudo echo 0 > /sys/kernel/debug/tracing/instances/flow1/tracing_on
+    # sudo echo 1 > /sys/kernel/debug/tracing/instances/flow1/options/overwrite
+    sudo echo 10 > /sys/kernel/debug/tracing/instances/flow1/tracing_cpumask
+    sudo echo 1 > /sys/kernel/debug/tracing/instances/flow1/events/tcp/tcp_probe/enable
+    sudo echo 100000 > /sys/kernel/debug/tracing/instances/flow1/buffer_size_kb
+    # reset interface
+    # sudo ip link set $server_intf down
+    # sleep 2
+    # sudo ip link set $server_intf up
+    # sleep 2
+#     sudo bash /home/benny/restart.sh
 }
 
 
@@ -192,59 +226,54 @@ echo "running instance $j"
 
 #### pre-run cleanup -- kill any existing clients/screen sessions
 cleanup
-sudo bash /home/saksham/restart.sh
 
 #### start MLC
-sudo bash ../utils/set_mba_levels.sh
-cd /home/saksham/hostCC/src
-sudo rm hostcc-module.ko
-sudo make
 if [ "$mlc_cores" = "none" ]; then
     echo "No MLC instance used..."
-    echo "sudo insmod hostcc-module.ko mode=0 target_iio_wr_thresh=70 target_pcie_thresh=84"
-    sudo rmmod hostcc-module.ko
-    sleep 5
-    sudo insmod hostcc-module.ko mode=0 target_iio_wr_thresh=70 target_pcie_thresh=84 
     # Perform actions for "none" input
 else
     echo "starting MLC..."
     $mlc_dir/mlc --loaded_latency -T -d0 -e -k$mlc_cores -j0 -b1g -t10000 -W2 &> mlc.log &
     ## wait until MLC starts sending memory traffic at full rate
     echo "waiting for MLC for start..."
-    echo "sudo insmod hostcc-module.ko target_pcie_thresh=84 target_iio_wr_thresh=85 target_pid=$(pidof mlc)"
-    sudo rmmod hostcc-module.ko
-    sleep 5
-    sudo insmod hostcc-module.ko mode=0 target_iio_wr_thresh=70 target_pcie_thresh=84 target_pid=$(pidof mlc)
-    progress_bar 15 1
+    progress_bar 30 1
 fi
-sudo dmesg --clear
-
-sleep 10 #give time for hostcc module to load
-cd -
 
 #### setup and start servers
 echo "setting up server config..."
+# sudo bash /home/benny/restart.sh
 cd $setup_dir
-sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 0 -o 1
+sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1 > /dev/null 2>&1
 cd -
 
 echo "starting server instances..."
 cd $exp_dir
-sudo bash run-netapp-tput.sh -m server -S $num_servers -o $exp-RUN-$j -p $init_port -c $cpu_mask &
+sudo bash run-netapp-tput.sh -m server -S $num_servers -o $exp-RUN-$j -p $init_port -c $cpu_mask_s > /dev/null 2>&1 &
 sleep 2
 cd -
 
-echo "turning on IOVA logging via ftrace"
-sudo echo > /sys/kernel/debug/tracing/trace
-sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
-
 #### setup and start clients
 echo "setting up and starting clients..."
-sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 0 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
+sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS client_session sudo bash -c "cd '$setup_dir'; sudo bash setup-envir.sh -i '$client_intf' -a '$client' -m '$mtu' -d '$ddio' --ring_buffer '$ring_buffer' --buf '$buf' -f 1 -r 0 -p 0 -e 1 -o 1; cd '$exp_dir'; sudo bash run-netapp-tput.sh -m client -a '$server' -C '$num_clients' -S '$num_servers' -o '$exp'-RUN-'$j' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"'
 
 #### warmup
 echo "warming up..."
-progress_bar 10 1
+progress_bar $warmup_time 1
+
+# default ftrace
+sudo echo > /sys/kernel/debug/tracing/instances/flow2/trace
+sudo echo 1 > /sys/kernel/debug/tracing/instances/flow2/tracing_on
+
+# tcp ftrace
+sudo echo > /sys/kernel/debug/tracing/instances/flow1/trace
+sudo echo 1 > /sys/kernel/debug/tracing/instances/flow1/tracing_on
+
+# if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+#   echo "turning on ebpf logging"
+#   sudo mkdir -p "$setup_dir/reports/$exp-RUN-$j"
+#   sudo taskset -c 33 "$ebpf_loader" -o "$setup_dir/reports/$exp-RUN-$j/ebpf_host_stats.csv"
+#   sleep 2 # Allow eBPF loaders to initialize
+# fi
 
 #record stats
 ##start sender side logging
@@ -254,11 +283,18 @@ sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo 
 ##start receiver side logging
 echo "starting logging at server..."
 cd $setup_dir
-sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
+sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask_s > /dev/null 2>&1
 echo "done logging..."
 cd -
 
+# if [ "$ebpf_tracing_enabled" -eq 1 ]; then
+#   log_info "Stopping eBPF tracers..."
+#   sudo pkill -SIGINT -f "host_loader" 2>/dev/null || true
+# fi
+
+
 #transfer sender-side info back to receiver
+# sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
 sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
 
 sleep $(($dur * 2))
@@ -269,11 +305,8 @@ done
 
 if [ "$mlc_cores" = "none" ]; then
     echo "No MLC instance used... Skipping MLC throughput collection"
-    sudo rmmod hostcc-module.ko
-    dmesg > /home/saksham/pcie.log
 else
-    sudo rmmod hostcc-module.ko
-    dmesg > /home/saksham/pcie.log
+    echo "MLC cores detected.. Still skipping MLC throughput collection"
    # #now run very long network app, to find out MLC tput
    # for ((j = 0; j < $num_runs; j += 1)); do
    # echo "running instance $j"
@@ -310,12 +343,11 @@ else
    # done
 fi
 
-sudo python3 collect-tput-stats.py $exp $num_runs 0
 #collect info from all runs
-#if [ "$mlc_cores" = "none" ]; then
-#    sudo python3 collect-tput-stats.py $exp $num_runs 0
-#else
-#    sudo python3 collect-tput-stats.py $exp $num_runs 1
-#fi
+if [ "$mlc_cores" = "none" ]; then
+    sudo python3 collect-tput-stats.py $exp $num_runs 0
+else
+    sudo python3 collect-tput-stats.py $exp $num_runs 0 #TODO: Change back to 1
+fi
 
 

@@ -35,25 +35,25 @@ fi
 eval set -- "$OPTS"
 
 #default values
-exp="benny-test"
-server="192.168.11.116"
-client="192.168.11.117"
-server_intf="ens2f0np0"
-client_intf="ens2f0"
+exp="test"
+server="192.168.11.126"
+client="192.168.11.125"
+server_intf="enp101s0f1np1"
+client_intf="ens2f1np1"
 num_servers=5
 num_clients=5
 init_port=3000
 ddio=0
 mtu=4000
 dur=20
-cpu_mask="0,4,8,12,16"
+cpu_mask="0,2,4,6,8"
 mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
 buf=1
 bandwidth="100g"
 num_runs=1
-home="/home/benny"
+home="/home/saksham"
 setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
 exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
 mlc_dir=$home/mlc/Linux
@@ -64,11 +64,12 @@ mlc_dir=$home/mlc/Linux
 #read addr
 #echo -n "Enter SSH Password for client:"
 #read -s password
-uname=benny
-addr=192.168.11.117
-ssh_hostname=genie04.cs.cornell.edu
-password=benny
+uname=saksham
+addr=192.168.11.125
+ssh_hostname=genie12.cs.cornell.edu
+password=saksham
 
+cpu_mask_s="2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40"
 
 while :
 do
@@ -175,14 +176,14 @@ function cleanup() {
     sshpass -p $password ssh $uname@$ssh_hostname 'sudo pkill -9 -f iperf'
     ## IOVA logging
     sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 1 > /sys/kernel/debug/tracing/options/overwrite
     sudo echo 5000 > /sys/kernel/debug/tracing/buffer_size_kb
     # reset interface
     sudo ip link set $server_intf down
     sleep 2
     sudo ip link set $server_intf up
     sleep 2
-#     sudo bash /home/benny/restart.sh
+#     sudo bash /home/saksham/restart.sh
 }
 
 
@@ -207,14 +208,14 @@ fi
 
 #### setup and start servers
 echo "setting up server config..."
-# sudo bash /home/benny/restart.sh
+# sudo bash /home/saksham/restart.sh
 cd $setup_dir
 sudo bash setup-envir.sh -i $server_intf -a $server -m $mtu -d $ddio --ring_buffer $ring_buffer --buf $buf -f 1 -r 0 -p 0 -e 1 -o 1
 cd -
 
 echo "starting server instances..."
 cd $exp_dir
-sudo bash run-netapp-tput.sh -m server -S $num_servers -o $exp-RUN-$j -p $init_port -c $cpu_mask &
+sudo bash run-netapp-tput.sh -m server -S $num_servers -o $exp-RUN-$j -p $init_port -c $cpu_mask_s &
 sleep 2
 cd -
 
@@ -238,12 +239,12 @@ sshpass -p $password ssh $uname@$ssh_hostname 'screen -dmS logging_session sudo 
 ##start receiver side logging
 echo "starting logging at server..."
 cd $setup_dir
-sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask
+sudo bash record-host-metrics.sh -f 0 -I 1 -t 1 -i $server_intf -o $exp-RUN-$j --type 0 --cpu_util 1 --pcie 1 --membw 1 --dur $dur --cores $cpu_mask_s
 echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
-# sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
+# sshpass -p saksham ssh saksham@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
 sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
 
 sleep $(($dur * 2))

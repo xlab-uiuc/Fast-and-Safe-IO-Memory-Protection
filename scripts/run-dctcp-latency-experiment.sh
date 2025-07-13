@@ -51,7 +51,7 @@ mlc_cores="none"
 mlc_dur=100
 ring_buffer=256
 num_runs=1
-home="/home/benny"
+home="/home/saksham"
 setup_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils
 exp_dir=$home/Fast-and-Safe-IO-Memory-Protection/utils/tcp
 mlc_dir=$home/mlc/Linux
@@ -62,10 +62,10 @@ mlc_dir=$home/mlc/Linux
 # read addr
 # echo -n "Enter SSH Password for client:"
 # read -s password
-uname=benny
+uname=saksham
 addr=192.168.11.117
 ssh_hostname=genie04.cs.cornell.edu
-password=benny
+password=saksham
 
 
 while :
@@ -162,7 +162,7 @@ function cleanup() {
     sshpass -p $password ssh $uname@$addr 'screen -S $(screen -list | awk "/\\.logging_session\t/ {print \$1}") -X quit'
     sshpass -p $password ssh $uname@$addr 'screen -wipe'
     sshpass -p $password ssh $uname@$addr 'sudo pkill -9 -f iperf'
-    sudo bash /home/benny/restart.sh
+    sudo bash /home/saksham/restart.sh
 }
 
 
