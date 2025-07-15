@@ -58,6 +58,9 @@ plots/
 *.log
 *.out
 
+# Additional files
+utils/collect_iio_occ
+
 #
 # Top-level generic files
 #

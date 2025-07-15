@@ -158,8 +158,6 @@ else
 	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
 
-#TODO fix this
-exp_name=$exp
 
 # Function to display the progress bar
 function progress_bar() {
@@ -206,7 +204,7 @@ echo "running instance $j"
 #### pre-run cleanup -- kill any existing clients/screen sessions
 cleanup
 
-reports_dir="${setup_dir}/reports/${exp_name}-RUN-${j}"
+reports_dir="${setup_dir}/reports/${exp}-RUN-${j}"
 server_app_log_file="${reports_dir}/server_app.log"
 sudo mkdir -p "$reports_dir"
 
@@ -243,7 +241,7 @@ sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
 #### setup and start clients
 echo "setting up and starting clients..."
 client_cmd="cd '$setup_dir_client'; sudo bash setup-bare-metal.sh --dep '$home' --intf '$client_intf' --ip '$client' -m '$mtu' -d '$ddio' -r '$ring_buffer' --socket-buf '$buf' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-client_cmd+="cd '$exp_dir_client'; sudo bash run-netapp-tput.sh --mode client --server-ip '$server' -n '$num_servers' -N '$num_clients'  -o '${exp_name}-RUN-${j}' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"
+client_cmd+="cd '$exp_dir_client'; sudo bash run-netapp-tput.sh --mode client --server-ip '$server' -n '$num_servers' -N '$num_clients'  -o '${exp}-RUN-${j}' -p '$init_port' -c '$cpu_mask' -b '$bandwidth'; exec bash"
 $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
 #### warmup
@@ -254,7 +252,7 @@ progress_bar 10 1
 ##start sender side logging
 echo "starting logging at client..."
 client_logging_cmd="cd '$setup_dir_client'; sudo bash record-host-metrics.sh \
-        --dep '$home' -o '${exp_name}-RUN-${j}' --dur '$dur' \
+        --dep '$home' -o '${exp}-RUN-${j}' --dur '$dur' \
         --cpu-util 1 -c '$cpu_mask' --retx 1 --tcplog 1 --bw 1 --flame 0 \
 	--pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$client_intf' --type 0; exec bash"
 $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
@@ -269,10 +267,13 @@ echo "done logging..."
 cd -
 
 #transfer sender-side info back to receiver
-# sshpass -p benny ssh benny@192.168.11.117 -- "sudo rm /dev/null; sudo mknod /dev/null c 1 3; sudo chmod 666 /dev/null"
-# sshpass -p $password scp $uname@$ssh_hostname:$setup_dir/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
-scp -i "$CLIENT_SSH_IDENTITY_FILE" \
-	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$setup_dir_client/reports/$exp-RUN-$j/retx.rpt" "$setup_dir/reports/$exp-RUN-$j/retx.rpt"
+if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
+	sshpass -p $CLIENT_SSH_PASSWORD \
+		scp ${CLIENT_SSH_USERNAME}@${CLIENT_SSH_HOST}:$setup_dir_client/reports/$exp-RUN-$j/retx.rpt $setup_dir/reports/$exp-RUN-$j/retx.rpt
+else
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+        "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$setup_dir_client/reports/$exp-RUN-$j/retx.rpt" "$setup_dir/reports/$exp-RUN-$j/retx.rpt"
+fi
 
 sleep $(($dur * 2))
 
