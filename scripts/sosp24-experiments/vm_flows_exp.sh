@@ -49,6 +49,7 @@ for i in 5; do
     --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c "0,1,2,3,4" \
     --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C "4,8,12,16,20" \
     --host-home "$HOST_HOME" --host-ip "$HOST_IP" --host-intf "$HOST_INTF" \
+    --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
     -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1\
     --socket-buf 1 --mlc-cores 'none' --runs 1
 

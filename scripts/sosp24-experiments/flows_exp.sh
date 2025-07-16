@@ -2,17 +2,17 @@
 cd ..
 echo "Running flow experiment... this may take a few minutes"
 
-SERVER_HOME="/users/Leshna"
-SERVER_IP="10.10.1.1"
-SERVER_INTF="enp0s1np0"
-
-CLIENT_HOME="/users/Leshna"
-CLIENT_INTF="enp23s0f0np0"
-CLIENT_IP="10.10.1.2"
-CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+SERVER_HOME="/home/saksham"
+SERVER_IP="192.168.11.126"
+SERVER_INTF="enp101s0f1np1"
+SERVER_BUS="0x65"
+CLIENT_HOME="/home/saksham"
+CLIENT_INTF="ens2f1np1"
+CLIENT_IP="192.168.11.125"
+CLIENT_SSH_UNAME="saksham"
+CLIENT_SSH_HOST="genie12.cs.cornell.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
 
 
@@ -40,14 +40,15 @@ sleep 10
 
 timestamp=$(date '+%H-%M_%m-%d')
 # 5 10 20 40
-for i in 5 ; do
+for i in 5 10 ; do
     format_i=$(printf "%02d\n" $i)
     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}"
     echo $exp_name
     sudo bash run-dctcp-tput-experiment.sh \
-    --server-home "$SERVER_HOME" --server-ip "$SERVER_IP" --server-intf "$SERVER_INTF" -n "$i" -c "0,1,2,3,4" --server-bus "$SERVER_BUS"\
+    --server-home "$SERVER_HOME" --server-ip "$SERVER_IP" --server-intf "$SERVER_INTF" -n "$i" -c "0,2,4,6,8" --server-bus "$SERVER_BUS" \
     --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C "4,8,12,16,20" \
-    -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1\
+    --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+    -e "$exp_name" -m 4000 -r 256 -b "100g" -d 1 \
     --socket-buf 1 --mlc-cores 'none' --runs 1
 
     python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu

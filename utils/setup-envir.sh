@@ -14,7 +14,7 @@ RDMA=0
 PFC_ENABLED=0
 RING_BUFFER_SIZE=1024
 DEPS_DIR="/users/Leshna"
-MLNX_DRIVER=0
+MLNX_DRIVER=1
 
 help()
 {
@@ -22,7 +22,7 @@ help()
               [ --dep (path to dependencies directories)]
               [ --intf (interface name, eg. ens2f0) ]
               [ --ip (ip address for the interface) ]
-	      [ --nic-bus (NIC's PCI bus number) ]
+	            [ --nic-bus (NIC's PCI bus number) ]
               [ -m | --mtu (MTU size in bytes; default=4000 for TCP, 4096 for RDMA) ] 
               [ -d | --ddio (=0/1, whether DDIO should be disabled/enabled; default=0) ]
               [ -r | --ring-buffer (size of Rx ring buffer. Note: opt must be set to change this)]

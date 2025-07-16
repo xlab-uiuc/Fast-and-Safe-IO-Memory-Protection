@@ -43,3 +43,6 @@ ctr=0,ev_sel=0x41,umask=0x08,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1
 ctr=1,ev_sel=0x41,umask=0x04,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=2M Cache Hit,vname=Total
 ctr=2,ev_sel=0x41,umask=0x02,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=4K Cache Hit,vname=Total
 ctr=3,ev_sel=0x41,umask=0x40,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=IOMMU Mem Access,vname=Total
+ctr=0,ev_sel=0x41,umask=0x01,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=Cache Lookup,vname=Total
+ctr=1,ev_sel=0x41,umask=0x20,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=Cache Miss,vname=Total
+ctr=0,ev_sel=0x43,umask=0x01,en=1,ch_mask=0x0,fc_mask=0x0,multiplier=1,divider=1,hname=IOTLB Invalidation,vname=Total

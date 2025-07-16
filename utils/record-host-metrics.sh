@@ -92,6 +92,7 @@ function dump_netstat() {
 
 function dump_pciebw() {
     modprobe msr
+    # sudo strace -e trace=open,openat -o logs/$OUT_DIR/strace.txt 
     sudo taskset -c 15 $DEP_DIR/pcm/build/bin/pcm-iio 1 -csv=logs/$OUT_DIR/pcie.csv &
 }
 
