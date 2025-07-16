@@ -5,18 +5,39 @@ INPUT_FILE = sys.argv[1]
 cpu_util = {}
 num_samples = {}
 
-with open(INPUT_FILE) as f1:
-    for line in f1:
+header_len = None
+cpu_index = None
+idle_index = None
+
+with open(INPUT_FILE) as f:
+    for line in f:
         elements = line.split()
-        if len(elements) == 9 and elements[2] != "CPU":
-            cpu = int(elements[2])
-            util = float(elements[8])
+        if not elements or 'Linux' in elements[0] or 'CPU' not in elements:
+            continue
+        if '%idle' in elements:
+            header_len = len(elements)
+            cpu_index = elements.index('CPU')
+            idle_index= elements.index('%idle')
+            break
+
+    if header_len is None or cpu_index is None or idle_index is None:
+        print("ERROR: could not find SAR header with 'CPU' and '%idle'", file=sys.stderr)
+        sys.exit(1)
+    
+    f.seek(0)
+
+    for line in f:
+        elements = line.split()
+        if len(elements) == header_len and elements[cpu_index] != "CPU":
+            cpu = int(elements[cpu_index])
+            idle = float(elements[idle_index])
+            
             if cpu not in cpu_util:
-                cpu_util[cpu] = (100 - util)
-                num_samples[cpu] = 1
-            else:
-                cpu_util[cpu] += (100 - util)
-                num_samples[cpu] += 1
+                cpu_util[cpu]    = 0.0
+                num_samples[cpu] = 0
+            
+            cpu_util[cpu] += (100 - idle)
+            num_samples[cpu] += 1
 
 total_util = 0
 num_cpus = 0

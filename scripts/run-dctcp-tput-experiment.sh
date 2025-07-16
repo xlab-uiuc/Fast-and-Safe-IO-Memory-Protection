@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Treat unset variables as an error when substituting.
-set -u
+set -uo pipefail
+source "helper.sh"
 
 #-------------------------------------------------------------------------------
 # CONFIGURATION AND PATHS
@@ -15,25 +16,16 @@ FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-SERVER_FandS_REL="viommu"
-SERVER_DEP_REL="viommu"
+SERVER_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
+SERVER_DEP_REL=""
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
-SERVER_VIOMMU_REL="viommu/iommu-vm"
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 SERVER_SETUP_DIR_REL="utils"
 SERVER_EXP_DIR_REL="utils/tcp"
 CLIENT_SETUP_DIR_REL="utils"
 CLIENT_EXP_DIR_REL="utils/tcp"
-
-EBPF_SERVER_LOADER_REL="$SERVER_VIOMMU_REL/tracing/server_loader" # does not exist make it if needed for bare-metal cases
-
-# --- Remote Access (SSH) Configuration ---
-CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
-CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
-CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+EBPF_SERVER_LOADER_REL="tracing/server_loader" # does not exist make it if needed for bare-metal cases
 
 #-------------------------------------------------------------------------------
 # DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
@@ -70,6 +62,13 @@ DDIO_ENABLED=1
 RING_BUFFER_SIZE=256
 TCP_SOCKET_BUF_MB=1
 
+# --- Remote Access (SSH) Configuration ---
+CLIENT_SSH_UNAME="saksham"
+CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+
 #-------------------------------------------------------------------------------
 # Help/usage
 #-------------------------------------------------------------------------------
@@ -103,12 +102,16 @@ help() {
     echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
     echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
     echo
+    echo "Client SSH Configuration"
+    echo "    [ --client-ssh-name <uname> (SSH username for client) ]"
+    echo "    [ --client-ssh-host <ip> (Public IP or hostname for client) ]"
+    echo "    [ --client-ssh-use-pass <0|1> (Use password for SSH instead of identity file) ]"
+    echo "    [ --client-ssh-pass <pass> (SSH Password for client; needed if client-ssh-use-pass 1) ]"
+    echo "    [ --client-ssh-ifile <path> (Path of identity file; needed if client-ssh-use-pass 0) ]"
     echo "Help:"
     echo "    [ -h | --help ]"
     exit 2
 }
-
-
 
 #-------------------------------------------------------------------------------
 # COMMAND-LINE ARGUMENT PARSING
@@ -116,7 +119,8 @@ help() {
 SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="server-home:,server-ip:,server-intf:,server-num:,server-cpu-mask:,server-bus:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
-exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,help"
+exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
+client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
 PARSED_OPTS=$(getopt -a -n "$SCRIPT_NAME" --options "$SHORT_OPTS" --longoptions "$LONG_OPTS" -- "$@")
 VALID_ARGUMENTS=$#
@@ -148,6 +152,11 @@ while :; do
         --dur) CORE_DURATION_S="$2"; shift 2 ;;
         --runs) NUM_RUNS="$2"; shift 2 ;;
         --ebpf-tracing) EBPF_TRACING_ENABLED="$2"; shift 2 ;;
+        --client-ssh-name) CLIENT_SSH_UNAME="$2"; shift 2 ;;
+        --client-ssh-host) CLIENT_SSH_HOST="$2"; shift 2 ;;
+        --client-ssh-use-pass) CLIENT_USE_PASS_AUTH="$2"; shift 2 ;;
+        --client-ssh-pass) CLIENT_SSH_PASSWORD="$2"; shift 2 ;;
+        --client-ssh-ifile) CLIENT_SSH_IDENTITY_FILE="$2"; shift 2 ;;
         -h | --help) help ;;
         --) shift; break ;;
         *) echo "Unexpected option: $1"; help ;;
@@ -155,60 +164,19 @@ while :; do
 done
 
 SERVER_SETUP_DIR="${SERVER_HOME}/${SERVER_FandS_REL}/${SERVER_SETUP_DIR_REL}"
+EBPF_SERVER_LOADER="${SERVER_HOME}/${SERVER_FandS_REL}/${EBPF_SERVER_LOADER_REL}"
 SERVER_EXP_DIR="${SERVER_HOME}/${SERVER_FandS_REL}/${SERVER_EXP_DIR_REL}"
 SERVER_MLC_DIR="${SERVER_HOME}/${SERVER_MLC_DIR_REL}"
 SERVER_DEP_DIR="${SERVER_HOME}/${SERVER_DEP_REL}"
 CLIENT_SETUP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_SETUP_DIR_REL}"
 CLIENT_EXP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_EXP_DIR_REL}"
-EBPF_SERVER_LOADER="${SERVER_HOME}/${EBPF_SERVER_LOADER_REL}"
+
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 else
 	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
-
-
-log_info() {
-    echo "[INFO] - $1"
-}
-
-log_error() {
-    echo "[ERROR] - $1" >&2
-}
-
-progress_bar() {
-    local duration_secs=$1
-    local interval_secs=$2
-    local elapsed_time_secs=0
-
-    if [ "$duration_secs" -eq 0 ]; then
-        printf "[==================================================] 100%% (0/0s)\n"
-        return
-    fi
-
-    local progress_bar_width=50
-    while [ "$elapsed_time_secs" -lt "$duration_secs" ]; do
-        elapsed_time_secs=$((elapsed_time_secs + interval_secs))
-        if [ "$elapsed_time_secs" -gt "$duration_secs" ]; then
-            elapsed_time_secs=$duration_secs
-        fi
-        
-        local progress_percent=$((elapsed_time_secs * 100 / duration_secs))
-        local bar_filled_length=$((progress_percent * progress_bar_width / 100))
-        
-        local bar_visual=""
-        for ((k=0; k<bar_filled_length; k++)); do bar_visual+="="; done
-        
-        printf "[%-*s] %3d%% (%*ds/%ds)\r" "$progress_bar_width" "$bar_visual" "$progress_percent" \
-               "${#duration_secs}" "$elapsed_time_secs" "$duration_secs"
-        sleep "$interval_secs"
-    done
-    
-    local full_bar_visual=""
-    for ((k=0; k<progress_bar_width; k++)); do full_bar_visual+="="; done
-    printf "[%-*s] 100%% (%ds/%ds)\n" "$progress_bar_width" "$full_bar_visual" "$duration_secs" "$duration_secs"
-}
 
 # --- Cleanup Function ---
 cleanup() {
@@ -220,9 +188,9 @@ cleanup() {
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-	      local server_loader_basename
+	    local server_loader_basename
         server_loader_basename=$(basename "$EBPF_SERVER_LOADER")
-	      sudo pkill -SIGINT -f "$server_loader_basename" 2>/dev/null || true
+	    sudo pkill -SIGINT -f "$server_loader_basename" 2>/dev/null || true
         sudo pkill -9 -f "$server_loader_basename" 2>/dev/null || true
         sleep 1
     fi
@@ -259,7 +227,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # Server side paths for reports and data
     current_server_reports_dir="${SERVER_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
     client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
-    iova_ftrace_server_output_file="${current_server_reports_dir}/iova_ftrace_guest.txt"
+    iova_ftrace_server_output_file="${current_server_reports_dir}/iova_ftrace_server.txt"
     ebpf_server_stats="${current_server_reports_dir}/ebpf_server_stats.csv"
     server_app_log_file="${current_server_reports_dir}/server_app.log"
     server_mlc_log_file="${current_server_reports_dir}/mlc.log"
@@ -290,6 +258,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$SERVER_EXP_DIR" || { log_error "Failed to cd to $SERVER_EXP_DIR"; exit 1; }
     sudo bash run-netapp-tput.sh --mode server -n "$SERVER_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
         -p "$INIT_PORT" -c "$SERVER_CPU_MASK" &> "$server_app_log_file" &
+    SERVER_PID=$!
+    echo "SERVER_PID=$SERVER_PID" >> "$server_app_log_file"
+    ps -o pid,cmd,psr,pcpu --pid $SERVER_PID >> "$server_app_log_file"
     sleep 2 # Allow server app to initialize
     cd - > /dev/null
    
@@ -304,7 +275,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$SERVER_IP' -n '$SERVER_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
@@ -357,7 +328,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Transferring report files from CLIENT"
     if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	    sshpass -p $CLIENT_SSH_PASSWORD \
-        scp ${CLIENT_SSH_USERNAME}@${CLIENT_SSH_HOST}:$client_reports_dir_remote/retx.rpt $current_server_reports_dir/retx.rpt
+        scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$client_reports_dir_remote/retx.rpt $current_server_reports_dir/retx.rpt
     else
 	    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
         "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$client_reports_dir_remote/retx.rpt" "$current_server_reports_dir/retx.rpt"

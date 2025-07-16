@@ -13,33 +13,34 @@ records = []
 
 with open(INPUT_FILE) as f1:
     for line in f1:
-        if(line[0] == '#'):
+        if line.startswith('#') or 'tcp_probe:' not in line:
             continue
         else:
-            line_str = line.split()
+            tokens  = line.split()
             record = {}
 
-            record['time_s'] = float(line_str[3].split(':')[0])
+            ts = tokens[3].rstrip(':')
+            record['time_s'] = float(ts)
 
-            src_str = line_str[5]
-            src_ip = src_str.split('=')[1].split(':')[0]
-            src_port = src_str.split('=')[1].split(':')[1]
-            record['src_ip'] = src_ip
-            record['src_port'] = int(src_port)
+            def get_val(key):
+                tok = next((t for t in tokens if t.startswith(key + '=')), None)
+                return tok.split('=',1)[1] if tok else None
+            
+            for end in ('src','dest'):
+                val = get_val(end)
+                if not val:
+                    break  # malformed line
+                clean = val.strip('[]')
+                ip, port = clean.rsplit(':', 1)
+                record[f'{end}_ip']   = ip
+                record[f'{end}_port'] = int(port, 10)
 
-            dst_str = line_str[6]
-            dst_ip = dst_str.split('=')[1].split(':')[0]
-            dst_port = dst_str.split('=')[1].split(':')[1]
-            record['dst_ip'] = dst_ip
-            record['dst_port'] = int(dst_port)
-
-            record['snd_nxt'] = int(line_str[9].split('=')[1],base=16)
-            record['snd_una'] = int(line_str[10].split('=')[1],base=16)
-            record['snd_cwnd'] = int(line_str[11].split('=')[1])
-            record['ssthresh'] = int(line_str[12].split('=')[1])
-            record['snd_wnd'] = int(line_str[13].split('=')[1])
-            record['srtt'] = int(line_str[14].split('=')[1])
-            record['rcv_wnd'] = int(line_str[15].split('=')[1])
+            for key in ('snd_nxt','snd_una','snd_cwnd',
+                    'ssthresh','snd_wnd','srtt','rcv_wnd'):
+                val = get_val(key)
+                if val is None:
+                    continue
+                record[key] = int(val, 0)
 
             records.append(record)
 
