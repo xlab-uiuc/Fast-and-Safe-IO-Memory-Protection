@@ -2,20 +2,20 @@
 cd ..
 echo "Running flow experiment... this may take a few minutes"
 
-GUEST_INTF="enp0s1np0"
-GUEST_IP="10.10.1.1"
-GUEST_NIC_BUS="0x00"
+GUEST_INTF="enp8s0"
+GUEST_IP="192.168.11.127"
+GUEST_NIC_BUS="0x08"
 GUEST_HOME="/home/schai"
-HOST_IP="192.168.122.1"
-HOST_INTF="virbr0"
-HOST_HOME="/users/Leshna"
-CLIENT_HOME="/users/Leshna"
-CLIENT_INTF="enp23s0f0np0"
-CLIENT_IP="10.10.1.2"
-CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+HOST_IP="192.168.123.1"
+HOST_INTF="enp101s0f1np1"
+HOST_HOME="/home/saksham"
+CLIENT_HOME="/home/saksham"
+CLIENT_INTF="ens2f1np1"
+CLIENT_IP="192.168.11.125"
+CLIENT_SSH_UNAME="saksham"
+CLIENT_SSH_HOST="genie12.cs.cornell.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
@@ -40,7 +40,7 @@ sleep 1
 
 timestamp=$(date '+%H-%M_%m-%d')
 # 5 10 20 40
-for i in 5; do
+for i in 5 10 20 40; do
     format_i=$(printf "%02d\n" $i)
     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}"
     echo $exp_name

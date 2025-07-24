@@ -20,7 +20,7 @@ GUEST_PERF_REL="linux-6.12.9/tools/perf/perf"
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
 HOST_VIOMMU_REL="viommu/iommu-vm"
-HOST_RESULTS_REL="viommu"
+HOST_RESULTS_REL=""
 HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf"
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
@@ -34,15 +34,10 @@ EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
 EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
 # --- Remote Access (SSH) Configuration ---
-CLIENT_SSH_UNAME="Leshna"
-CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
-CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
-CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-HOST_SSH_UNAME="Leshna"
+HOST_SSH_UNAME="saksham"
 HOST_SSH_PASSWORD="saksham"
 HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-HOST_USE_PASS_AUTH=0
+HOST_USE_PASS_AUTH=1
 
 #-------------------------------------------------------------------------------
 # DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
@@ -81,6 +76,13 @@ DDIO_ENABLED=1
 RING_BUFFER_SIZE=256
 TCP_SOCKET_BUF_MB=1
 
+# --- Remote Access (SSH) Configuration ---
+CLIENT_SSH_UNAME="saksham"
+CLIENT_SSH_HOST="genie12.cs.cornell.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+
 #-------------------------------------------------------------------------------
 # Help/usage
 #-------------------------------------------------------------------------------
@@ -118,6 +120,12 @@ help() {
     echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
     echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
     echo
+     echo "Client SSH Configuration"
+    echo "    [ --client-ssh-name <uname> (SSH username for client) ]"
+    echo "    [ --client-ssh-host <ip> (Public IP or hostname for client) ]"
+    echo "    [ --client-ssh-use-pass <0|1> (Use password for SSH instead of identity file) ]"
+    echo "    [ --client-ssh-pass <pass> (SSH Password for client; needed if client-ssh-use-pass 1) ]"
+    echo "    [ --client-ssh-ifile <path> (Path of identity file; needed if client-ssh-use-pass 0) ]"
     echo "Help:"
     echo "    [ -h | --help ]"
     exit 2
@@ -131,7 +139,8 @@ SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
 host-home:,host-ip:,host-intf:,\
-exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,help"
+exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
+client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
 PARSED_OPTS=$(getopt -a -n "$SCRIPT_NAME" --options "$SHORT_OPTS" --longoptions "$LONG_OPTS" -- "$@")
 VALID_ARGUMENTS=$#
@@ -166,6 +175,11 @@ while :; do
         --dur) CORE_DURATION_S="$2"; shift 2 ;;
         --runs) NUM_RUNS="$2"; shift 2 ;;
         --ebpf-tracing) EBPF_TRACING_ENABLED="$2"; shift 2 ;;
+	--client-ssh-name) CLIENT_SSH_UNAME="$2"; shift 2 ;;
+        --client-ssh-host) CLIENT_SSH_HOST="$2"; shift 2 ;;
+        --client-ssh-use-pass) CLIENT_USE_PASS_AUTH="$2"; shift 2 ;;
+        --client-ssh-pass) CLIENT_SSH_PASSWORD="$2"; shift 2 ;;
+        --client-ssh-ifile) CLIENT_SSH_IDENTITY_FILE="$2"; shift 2 ;;
         -h | --help) help ;;
         --) shift; break ;;
         *) echo "Unexpected option: $1"; help ;;
@@ -449,24 +463,40 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
 
  
-    # --- Transfer Report Files from Remote Machines --- TODO: FIX THESE
+    # --- Transfer Report Files from Remote Machines ---
     log_info "Transferring report files from CLIENT and HOST..."
     # Client files
-    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+    if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
+	sshpass -p $CLIENT_SSH_PASSWORD \
+	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt ${current_guest_reports_dir}/client-retx.rpt
+    else
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+    fi
 
     # Host files
-    scp -i "$HOST_SSH_IDENTITY_FILE" \
+    if [ "$HOST_USE_PASS_AUTH" -eq 1 ]; then
+    	sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
-    scp -i "$HOST_SSH_IDENTITY_FILE" \
+        sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-    scp -i "$HOST_SSH_IDENTITY_FILE" \
+        sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
         "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
-    
+    else
+    	scp -i "$HOST_SSH_IDENTITY_FILE" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
+        "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
+    	scp -i "$HOST_SSH_IDENTITY_FILE" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
+        "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
+    	scp -i "$HOST_SSH_IDENTITY_FILE" \
+        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+    fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$iova_ftrace_guest_output_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/iova_ftrace_guest.data"
