@@ -1,9 +1,10 @@
+#!/bin/bash
 log_info() {
-    echo "[INFO] - $1"
+	printf '\r[INFO] - %s\n\r' "$1"
 }
 
 log_error() {
-    echo "[ERROR] - $1" >&2
+	printf '\r[ERROR] - %s\n\r' "$1" >&2
 }
 
 progress_bar() {
@@ -12,7 +13,7 @@ progress_bar() {
     local elapsed_time_secs=0
 
     if [ "$duration_secs" -eq 0 ]; then
-        printf "[==================================================] 100%% (0/0s)\n"
+        printf "\r[==================================================] 100%% (0/0s)\n"
         return
     fi
 
@@ -36,5 +37,5 @@ progress_bar() {
     
     local full_bar_visual=""
     for ((k=0; k<progress_bar_width; k++)); do full_bar_visual+="="; done
-    printf "[%-*s] 100%% (%ds/%ds)\n" "$progress_bar_width" "$full_bar_visual" "$duration_secs" "$duration_secs"
+    printf "\r[%-*s] 100%% (%ds/%ds)\n" "$progress_bar_width" "$full_bar_visual" "$duration_secs" "$duration_secs"
 }

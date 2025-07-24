@@ -1,3 +1,4 @@
+#!/bin/bash
 #default values
 SCRIPT_NAME="record-host-metrics"
 

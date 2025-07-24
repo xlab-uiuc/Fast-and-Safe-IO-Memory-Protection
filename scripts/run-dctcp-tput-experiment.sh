@@ -17,7 +17,7 @@ FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwri
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 SERVER_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-SERVER_DEP_REL=""
+SERVER_DEP_REL="viommu"
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
@@ -183,8 +183,8 @@ cleanup() {
     log_info "--- Starting Cleanup Phase ---"
 
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
-    sudo pkill -9 -f loaded_latency
-    sudo pkill -9 -f iperf 
+    (sudo pkill -9 -f loaded_latency loaded_latency &> /dev/null)
+    (sudo pkill -9 -f iperf &> /dev/null)
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
@@ -324,7 +324,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
 
  
-    # --- Transfer Report Files from Remote Machines --- TODO: FIX THESE
+    # --- Transfer Report Files from Remote Machines ---
     log_info "Transferring report files from CLIENT"
     if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	    sshpass -p $CLIENT_SSH_PASSWORD \
