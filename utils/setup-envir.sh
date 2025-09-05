@@ -83,9 +83,17 @@ fi
 
 # setup the interface
 log_info "Setting up the interface $INTF..."
-ifconfig $INTF up
-ifconfig $INTF $IP
-ifconfig $INTF mtu $MTU
+# ifconfig $INTF up
+# ifconfig $INTF $IP
+# ifconfig $INTF mtu $MTU
+sudo ip -4 addr flush dev $INTF
+sudo ip -6 addr flush dev $INTF
+
+sudo ip link set $INTF up
+sudo ip address add $IP/24 dev $INTF
+sudo ip link set dev $INTF mtu $MTU
+ 
+
 
 #disable TCP buffer auto-tuning, and set the buffer size to the specified size
 log_info "Setting up the socket buffer size to be ${TCP_SOCKET_BUF_MB}MB"
