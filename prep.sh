@@ -66,16 +66,16 @@ install_netperf () {
 
 
 
-# cd $home
-# git clone https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021
-# git clone https://github.com/aliireza/ddio-bench.git
+cd $home
+git clone https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021
+git clone https://github.com/aliireza/ddio-bench.git
 
-sudo utils/setup-envir.sh --home $home \
-    --intf enp202s0f0np0 \
-    --addr 10.10.1.2
+install_pcm
+install_mlc
+install_rdt
+install_iperf3
+install_netperf
 
-# install_pcm
-# install_mlc
-# install_rdt
-# install_iperf3
-# install_netperf
+sudo bash utils/setup-envir.sh --dep $home \
+    --intf ens1np0 \
+    --ip 192.168.100.1
