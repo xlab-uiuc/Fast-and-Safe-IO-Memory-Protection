@@ -66,9 +66,9 @@ server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr 
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 for socket_buf in 1; do
-    for ring_buffer in 512; do
+    for ring_buffer in 512 1024 2048 4096; do
     # 5 10 20 40
-        for i in 20 40 60 `80` 160; do
+        for i in 20; do
             format_i=$(printf "%02d\n" $i)
             exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
             echo $exp_name
@@ -98,7 +98,6 @@ for socket_buf in 1; do
 
             # cd -
             # sudo chmod +666 -R ../utils/reports/$exp_name
-            sleep 2
         done
     done
 done 
