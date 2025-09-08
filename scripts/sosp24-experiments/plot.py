@@ -22,11 +22,13 @@ def parse_results(path):
 
 def get_data(prefix, iommu_str, suffix=""):
    
-    flows = ["05", "10", "20", "40"]
+    # flows = ["05", "10", "20", "40"]
+    flows = ["20", "40", "60", "160"]
     folders = [
         prefix + f"flow{f}-" + iommu_str + suffix for f in flows
     ]
 
+    print(folders)
     files = [
         "../../utils/reports/" + f + "/tput_metrics.dat" for f in folders
     ]
@@ -37,13 +39,13 @@ def get_data(prefix, iommu_str, suffix=""):
     
     return data
 
-def get_data_ring(prefix, iommu_str, suffix=""):
+def get_data_ring(prefix, iommu_str, x_labels, suffix=""):
    
-    x_labels =  ["0256", "0512", "1024", "2048"]
+    # x_labels =  ["0256", "0512", "1024", "2048"]
     folders = [
-        prefix + iommu_str + "-ring_buffer-"+ x for x in x_labels
+        prefix + iommu_str + "-ringbuf-"+ x + suffix for x in x_labels
     ]
-
+    print(folders)
     files = [
         "../../utils/reports/" + f + "/tput_metrics.dat" for f in folders
     ]
@@ -84,56 +86,56 @@ def get_misses_per_page(data):
     
     return iotlb_miss_page, l1_miss_page, l2_miss_page, l3_miss_page, acks_page
 
-def plot_tput(iommu_off_data, iommu_on_data, x_labels, title):
+def plot_tput(iommu_off_data, iommu_on_data, x_ticks, title, x_label):
     bar_width = 0.35
     # plt.plot(iommu_off_data, iommu_on_data)
-    x = np.arange(len(x_labels))
+    x = np.arange(len(x_ticks))
     plt.bar(x - bar_width/2, iommu_off_data, bar_width, label='Guest IOMMU off')
     plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='Guest IOMMU on')
 
-    plt.xlabel("# of flows")
+    plt.xlabel(x_label)
 
     plt.ylabel("Throughput (Gbps)")
     plt.title(title)
-    plt.xticks(x, x_labels)
+    plt.xticks(x, x_ticks)
     plt.legend()
 
     plt.savefig(title + '.png')
     print('Saved plot to ' + title + '.png')
     plt.close()
 
-def plot_drop_rate(iommu_off_data, iommu_on_data, x_labels, title):
+def plot_drop_rate(iommu_off_data, iommu_on_data, x_ticks, title, x_label):
     bar_width = 0.35
     # plt.plot(iommu_off_data, iommu_on_data)
-    x = np.arange(len(x_labels))
+    x = np.arange(len(x_ticks))
     plt.bar(x - bar_width/2, iommu_off_data, bar_width, label='IOMMU off')
     plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='IOMMU on')
 
-    plt.xlabel("# of flows")
+    plt.xlabel(x_label)
 
     plt.ylabel("Drop rate")
     plt.title(title)
-    plt.xticks(x, x_labels)
+    plt.xticks(x, x_ticks)
     plt.legend()
 
     plt.savefig(title + '.png')
     print('Saved plot to ' + title + '.png')
     plt.close()
 
-def plot_iommu_misses_stats(iommu_on_data, x_labels, title):
+def plot_iommu_misses_stats(iommu_on_data, x_ticks, title, x_label):
     iotlb_miss_page, l1_miss_page, l2_miss_page, l3_miss_page, acks_page = get_misses_per_page(iommu_on_data)
 
     bar_width = 0.35
     # plt.plot(iommu_off_data, iommu_on_data)
-    x = np.arange(len(x_labels))
+    x = np.arange(len(x_ticks))
     plt.bar(x, iotlb_miss_page, bar_width, label='IOMMU TLB misses')
     # plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='IOMMU on')
 
-    plt.xlabel("# of flows")
+    plt.xlabel(x_label)
 
     plt.ylabel("IOTLB misses per page")
     plt.title(title + 'IOTLB-miss')
-    plt.xticks(x, x_labels)
+    plt.xticks(x, x_ticks)
     plt.legend()
     plt.ylim(0, 3)
 
@@ -146,15 +148,15 @@ def plot_iommu_misses_stats(iommu_on_data, x_labels, title):
 
     # plot L1, L2, L3 misses
 
-    x = np.arange(len(x_labels))
+    x = np.arange(len(x_ticks))
     plt.bar(x, acks_page, bar_width, label='ACKs per page')
     # plt.bar(x + bar_width/2, iommu_on_data, bar_width, label='IOMMU on')
 
-    plt.xlabel("# of flows")
+    plt.xlabel(x_label)
 
     plt.ylabel("Acks per page")
-    plt.title(title + 'IOTLB-miss')
-    plt.xticks(x, x_labels)
+    plt.title(title + 'ACKs per page')
+    plt.xticks(x, x_ticks)
     plt.legend()
     plt.ylim(0, 0.15)
 
@@ -172,11 +174,11 @@ def plot_iommu_misses_stats(iommu_on_data, x_labels, title):
     plt.bar(x,              l2_miss_page, bar_width, label='L2')
     plt.bar(x + bar_width,  l3_miss_page, bar_width, label='L3')
     
-    plt.xlabel("# of flows")
+    plt.xlabel(x_label)
 
     plt.ylabel("Misses per page")
     plt.title(title + 'L1-L2-L3-miss')
-    plt.xticks(x, x_labels)
+    plt.xticks(x, x_ticks)
     plt.legend()
     plt.ylim(0, 1.0)
 
@@ -185,24 +187,27 @@ def plot_iommu_misses_stats(iommu_on_data, x_labels, title):
     print('Saved plot to ' + file_name)
     plt.close()
 
-def plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, title_key):
+def plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_ticks, x_label, title_key):
     plot_tput(
         iommu_off_data = [ r['net_tput_mean'] for r in iommu_off_all_data ],
         iommu_on_data = [ r['net_tput_mean'] for r in iommu_on_all_data ],
-        x_labels = x_labels,
+        x_ticks = x_ticks,
+        x_label = x_label,
         title = title_key + '-tput'
     )
 
     plot_drop_rate(
         iommu_off_data = [ r['retx_rate_mean'] for r in iommu_off_all_data ],
         iommu_on_data = [ r['retx_rate_mean'] for r in iommu_on_all_data ],
-        x_labels = x_labels,
+        x_ticks = x_ticks,
+        x_label = x_label,
         title = title_key + 'drop-rate'
     )
 
     plot_iommu_misses_stats(
         iommu_on_data = iommu_on_all_data,
-        x_labels = x_labels,
+        x_ticks = x_ticks,
+        x_label = x_label,
         title = title_key + '-misses'
     )
 
@@ -216,11 +221,12 @@ def plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, ti
 
 
 def plot_tput_f_and_s():
-    x_labels =  ["05", "10", "20", "40"]
-    iommu_off_all_data = get_data(prefix="10-07_03-03-6.12.9-vanilla-", iommu_str="iommu-on", suffix="-ofed24.10")
-    iommu_on_all_data = get_data(prefix="13-20_03-03-6.12.9-vanilla-", iommu_str="iommu-on-strict-strict",  suffix="-ofed24.10")
+    x_labels =  ["20", "40", "60", "160"]
+    iommu_off_all_data = get_data(prefix="2025-09-07-13-42-13-6.12.9-iommufd-", iommu_str="iommu-off", suffix="-ringbuf-512_sokcetbuf1_20cores")
+    iommu_on_all_data = get_data(prefix="2025-09-07-15-42-14-6.12.9-iommufd-", iommu_str="iommu-on",  suffix="-ringbuf-512_sokcetbuf1_20cores")
     
-    plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-strict')
+    plot_all_subplots(iommu_off_all_data, iommu_on_all_data, 
+        x_ticks=x_labels, x_label="# of flows", title_key='Emerald-Rapids-CX7-6.12.9-iommufd')
     
 
 def plot_tput_new_kernel():
@@ -245,11 +251,22 @@ def plot_tput_new_ofed2():
     plot_all_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-ofed24.10-paused3')
 
 def plot_ring_buf_exp():
-    x_labels =  ["256", "512", "1024", "2048"]
-    iommu_off_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-on")
-    iommu_on_all_data = get_data_ring(prefix="6.12.9-vanilla-", iommu_str="iommu-on-strict-strict")
+    # x_labels =  ["256", "512", "1024", "2048"]
+    x_labels = ["512", "1024", "2048", "4096"]
+    iommu_off_all_data = get_data_ring(
+        prefix="2025-09-07-14-00-41-6.12.9-iommufd-flow20-", 
+        iommu_str="iommu-off", 
+        x_labels=x_labels,
+        suffix="_sokcetbuf1_20cores")
+    iommu_on_all_data = get_data_ring(
+        prefix="2025-09-07-16-01-17-6.12.9-iommufd-flow20-", 
+        iommu_str="iommu-on", 
+        x_labels=x_labels,
+        suffix="_sokcetbuf1_20cores")
     
-    plot_throughput_subplots(iommu_off_all_data, iommu_on_all_data, x_labels, '6.12.9-strict-ring-buffer')
+    
+    plot_all_subplots(iommu_off_all_data, iommu_on_all_data, 
+        x_ticks=x_labels, x_label="Ring buffer size", title_key='Emerald-Rapids-CX7-6.12.9-iommufd')
 
-plot_tput_f_and_s()
+# plot_tput_f_and_s()
 plot_ring_buf_exp()
