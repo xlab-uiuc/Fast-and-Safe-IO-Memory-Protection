@@ -13,15 +13,16 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
+PERF_TRACING_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
-GUEST_PERF_REL="linux-6.12.9/tools/perf/perf"
+GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
 HOST_VIOMMU_REL="viommu/iommu-vm"
 HOST_RESULTS_REL=""
-HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf"
+HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 GUEST_SETUP_DIR_REL="utils"
@@ -259,13 +260,16 @@ cleanup() {
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf 
-    # sudo pkill -SIGINT -f "$GUEST_PERF record"
-    # sleep 1
-    # sudo pkill -9 -f "$GUEST_PERF record"
 
-    # log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
-    # $SSH_HOST_CMD \
-      #  "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        sudo pkill -SIGINT -f "$GUEST_PERF record"
+        sleep 1
+        sudo pkill -9 -f "$GUEST_PERF record"
+
+        log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
+        $SSH_HOST_CMD \
+        "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+    fi
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
@@ -407,11 +411,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
 
     # --- Start Main Profiling & Logging Phase ---
-    # log_info "Starting GUEST perf record (CPU profiling)..."
-    # sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
-    # log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
-    # host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
-    # $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        log_info "Starting GUEST perf record (CPU profiling)..."
+        sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+        log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
+        host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
+        $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    fi
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
