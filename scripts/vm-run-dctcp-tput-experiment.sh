@@ -34,10 +34,10 @@ EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
 EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
 # --- Remote Access (SSH) Configuration ---
-HOST_SSH_UNAME="saksham"
-HOST_SSH_PASSWORD="saksham"
-HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-HOST_USE_PASS_AUTH=1
+HOST_SSH_UNAME="siyuanc3"
+HOST_SSH_PASSWORD=""
+HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
+HOST_USE_PASS_AUTH=0
 
 #-------------------------------------------------------------------------------
 # DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
@@ -489,13 +489,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
-        "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
+        "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt (${host_reports_dir_remote}/retx.rpt)"
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
-        "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
+        "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
