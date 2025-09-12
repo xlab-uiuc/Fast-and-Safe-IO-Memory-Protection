@@ -54,6 +54,7 @@ modules.order
 # Results and logs
 utils/reports/
 utils/logs/
+utils/collect_iio_occ
 plots/
 *.log
 *.out
