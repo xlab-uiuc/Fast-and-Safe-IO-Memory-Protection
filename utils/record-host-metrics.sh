@@ -17,6 +17,8 @@ IIO_REPORTING=0
 PFC_REPORTING=0
 INTF=enp8s0
 
+PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
+
 cur_dir=$PWD
 
 help()
@@ -97,16 +99,83 @@ function dump_pciebw() {
 }
 
 function parse_pciebw() {
-    #TODO: make more general, parse PCIe bandwidth for any given socket and IIO stack
-    echo "PCIe_wr_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $4/1000000000.0; n++ } END { if (n > 0) printf "%.3f", sum / n * 8 ; }') > reports/$OUT_DIR/pcie.rpt
-    echo "PCIe_rd_tput: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $5/1000000000.0; n++ } END { if (n > 0) printf "%0.3f", sum / n * 8 ; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "IOTLB_hits: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $8; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "IOTLB_misses: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $9; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "CTXT_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $10; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L1_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $11; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L2_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $12; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "L3_Miss: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $13; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
-    echo "Mem_Read: " $(cat logs/$OUT_DIR/pcie.csv | grep "Socket0,IIO Stack 2 - PCIe1,Part0" | awk -F ',' '{ sum += $14; n++ } END { if (n > 0) printf "%0.3f", sum / n; }') >> reports/$OUT_DIR/pcie.rpt
+    local input_file="logs/$OUT_DIR/pcie.csv"
+    local output_file="reports/$OUT_DIR/pcie.rpt"
+    local filter="$PCM_PCIE_FILTER"
+
+    read ib_wr_gbps ib_rd_gbps \
+         iotlb_first_lk iotlb_all_lk iotlb_4k_hits iotlb_2m_hits iotlb_1g_hits iotlb_misses \
+         ctx_lk ctx_hit \
+         cache_lk hit_256T hit_512G hit_1G hit_2M cache_fills \
+         iommu_mem_access iotlb_inv pwt_occ < <(
+        grep -F -- "$filter" "$input_file" \
+        | awk -F',' '
+            {
+              n++
+              ibw += $6; ibr += $7;
+
+              iotlb_first += $10; iotlb_all += $11
+              iotlb_4k += $12; iotlb_2m += $13; iotlb_1g += $14; iotlb_miss += $15
+
+              ctx_lkp += $16; ctx_hits += $17
+
+              cache_lkp += $18; hit_256T += $19; hit_512G += $20; hit_1G += $21; hit_2M += $22; cache_fills += $23
+
+              mem_access += $24
+              inv_iotlb += $26; pwt += $28
+            }
+            END{
+              if (n==0) n=1
+
+              ibw/=n; ibr/=n
+
+              # Gbps
+              ib_wr_gbps = ibw * 8 / 1e9
+              ib_rd_gbps = ibr * 8 / 1e9
+
+              iotlb_first/=n; iotlb_all/=n; iotlb_4k/=n; iotlb_2m/=n; iotlb_1g/=n; iotlb_miss/=n
+              ctx_lkp/=n; ctx_hits/=n
+              cache_lkp/=n; hit_256T/=n; hit_512G/=n; hit_1G/=n; hit_2M/=n; cache_fills/=n
+              mem_access/=n
+              inv_iotlb/=n; pwt/=n
+
+              # Print space-separated in fixed order for `read`
+              printf "%.6f %.6f ", ib_wr_gbps, ib_rd_gbps
+              printf "%.6f %.6f %.6f %.6f %.6f %.6f ", iotlb_first, iotlb_all, iotlb_4k, iotlb_2m, iotlb_1g, iotlb_miss
+              printf "%.6f %.6f ", ctx_lkp, ctx_hits
+              printf "%.6f %.6f %.6f %.6f %.6f %.6f ", cache_lkp, hit_256T, hit_512G, hit_1G, hit_2M, cache_fills
+              printf "%.6f ", mem_access
+              printf "%.6f %.6f ", inv_iotlb, pwt
+            }
+        '
+    )
+
+    # Write report
+    {
+        printf "PCIe_wr_tput: %.3f\n" "$ib_wr_gbps"
+        printf "PCIe_rd_tput: %.3f\n" "$ib_rd_gbps"
+
+        printf "IOTLB_first_lookup_avg: %.3f\n" "$iotlb_first_lk"
+        printf "IOTLB_all_lookup_avg: %.3f\n"   "$iotlb_all_lk"
+        printf "IOTLB_4K_hits_avg: %.3f\n"      "$iotlb_4k_hits"
+        printf "IOTLB_2M_hits_avg: %.3f\n"      "$iotlb_2m_hits"
+        printf "IOTLB_1G_hits_avg: %.3f\n"      "$iotlb_1g_hits"
+        printf "IOTLB_miss_avg: %.3f\n"         "$iotlb_misses"
+
+        printf "Ctx_lookup_avg: %.3f\n"         "$ctx_lk"
+        printf "Ctx_hits_avg: %.3f\n"           "$ctx_hit"
+
+        printf "Cache_lookup_avg: %.3f\n"       "$cache_lk"
+        printf "Cache_hit_256T_avg: %.3f\n"     "$hit_256T"
+        printf "Cache_hit_512G_avg: %.3f\n"     "$hit_512G"
+        printf "Cache_hit_1G_avg: %.3f\n"       "$hit_1G"
+        printf "Cache_hit_2M_avg: %.3f\n"       "$hit_2M"
+        printf "Cache_fills_avg: %.3f\n"        "$cache_fills"
+
+        printf "IOMMU_mem_access: %.3f\n"       "$iommu_mem_access"
+        printf "IOTLB_inv_avg: %.3f\n"          "$iotlb_inv"
+        printf "PWT_occupancy_avg: %.3f\n"      "$pwt_occ"
+    } > "$output_file"
 }
 
 function dump_membw() {
