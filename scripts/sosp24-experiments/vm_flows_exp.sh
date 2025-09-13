@@ -24,8 +24,7 @@ GUEST_NIC_BUS="0x0"
 GUEST_HOME="/home/schai"
 # for some reason, public domain name doesn't work
 HOST_IP="192.17.101.97"
-HOST_INTF="enp101s0f1np1" # invalid for 
-HOST_HOME="/home/siyuanc3"
+HOST_HOME="/home/lbalara"
 CLIENT_HOME="/home/siyuanc3"
 CLIENT_INTF="ens5008np0"
 CLIENT_IP="192.168.100.3"
@@ -70,7 +69,7 @@ timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 for socket_buf in 1; do
     for ring_buffer in 512; do
     # 5 10 20 40
-        for i in 20 40 60 80 160; do
+        for i in 20; do
             format_i=$(printf "%02d\n" $i)
             exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
             echo $exp_name
@@ -82,7 +81,7 @@ for socket_buf in 1; do
             sudo bash vm-run-dctcp-tput-experiment.sh \
             --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c $server_cores_mask \
             --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C $client_cores_mask \
-            --host-home "$HOST_HOME" --host-ip "$HOST_IP" --host-intf "$HOST_INTF" \
+            --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
             --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
             -e "$exp_name" -m 4000 -r $ring_buffer -b "100g" -d 1\
             --socket-buf $socket_buf --mlc-cores 'none' --runs 1

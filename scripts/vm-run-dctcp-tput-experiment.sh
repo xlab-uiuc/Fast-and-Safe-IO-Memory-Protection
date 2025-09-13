@@ -20,9 +20,9 @@ GUEST_FandS_REL="viommu"
 GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-HOST_VIOMMU_REL="viommu/iommu-vm"
-HOST_RESULTS_REL=""
-HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
+HOST_VIOMMU_REL="iommu-vm"
+HOST_RESULTS_REL="viommu"
+HOST_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 GUEST_SETUP_DIR_REL="utils"
@@ -35,7 +35,7 @@ EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
 EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
 # --- Remote Access (SSH) Configuration ---
-HOST_SSH_UNAME="siyuanc3"
+HOST_SSH_UNAME="lbalara"
 HOST_SSH_PASSWORD=""
 HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 HOST_USE_PASS_AUTH=0
@@ -69,7 +69,6 @@ CLIENT_BANDWIDTH="100g"
 # --- Host Machine Configuration ---
 HOST_HOME="/users/Leshna"
 HOST_IP="192.168.122.1"
-HOST_INTF="enp101s0f1np1"
 
 # --- Network & System Parameters ---
 MTU=4000
@@ -107,7 +106,6 @@ help() {
     echo "Host Configuration:"
     echo "    [ --host-home <path> (Host home directory) ]"
     echo "    [ --host-ip <ip> (IP address of the host) ]"
-    echo "    [ --host-intf <name> (Interface name for the host) ]"
     echo
     echo "Experiment Parameters:"
     echo "    [ -e | --exp-name <name> (Experiment name for output directories; default: tput-test) ]"
@@ -139,7 +137,7 @@ help() {
 SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
-host-home:,host-ip:,host-intf:,\
+host-home:,host-ip:,\
 exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
 client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
@@ -165,7 +163,6 @@ while :; do
         -C | --client-cpu-mask) CLIENT_CPU_MASK="$2"; shift 2 ;;
         --host-home) HOST_HOME="$2"; shift 2 ;;
         --host-ip) HOST_IP="$2"; shift 2 ;;
-        --host-intf) HOST_INTF="$2"; shift 2 ;;
         -e | --exp-name) EXP_NAME="$2"; shift 2 ;;
         -m | --mtu) MTU="$2"; shift 2 ;;
         -d | --ddio) DDIO_ENABLED="$2"; shift 2 ;;
@@ -364,7 +361,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $HOST_IP..."
     $SSH_HOST_CMD \
-        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh --intf '$HOST_INTF' --ip '$HOST_IP' -m '$MTU' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
+        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
     log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
