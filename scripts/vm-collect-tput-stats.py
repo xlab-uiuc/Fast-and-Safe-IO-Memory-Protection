@@ -3,6 +3,8 @@ import numpy as np
 import statistics
 import subprocess
 
+# TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
+
 EXP_NAME = sys.argv[1]
 NUM_RUNS = int(sys.argv[2])
 COLLECT_MLC_TPUT = int(sys.argv[3])

@@ -18,9 +18,9 @@ PERF_TRACING_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 SERVER_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-SERVER_DEP_REL=""
+SERVER_DEP_REL="viommu/"
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
-SERVER_PERF_REL="vanilla-source-code/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
+SERVER_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 SERVER_SETUP_DIR_REL="utils"

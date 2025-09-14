@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-SERVER_HOME="/home/siyuanc3/"
+SERVER_HOME="/home/lbalara/"
 SERVER_IP="192.168.100.1"
 SERVER_INTF="ens1np0"
 SERVER_BUS="0x98"
@@ -29,7 +29,7 @@ CLIENT_SSH_UNAME="siyuanc3"
 CLIENT_SSH_HOST="nexus03.csl.illinois.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
-CLIENT_SSH_IDENTITY_FILE="/home/siyuanc3/.ssh/id_rsa"
+CLIENT_SSH_IDENTITY_FILE="/home/lbalara/.ssh/id_rsa"
 
 
 ## THINGS TO MANUALLY CHANGE NIC_BUS IN SETUP-ENVIR IN CLIENT
@@ -60,22 +60,25 @@ client_cores="32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,
 server_cores="64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95"
 
 num_cores=20
-client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
-server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+# client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+# server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
 
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 for socket_buf in 1; do
     for ring_buffer in 512; do
     # 5 10 20 40
-        for i in 20 40 60 80 160; do
+        for i in 24; do
             format_i=$(printf "%02d\n" $i)
-            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
+            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${i}cores"
             echo $exp_name
 
             if [ "$DRY_RUN" -eq 1 ]; then
                 continue
             fi
+
+            client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $i | tr '\n' ','))
+            server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $i | tr '\n' ','))
 
             # Client setup: ens5008np0 interface is device bf:00.0 which is attached to NUMANode L#1
             # CPU core 32 33 34 35 36 37 38 39 40 are always on NUMANode L#1
