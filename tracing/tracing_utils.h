@@ -31,6 +31,7 @@ enum FunctionName
   IOMMU_TLB_SYNC = 5, // intel_iommu_tlb_sync
   PAGE_POOL_ALLOC = 6,
   PAGE_POOL_SLOW = 7,
+  QEMU_VTD_FETCH_INV_DESC = 8,
   // VFIO_IOCTL_MAP_DMA = 6,
   // VFIO_IOCTL_UNMAP_DMA = 7,
   // QEMU_ADDRESS_SPACE_RW = 8,
