@@ -107,6 +107,8 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_ALLOC},
     {"kprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KPROBE, PAGE_POOL_SLOW},
     {"kretprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KRETPROBE, PAGE_POOL_SLOW},
+    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
+    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];
@@ -138,6 +140,8 @@ const char *func_name_to_string(enum FunctionName fn)
     return "page_pool_alloc_netmem";
   case PAGE_POOL_SLOW:
     return "page_pool_alloc_pages_slow";
+  case QI_SUBMIT_SYNC:
+    return "qi_submit_sync";
   default:
     return "UnknownFunction";
   }
@@ -165,8 +169,14 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
     return;
   }
 
-  // Columns: function_name, total_count, total_duration_ns, mean_ns, variance_us
-  fprintf(fp, "function,count,total_duration_ns,mean_ns,variance_us\n");
+  // Question: how does the bpf_map_lookup_elem get the per-CPU array?
+  // Columns: function_name, core, total_count, total_duration_ns, mean_ns, variance_us
+  fprintf(fp, "function,core,count,total_duration_ns,mean_ns,variance_us\n");
+
+  unsigned long long agg_stats_counts[FUNCTION_NAME_MAX] = {0};
+  unsigned long long agg_stats_total_durations_ns[FUNCTION_NAME_MAX] = {0};
+  double agg_stats_mean_ns[FUNCTION_NAME_MAX] = {0.0};  
+  double agg_stats_variance_us[FUNCTION_NAME_MAX] = {0.0};
 
   // For each FunctionName enum (0..FUNCTION_NAME_MAX-1), pull the per-CPU array
   for (int fn = 0; fn < FUNCTION_NAME_MAX; fn++)
@@ -195,6 +205,17 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
     for (int cpu = 0; cpu < num_cpus; cpu++)
     {
       struct latency_stats_t *s = &percpu_stats[cpu];
+      
+
+      fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
+              func_name_to_string((enum FunctionName)fn),
+              cpu,
+              (unsigned long long)s->count,
+              (unsigned long long)s->total_duration_ns,
+              0.0, 
+              0.0);
+              // (double)s->total_duration_ns / (double)s->count,
+              // ((double)s->sum_sq_duration_us / (double)s->count) - ((double)s->total_duration_ns / (double)s->count) * ((double)s->total_duration_ns / (double)s->count));
       total_count += s->count;
       total_duration_ns += s->total_duration_ns;
       total_sum_sq_us += s->sum_sq_duration_us;
@@ -212,13 +233,34 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
     // variance in µs units = E[x²] – (E[x])², where x is duration in µs
     double variance_us = ((double)total_sum_sq_us / (double)total_count) - (mean_us * mean_us);
 
-    fprintf(fp, "%s,%llu,%llu,%.2f,%.2f\n",
-            func_name_to_string((enum FunctionName)fn),
-            (unsigned long long)total_count,
-            (unsigned long long)total_duration_ns,
-            mean_ns,
-            variance_us);
+    agg_stats_counts[fn] = total_count;
+    agg_stats_total_durations_ns[fn] = total_duration_ns;
+    agg_stats_mean_ns[fn] = mean_ns;
+    agg_stats_variance_us[fn] = variance_us; 
+
+    // fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
+    //         func_name_to_string((enum FunctionName)fn),
+    //         -1, 
+    //         (unsigned long long)total_count,
+    //         (unsigned long long)total_duration_ns,
+    //         mean_ns,
+    //         variance_us);
   }
+
+  for (int fn = 0; fn < FUNCTION_NAME_MAX; fn++)
+  {
+    if (agg_stats_counts[fn] == 0)
+      continue;
+
+    fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
+            func_name_to_string((enum FunctionName)fn),
+            -1, 
+            (unsigned long long)agg_stats_counts[fn],
+            (unsigned long long)agg_stats_total_durations_ns[fn],
+            agg_stats_mean_ns[fn],
+            agg_stats_variance_us[fn]);
+  }
+  
 }
 
 int main(int argc, char **argv)
@@ -254,7 +296,7 @@ int main(int argc, char **argv)
     goto cleanup_file;
   }
 
-  printf("Attaching probes...\n");
+  printf("Attaching probes... time=%ld\n", time(NULL));
   for (int i = 0; i < num_probes_to_attach; i++)
   {
     probe_def_t *p_def = &probes_to_attach[i];
@@ -288,7 +330,7 @@ int main(int argc, char **argv)
     }
     attached_links[attached_count++] = link;
   }
-  printf("All %d probes attached successfully.\n", attached_count);
+  printf("All %d probes attached successfully. time=%ld\n", attached_count, time(NULL));
 
   signal(SIGINT, sig_handler);
   signal(SIGTERM, sig_handler);
@@ -318,7 +360,7 @@ int main(int argc, char **argv)
 cleanup_file:
   if (output_agg_data_file)
   {
-    printf("Closing aggregate data file: %s\n", args.agg_data_filepath);
+    printf("Closing aggregate data file: %s time=%ld\n", args.agg_data_filepath, time(NULL));
     if (fclose(output_agg_data_file) != 0)
       perror("Failed to close aggregate data file");
     output_agg_data_file = NULL;
@@ -336,6 +378,6 @@ cleanup_file:
     guest_tracer_bpf__destroy(skel);
     skel = NULL;
   }
-  printf("Cleanup complete. Exiting with code %d.\n", err ? 1 : 0);
+  printf("Guest BPF Cleanup complete. Exiting with code %d.\n", err ? 1 : 0);
   return err ? 1 : 0;
 }
