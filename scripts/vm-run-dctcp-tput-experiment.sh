@@ -13,14 +13,14 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=1
+PERF_TRACING_ENABLED=0
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
 GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-HOST_VIOMMU_REL="iommu-vm"
+HOST_VIOMMU_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
 HOST_RESULTS_REL="viommu"
 HOST_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
@@ -48,7 +48,8 @@ EXP_NAME="tput-test"
 NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=0 #test
+EBPF_TRACING_ENABLED=1 #test
+EBPF_TRACING_HOST_ENABLED=0
 
 # --- Guest (Server) Machine Configuration ---
 GUEST_HOME="/home/schai"
@@ -262,7 +263,6 @@ cleanup() {
         sudo pkill -SIGINT -f "$GUEST_PERF record"
         sleep 1
         sudo pkill -9 -f "$GUEST_PERF record"
-
         log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
         $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
@@ -270,15 +270,20 @@ cleanup() {
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-        local guest_loader_basename
         guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
+        cd $(dirname "$EBPF_GUEST_LOADER") || { log_error "Failed to cd to $(dirname "$EBPF_GUEST_LOADER")"; exit 1; }
+        make clean
+        make
+        cd -
+	    sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
+        sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
 	    local host_loader_basename
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
-	    sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
         $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
 	    sleep 5
-        sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
     fi
 
     log_info "Terminating screen sessions..."
@@ -400,7 +405,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting GUEST eBPF tracer..."
-        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -o "$ebpf_guest_stats" &
+        echo "current_time: $(date) $(date +%s)"
+        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -d $CORE_DURATION_S -o "$ebpf_guest_stats" &
+        sleep 2 # Allow eBPF loaders to initialize
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST eBPF tracer on $HOST_IP..."
         host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
         $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
@@ -457,10 +466,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Stop eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-        local guest_loader_basename # Ensure local scope if not already
+        echo "current_time: $(date) $(date +%s)"
         guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
         sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null && log_info "SIGINT sent to GUEST eBPF loader." || log_info "WARN: GUEST eBPF loader process not found or SIGINT failed."
-        local host_loader_basename
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
