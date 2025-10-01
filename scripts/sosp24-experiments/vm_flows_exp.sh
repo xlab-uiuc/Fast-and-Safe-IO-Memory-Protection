@@ -34,8 +34,35 @@ CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
-
+# off, shadow or nested
 VIRT_TECH="nested"
+
+function verify_virt_tech() {
+    local tech="$1"
+    # Check if we can connect to virsh
+
+    # bash -l -c is required here to load the right env
+    virsh_out=$(ssh -i "$CLIENT_SSH_IDENTITY_FILE" "${HOST_UNAME}@${HOST_IP}" 'bash -l -c "virsh list --all"')
+    running_vms=$(echo "$virsh_out" | grep running | awk '{print $2}')
+    # running_vms=$(ssh -i "$CLIENT_SSH_IDENTITY_FILE" "${HOST_UNAME}@${HOST_IP}" "bash -c 'virsh list --all | grep running'")
+    
+    if [ -z "$running_vms" ]; then
+        echo "No VMs are currently running"
+        exit 1
+    else
+        echo "Found running VMs: $running_vms"
+    fi
+
+    if [[ "$running_vms" == *"$tech"* ]]; then
+        echo "Matched: VMname=$running_vms and virt_tech=$tech"
+    else
+        echo "ERROR Inconsistent virtualization tech: $running_vms and $tech"
+        exit 1
+    fi
+}
+
+verify_virt_tech $VIRT_TECH
+
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 else
