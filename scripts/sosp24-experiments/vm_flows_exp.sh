@@ -24,6 +24,7 @@ GUEST_NIC_BUS="0x0"
 GUEST_HOME="/home/schai"
 # for some reason, public domain name doesn't work
 HOST_IP="192.17.101.97"
+HOST_UNAME="lbalara"
 HOST_HOME="/home/lbalara"
 CLIENT_HOME="/home/siyuanc3"
 CLIENT_INTF="ens5008np0"
