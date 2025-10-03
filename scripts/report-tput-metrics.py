@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import pandas as pd
 
 if len(sys.argv) != 3:
     print("Usage: python script.py <exp_name> <metrics>")
@@ -24,6 +25,32 @@ def per_page(value, tput_gbps_mean):
     pages_ps = tput_Bps / 4096
     return value/pages_ps
 
+def __get_ebpf_stats(exp_name, run_id):
+    ebpf_path = os.path.join("../utils/reports/", exp_name + f'-RUN-{run_id}', "ebpf_guest_stats.csv")
+    if not os.path.exists(ebpf_path):
+        return None
+    print(f"Reading eBPF stats from {ebpf_path}")
+    ebpf_results = pd.read_csv(ebpf_path)
+    # only show aggragete results
+    ebpf_results = ebpf_results[ebpf_results['core'] == -1]
+
+    # return {key: ebpf_results[key] for key in ebpf_results.dtype.names}
+    return ebpf_results
+
+def get_ebpf_stats(exp_name, tput, profile_duration=20):
+    MAX_RUNS = 20
+    ebpf_stats = {}
+    for run_id in range(0, MAX_RUNS):
+        run_stats = __get_ebpf_stats(exp_name, run_id)
+        if run_stats is None:
+            continue
+        total_data = tput * 1e9 / 8 * profile_duration  # bytes
+        total_pages = total_data / 4096
+        run_stats['count_per_page'] = run_stats['count'] / total_pages
+        run_stats = run_stats.reset_index(drop=True)
+        print(run_stats.to_string())
+
+    return ebpf_stats
 
 tput = results['net_tput_mean']
 sent_packets = results['sent_packets_mean'] / 20
@@ -60,6 +87,7 @@ if "iommu" in metrics or "all" in metrics:
     # Also print the raw IOMMU/IOTLB counters you now export
     print(f"\tPWT Occupancy: {pwt}")
 
+get_ebpf_stats(exp_name, tput)
 # If no stddevs (single run), stop here
 if not results['net_tput_stddev']:
     print("")
