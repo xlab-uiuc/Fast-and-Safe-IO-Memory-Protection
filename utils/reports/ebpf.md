@@ -1,5 +1,6 @@
 Usage: python script.py <exp_name> <metrics>
 
+1 flow & core
 ```
 ------- 2025-10-03-16-07-35-6.12.9-iommufd-extra-hooks-flow01-host-strict-guest-on-nested-ringbuf-512_sokcetbuf1_1cores Run Metrics -------
 Throughput: 46.913
@@ -31,6 +32,7 @@ Reading eBPF stats from ../utils/reports/2025-10-03-16-07-35-6.12.9-iommufd-extr
 
 ```
 
+4 flow & core
 ```
 ------- 2025-10-03-16-07-35-6.12.9-iommufd-extra-hooks-flow04-host-strict-guest-on-nested-ringbuf-512_sokcetbuf1_4cores Run Metrics -------
 Throughput: 166.568
@@ -61,6 +63,7 @@ Reading eBPF stats from ../utils/reports/2025-10-03-16-07-35-6.12.9-iommufd-extr
 12    page_pool_put_unrefed_page    -1       775            1347659   1738.91        -1.12        0.000008
 ```
 
+8 flow & core
 ```
 ------- 2025-10-03-16-07-35-6.12.9-iommufd-extra-hooks-flow08-host-strict-guest-on-nested-ringbuf-512_sokcetbuf1_8cores Run Metrics -------
 Throughput: 159.404
@@ -90,6 +93,8 @@ Reading eBPF stats from ../utils/reports/2025-10-03-16-07-35-6.12.9-iommufd-extr
 11  page_pool_put_unrefed_netmem    -1  56118048        57621406170  1.026790e+03  1.900000e-01        0.576797
 12    page_pool_put_unrefed_page    -1     64079    246231280081725  3.842621e+09  3.379906e+13        0.000659
 ```
+
+20 flow & core
 ```
 ------- 2025-10-03-16-07-35-6.12.9-iommufd-extra-hooks-flow20-host-strict-guest-on-nested-ringbuf-512_sokcetbuf1_20cores Run Metrics -------
 Throughput: 18.0
