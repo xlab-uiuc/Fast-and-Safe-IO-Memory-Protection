@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <argp.h>
 #include <limits.h>
+#include <math.h>
 
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
@@ -62,6 +63,7 @@ static error_t parse_arg(int key, char *arg, struct argp_state *state)
   }
   return 0;
 }
+
 static struct argp argp_parser = {
     .options = opts,
     .parser = parse_arg,
@@ -171,118 +173,164 @@ const char *func_name_to_string(enum FunctionName fn)
 
 static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
 {
-  int err = 0;
-  int num_cpus;
-
-  if (!fp)
+  if (!fp) 
     return;
 
-  int map_fd = bpf_map__fd(skel->maps.func_latency_stats);
-  if (map_fd < 0)
-  {
-    fprintf(stderr, "Failed to get func_latency_stats map FD: %s\n", strerror(errno));
-    return;
-  }
-
-  num_cpus = libbpf_num_possible_cpus();
-  if (num_cpus <= 0)
-  {
+  int num_cpus = libbpf_num_possible_cpus();
+  if (num_cpus <= 0) {
     fprintf(stderr, "ERROR: Could not get number of possible CPUs\n");
     return;
   }
 
-  // Question: how does the bpf_map_lookup_elem get the per-CPU array?
-  // Columns: function_name, core, total_count, total_duration_ns, mean_ns, variance_us
-  fprintf(fp, "function,core,count,total_duration_ns,mean_ns,variance_us\n");
+  int stats_fd = bpf_map__fd(skel->maps.func_latency_stats);
+  int counts_fd = bpf_map__fd(skel->maps.func_call_counts);
+  int histo_fd = bpf_map__fd(skel->maps.latency_histogram);
 
   unsigned long long agg_stats_counts[FUNCTION_NAME_MAX] = {0};
-  unsigned long long agg_stats_total_durations_ns[FUNCTION_NAME_MAX] = {0};
-  double agg_stats_mean_ns[FUNCTION_NAME_MAX] = {0.0};  
-  double agg_stats_variance_us[FUNCTION_NAME_MAX] = {0.0};
+  
+  unsigned long long agg_stats_total_durations_ns[TRACE_FUNCS_END] = {0};
+  double agg_stats_mean_ns[TRACE_FUNCS_END] = {0.0};  
+  double agg_stats_variance_us[TRACE_FUNCS_END] = {0.0};
 
-  // For each FunctionName enum (0..FUNCTION_NAME_MAX-1), pull the per-CPU array
-  for (int fn = 0; fn < FUNCTION_NAME_MAX; fn++)
-  {
+  fprintf(fp, "# Per-Function Per-CPU Latency Statistics\n");
+  fprintf(fp, "function,cpu,count,total_duration_ns,mean_ns,variance_us\n");
+
+  for (int fn = 0; fn < TRACE_FUNCS_END; fn++) {
+    const char *fn_name = func_name_to_string((enum FunctionName)fn);
     size_t per_cpu_sz = sizeof(struct latency_stats_t);
     size_t buf_sz = per_cpu_sz * num_cpus;
     struct latency_stats_t *percpu_stats = malloc(buf_sz);
-    if (!percpu_stats)
-    {
-      fprintf(stderr, "WARNING: malloc failed for function %d\n", fn);
-      continue;
-    }
-
-    err = bpf_map_lookup_elem(map_fd, &fn, percpu_stats);
-    if (err)
-    {
+    if (!percpu_stats || bpf_map_lookup_elem(stats_fd, &fn, percpu_stats) != 0) {
       free(percpu_stats);
       continue;
     }
 
-    // Combine per‐CPU stats
     __u64 total_count = 0;
     __u64 total_duration_ns = 0;
     __u64 total_sum_sq_us = 0;
-
-    for (int cpu = 0; cpu < num_cpus; cpu++)
-    {
-      struct latency_stats_t *s = &percpu_stats[cpu];
       
-
+    for (int cpu = 0; cpu < num_cpus; cpu++) {
+      struct latency_stats_t *s = &percpu_stats[cpu];
+      if (s->count == 0) continue;
+        
       fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
-              func_name_to_string((enum FunctionName)fn),
+              fn_name,
               cpu,
               (unsigned long long)s->count,
               (unsigned long long)s->total_duration_ns,
               (double)s->total_duration_ns / (double)s->count, 
               0.0);
-              // (double)s->total_duration_ns / (double)s->count,
-              // ((double)s->sum_sq_duration_us / (double)s->count) - ((double)s->total_duration_ns / (double)s->count) * ((double)s->total_duration_ns / (double)s->count));
+        
       total_count += s->count;
       total_duration_ns += s->total_duration_ns;
       total_sum_sq_us += s->sum_sq_duration_us;
     }
+
     free(percpu_stats);
 
-    if (total_count == 0)
-    {
+    if (total_count == 0) 
       continue;
-    }
 
     double mean_ns = (double)total_duration_ns / (double)total_count;
     double mean_us = mean_ns / 1000.0;
 
     // variance in µs units = E[x²] – (E[x])², where x is duration in µs
     double variance_us = ((double)total_sum_sq_us / (double)total_count) - (mean_us * mean_us);
-
     agg_stats_counts[fn] = total_count;
     agg_stats_total_durations_ns[fn] = total_duration_ns;
     agg_stats_mean_ns[fn] = mean_ns;
-    agg_stats_variance_us[fn] = variance_us; 
-
-    // fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
-    //         func_name_to_string((enum FunctionName)fn),
-    //         -1, 
-    //         (unsigned long long)total_count,
-    //         (unsigned long long)total_duration_ns,
-    //         mean_ns,
-    //         variance_us);
+    agg_stats_variance_us[fn] = variance_us;
   }
 
-  for (int fn = 0; fn < FUNCTION_NAME_MAX; fn++)
-  {
+  fprintf(fp, "# Per-Function Latency Statistics\n");
+  fprintf(fp, "function,type,count,total_duration_ns,mean_ns,variance_us\n");
+  
+  for (int fn = 0; fn < TRACE_FUNCS_END; fn++) {
     if (agg_stats_counts[fn] == 0)
       continue;
-
+    
+    const char *fn_name = func_name_to_string((enum FunctionName)fn);
     fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
-            func_name_to_string((enum FunctionName)fn),
+            fn_name,
             -1, 
             (unsigned long long)agg_stats_counts[fn],
             (unsigned long long)agg_stats_total_durations_ns[fn],
             agg_stats_mean_ns[fn],
             agg_stats_variance_us[fn]);
   }
-  
+
+  fprintf(fp, "# Per-Function Per-CPU Counts\n");
+  fprintf(fp, "function,cpu,count\n");
+
+  for (int fn = TRACE_FUNCS_END; fn < FUNCTION_NAME_MAX; fn++) {
+    const char *fn_name = func_name_to_string((enum FunctionName)fn);
+    size_t counts_sz = sizeof(__u64) * num_cpus;
+    __u64 *percpu_counts = malloc(counts_sz);
+    if (!percpu_counts || bpf_map_lookup_elem(counts_fd, &fn, percpu_counts) != 0) {
+      free(percpu_counts);
+      continue;
+    }
+
+    __u64 total_count = 0;
+    for (int cpu = 0; cpu < num_cpus; cpu++) {
+      fprintf(fp, "%s,%d,%llu\n",
+            fn_name,
+            cpu,
+            (unsigned long long)percpu_counts[cpu]);
+        
+      total_count += percpu_counts[cpu];
+    }
+    free(percpu_counts);
+
+    if (total_count == 0) continue;
+    agg_stats_counts[fn] = total_count;
+  }
+
+  fprintf(fp, "# Per-Function Counts\n");
+  fprintf(fp, "function,type,count\n");
+  for (int fn = TRACE_FUNCS_END; fn < FUNCTION_NAME_MAX; fn++) {
+    if (agg_stats_counts[fn] == 0)
+      continue;
+
+    const char *fn_name = func_name_to_string((enum FunctionName)fn);
+    fprintf(fp, "%s,%d,%llu\n",
+          fn_name,
+          -1, 
+          (unsigned long long)agg_stats_counts[fn]);
+  }
+      
+  // --- Print Per-Function Histograms ---
+  fprintf(fp, "\n# Per-Function Latency Histograms\n");
+  fprintf(fp, "function,bucket,latency_range_ns,count\n");
+
+  for (int fn = 0; fn < TRACE_FUNCS_END; fn++) {
+    const char *fn_name = func_name_to_string((enum FunctionName)fn);
+    bool has_output = false;
+
+    for (int bucket = 0; bucket < HISTO_BUCKETS; bucket++) {
+      u32 histo_key = fn * HISTO_BUCKETS + bucket;
+      size_t counts_sz = sizeof(__u64) * num_cpus;
+      __u64 *percpu_counts = malloc(counts_sz);
+      if (!percpu_counts || bpf_map_lookup_elem(histo_fd, &histo_key, percpu_counts) != 0) {
+        free(percpu_counts);
+        continue;
+      }
+
+      __u64 total_count = 0;
+      for (int cpu = 0; cpu < num_cpus; cpu++) {
+        total_count += percpu_counts[cpu];
+      }
+      free(percpu_counts);
+
+      if (total_count > 0) {
+        has_output = true;
+        unsigned long long lower = (unsigned long long)pow(2, bucket);
+        unsigned long long upper = (unsigned long long)pow(2, bucket + 1) - 1;
+        fprintf(fp, "%s,%d,\"%llu - %llu ns\",%llu\n", fn_name, bucket, lower, upper, total_count);
+      }
+    }
+    if(has_output) fprintf(fp, "\n"); // Add a blank line between function histograms
+  }
 }
 
 int main(int argc, char **argv)

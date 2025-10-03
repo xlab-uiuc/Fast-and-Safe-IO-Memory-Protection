@@ -16,7 +16,7 @@ CFLAGS_BPF = -g -O2 \
 		-I/usr/include/$(shell uname -m)-linux-gnu
 
 CFLAGS_USER = -g -Wall -I.
-LDFLAGS_USER := $(LIBBPF_LIBS) -lelf -lz
+LDFLAGS_USER := $(LIBBPF_LIBS) -lelf -lz -lm
 
 # BPF‐related sources and objects
 HOST_BPF_SRC = host_qemu_tracer.bpf.c
