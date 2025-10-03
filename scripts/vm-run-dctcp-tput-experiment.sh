@@ -13,15 +13,16 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
+PERF_TRACING_ENABLED=0
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
-GUEST_PERF_REL="linux-6.12.9/tools/perf/perf"
+GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-HOST_VIOMMU_REL="viommu/iommu-vm"
-HOST_RESULTS_REL=""
-HOST_PERF_REL="viommu/vanilla-source-code/linux-6.12.9/tools/perf/perf"
+HOST_VIOMMU_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
+HOST_RESULTS_REL="viommu"
+HOST_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 GUEST_SETUP_DIR_REL="utils"
@@ -34,10 +35,10 @@ EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
 EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/host_loader"
 
 # --- Remote Access (SSH) Configuration ---
-HOST_SSH_UNAME="saksham"
-HOST_SSH_PASSWORD="saksham"
-HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
-HOST_USE_PASS_AUTH=1
+HOST_SSH_UNAME="lbalara"
+HOST_SSH_PASSWORD=""
+HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
+HOST_USE_PASS_AUTH=0
 
 #-------------------------------------------------------------------------------
 # DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
@@ -47,7 +48,8 @@ EXP_NAME="tput-test"
 NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=0 #test
+EBPF_TRACING_ENABLED=1 #test
+EBPF_TRACING_HOST_ENABLED=0
 
 # --- Guest (Server) Machine Configuration ---
 GUEST_HOME="/home/schai"
@@ -68,7 +70,6 @@ CLIENT_BANDWIDTH="100g"
 # --- Host Machine Configuration ---
 HOST_HOME="/users/Leshna"
 HOST_IP="192.168.122.1"
-HOST_INTF="enp101s0f1np1"
 
 # --- Network & System Parameters ---
 MTU=4000
@@ -106,7 +107,6 @@ help() {
     echo "Host Configuration:"
     echo "    [ --host-home <path> (Host home directory) ]"
     echo "    [ --host-ip <ip> (IP address of the host) ]"
-    echo "    [ --host-intf <name> (Interface name for the host) ]"
     echo
     echo "Experiment Parameters:"
     echo "    [ -e | --exp-name <name> (Experiment name for output directories; default: tput-test) ]"
@@ -138,7 +138,7 @@ help() {
 SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
-host-home:,host-ip:,host-intf:,\
+host-home:,host-ip:,\
 exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
 client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
@@ -164,7 +164,6 @@ while :; do
         -C | --client-cpu-mask) CLIENT_CPU_MASK="$2"; shift 2 ;;
         --host-home) HOST_HOME="$2"; shift 2 ;;
         --host-ip) HOST_IP="$2"; shift 2 ;;
-        --host-intf) HOST_INTF="$2"; shift 2 ;;
         -e | --exp-name) EXP_NAME="$2"; shift 2 ;;
         -m | --mtu) MTU="$2"; shift 2 ;;
         -d | --ddio) DDIO_ENABLED="$2"; shift 2 ;;
@@ -259,25 +258,32 @@ cleanup() {
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf 
-    # sudo pkill -SIGINT -f "$GUEST_PERF record"
-    # sleep 1
-    # sudo pkill -9 -f "$GUEST_PERF record"
 
-    # log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
-    # $SSH_HOST_CMD \
-      #  "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        sudo pkill -SIGINT -f "$GUEST_PERF record"
+        sleep 1
+        sudo pkill -9 -f "$GUEST_PERF record"
+        log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
+        $SSH_HOST_CMD \
+        "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+    fi
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-        local guest_loader_basename
         guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
+        cd $(dirname "$EBPF_GUEST_LOADER") || { log_error "Failed to cd to $(dirname "$EBPF_GUEST_LOADER")"; exit 1; }
+        make clean
+        make
+        cd -
+	    sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
+        sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
 	    local host_loader_basename
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
-	    sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
         $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
 	    sleep 5
-        sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
     fi
 
     log_info "Terminating screen sessions..."
@@ -360,7 +366,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $HOST_IP..."
     $SSH_HOST_CMD \
-        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh --intf '$HOST_INTF' --ip '$HOST_IP' -m '$MTU' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
+        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
     log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
@@ -399,7 +405,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting GUEST eBPF tracer..."
-        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -o "$ebpf_guest_stats" &
+        echo "current_time: $(date) $(date +%s)"
+        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -d $CORE_DURATION_S -o "$ebpf_guest_stats" &
+        sleep 2 # Allow eBPF loaders to initialize
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST eBPF tracer on $HOST_IP..."
         host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
         $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
@@ -407,11 +417,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
 
     # --- Start Main Profiling & Logging Phase ---
-    # log_info "Starting GUEST perf record (CPU profiling)..."
-    # sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
-    # log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
-    # host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
-    # $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        log_info "Starting GUEST perf record (CPU profiling)..."
+        sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+        log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
+        host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
+        $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+    fi
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
@@ -454,10 +466,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Stop eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-        local guest_loader_basename # Ensure local scope if not already
+        echo "current_time: $(date) $(date +%s)"
         guest_loader_basename=$(basename "$EBPF_GUEST_LOADER")
         sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null && log_info "SIGINT sent to GUEST eBPF loader." || log_info "WARN: GUEST eBPF loader process not found or SIGINT failed."
-        local host_loader_basename
+    fi
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
@@ -489,13 +502,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
-        "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt"
+        "${current_guest_reports_dir}/host-retx.rpt" || log_error "Failed to SCP host retx.rpt (${host_reports_dir_remote}/retx.rpt)"
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
-        "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
+        "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"

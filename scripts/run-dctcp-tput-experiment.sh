@@ -14,11 +14,13 @@ SERVER_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
+PERF_TRACING_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 SERVER_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
-SERVER_DEP_REL=""
+SERVER_DEP_REL="viommu/"
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
+SERVER_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
 SERVER_SETUP_DIR_REL="utils"
@@ -170,7 +172,8 @@ SERVER_MLC_DIR="${SERVER_HOME}/${SERVER_MLC_DIR_REL}"
 SERVER_DEP_DIR="${SERVER_HOME}/${SERVER_DEP_REL}"
 CLIENT_SETUP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_SETUP_DIR_REL}"
 CLIENT_EXP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_EXP_DIR_REL}"
-
+SERVER_PERF="${SERVER_HOME}/${SERVER_PERF_REL}"
+PROFILING_LOGGING_DUR_S=$((CORE_DURATION_S))
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
@@ -185,6 +188,12 @@ cleanup() {
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf 
+
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        sudo pkill -SIGINT -f "$SERVER_PERF record"
+        sleep 1
+        sudo pkill -9 -f "$SERVER_PERF record"
+    fi
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
@@ -231,6 +240,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     ebpf_server_stats="${current_server_reports_dir}/ebpf_server_stats.csv"
     server_app_log_file="${current_server_reports_dir}/server_app.log"
     server_mlc_log_file="${current_server_reports_dir}/mlc.log"
+    server_perf_data_file="${current_server_reports_dir}/perf_cpu.data"
     sudo mkdir -p "$current_server_reports_dir"
 
     # --- Pre-run cleanup ---
@@ -290,6 +300,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
 
     # --- Start Main Profiling & Logging Phase ---
+     if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+        log_info "Starting perf record (CPU profiling)..."
+        sudo "$SERVER_PERF" record -F 99 -a -g --call-graph dwarf -o "$server_perf_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+    fi
+
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \

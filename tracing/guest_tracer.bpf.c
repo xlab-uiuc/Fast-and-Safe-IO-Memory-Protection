@@ -178,3 +178,16 @@ int BPF_KRETPROBE(kretprobe___page_pool_alloc_pages_slow, void *ret)
 {
   return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
+
+
+SEC("kretprobe/qi_submit_sync")
+int BPF_KRETPROBE(kprobe_qi_submit_sync, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/qi_submit_sync")
+int BPF_KRETPROBE(kretprobe_qi_submit_sync, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}

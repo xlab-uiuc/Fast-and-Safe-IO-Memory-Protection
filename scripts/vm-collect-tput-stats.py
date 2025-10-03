@@ -3,6 +3,8 @@ import numpy as np
 import statistics
 import subprocess
 
+# TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
+
 EXP_NAME = sys.argv[1]
 NUM_RUNS = int(sys.argv[2])
 COLLECT_MLC_TPUT = int(sys.argv[3])
@@ -11,21 +13,31 @@ FILE_NAME = "../utils/reports/" + EXP_NAME
 command = 'mkdir -p ' + FILE_NAME
 result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
-
 net_tputs = []
 retx_rates = []
 sent_packets = []
 mem_bws = []
-pcie_wr_tput = []
-iotlb_hits = []
-iotlb_misses = []
-ctxt_misses = []
-l1_miss = []
-l2_miss = []
-l3_miss = []
-mem_read = []
 cpu_utils = []
 mlc_tputs = []
+
+pcie_wr_tput = []
+iotlb_first_lookup = []
+iotlb_all_lookup = []
+iotlb_miss = []
+iommu_mem_access = []
+iotlb_inv = []
+pwt_occupancy = []
+
+# iotlb_hits = []
+# ctx_lookup = []
+# ctx_hits   = []
+# ctxt_misses = []
+# cache_lookup   = []
+# cache_hit_256T = []
+# cache_hit_512G = []
+# cache_hit_1G   = []
+# cache_hit_2M   = []
+# cache_fills    = []
 
 for i in range(NUM_RUNS):
     with open(FILE_NAME + '-RUN-' + str(i) + '/iperf.bw.rpt') as f1:
@@ -79,36 +91,32 @@ for i in range(NUM_RUNS):
                     pcie_tput = float(line_str[-1])
                     if (pcie_tput >= 0):
                         pcie_wr_tput.append(pcie_tput)
-                elif (line_str[0] == 'IOTLB_hits:'):
-                    iotlb_hits_ = float(line_str[-1])
-                    iotlb_hits.append(iotlb_hits_)
-                elif (line_str[0] == 'IOTLB_misses:'):
-                    iotlb_misses_ = float(line_str[-1])
-                    iotlb_misses.append(iotlb_misses_)
-                elif (line_str[0] == 'CTXT_Miss:'):
-                    ctxt_misses_ = float(line_str[-1])
-                    ctxt_misses.append(ctxt_misses_)
-                elif (line_str[0] == 'L1_Miss:'):
-                    l1_misses_ = float(line_str[-1])
-                    l1_miss.append(l1_misses_)
-                elif (line_str[0] == 'L2_Miss:'):
-                    l2_misses_ = float(line_str[-1])
-                    l2_miss.append(l2_misses_)
-                elif (line_str[0] == 'L3_Miss:'):
-                    l3_misses_ = float(line_str[-1])
-                    l3_miss.append(l3_misses_)
-                elif (line_str[0] == 'Mem_Read:'):
-                    mem_read_ = float(line_str[-1])
-                    mem_read.append(mem_read_)
+                elif (line_str[0] == 'IOTLB_first_lookup_avg:'):
+                    iotlb_first_lookup_ = float(line_str[-1])
+                    iotlb_first_lookup.append(iotlb_first_lookup_)
+                elif (line_str[0] == 'IOTLB_all_lookup_avg:'):
+                    iotlb_all_lookup_ = float(line_str[-1])
+                    iotlb_all_lookup.append(iotlb_all_lookup_)
+                elif (line_str[0] == 'IOTLB_miss_avg:'):
+                    iotlb_miss_ = float(line_str[-1])
+                    iotlb_miss.append(iotlb_miss_)
+                elif (line_str[0] == 'IOMMU_mem_access:'):
+                    iommu_mem_access_ = float(line_str[-1])
+                    iommu_mem_access.append(iommu_mem_access_)
+                elif (line_str[0] == 'IOTLB_inv_avg:'):
+                    iotlb_inv_ = float(line_str[-1])
+                    iotlb_inv.append(iotlb_inv_)
+                elif (line_str[0] == 'PWT_occupancy_avg:'):
+                    pwt_occupancy_ = float(line_str[-1])
+                    pwt_occupancy.append(pwt_occupancy_)
     except Exception as e:
         pcie_wr_tput.append(0) 
-        iotlb_hits.append(0)
-        iotlb_misses.append(0)
-        ctxt_misses.append(0) 
-        l1_miss.append(0)
-        l2_miss.append(0)
-        l3_miss.append(0)
-        mem_read.append(0)
+        iotlb_first_lookup.append(0)
+        iotlb_all_lookup.append(0)
+        iotlb_miss.append(0)
+        iommu_mem_access.append(0)
+        iotlb_inv.append(0)
+        pwt_occupancy.append(0)
 
     if (COLLECT_MLC_TPUT > 0 and False):
         with open(FILE_NAME + '-MLCRUN-' + str(i) + '/mlc.log') as f1:
@@ -120,48 +128,23 @@ for i in range(NUM_RUNS):
                     break
 
 
-net_tput_mean = statistics.mean(net_tputs)
-retx_rate_mean = statistics.mean(retx_rates) if retx_rates else 0
-sent_packets_mean = statistics.mean(sent_packets)
-mem_bw_mean = statistics.mean(mem_bws)
-pcie_wr_tput_mean = statistics.mean(pcie_wr_tput)
-iotlb_hits_mean = statistics.mean(iotlb_hits)
-iotlb_misses_mean = statistics.mean(iotlb_misses)
-ctxt_misses_mean = statistics.mean(ctxt_misses)
-l1_misses_mean = statistics.mean(l1_miss)
-l2_misses_mean = statistics.mean(l2_miss)
-l3_misses_mean = statistics.mean(l3_miss)
-mem_read_mean = statistics.mean(mem_read)
-cpu_utils_mean = statistics.mean(cpu_utils)
+def mean_or_zero(arr): return statistics.mean(arr) if arr else 0
+def stdev_or_zero(arr): return statistics.stdev(arr) if len(arr) > 1 else 0
 
-if NUM_RUNS > 1:
-    net_tput_stddev = statistics.stdev(net_tputs)
-    mem_bw_stddev = statistics.stdev(mem_bws)
-    retx_rate_stddev = statistics.stdev(retx_rates)
-    sent_packets_stddev = statistics.stdev(sent_packets)
-    pcie_wr_tput_stddev = statistics.stdev(pcie_wr_tput)
-    iotlb_hits_stddev = statistics.stdev(iotlb_hits)
-    iotlb_misses_stddev = statistics.stdev(iotlb_misses)
-    ctxt_misses_stddev = statistics.stdev(ctxt_misses)
-    l1_misses_stddev = statistics.stdev(l1_miss)
-    l2_misses_stddev = statistics.stdev(l2_miss)
-    l3_misses_stddev = statistics.stdev(l3_miss)
-    mem_read_stddev = statistics.stdev(mem_read)
-    cpu_utils_stddev = statistics.stdev(cpu_utils)
-else:
-    net_tput_stddev = 0
-    mem_bw_stddev = 0
-    retx_rate_stddev = 0
-    sent_packets_stddev = 0
-    pcie_wr_tput_stddev = 0
-    iotlb_hits_stddev = 0
-    iotlb_misses_stddev = 0
-    ctxt_misses_stddev = 0
-    l1_misses_stddev = 0
-    l2_misses_stddev = 0
-    l3_misses_stddev = 0
-    mem_read_stddev = 0
-    cpu_utils_stddev = 0
+
+cpu_utils_mean = mean_or_zero(cpu_utils);               cpu_utils_stddev = stdev_or_zero(cpu_utils)
+net_tput_mean = mean_or_zero(net_tputs);                net_tput_stddev = stdev_or_zero(net_tputs)
+retx_rate_mean = mean_or_zero(retx_rates);              retx_rate_stddev = stdev_or_zero(retx_rates)
+sent_packets_mean = mean_or_zero(sent_packets);         sent_packets_stddev = stdev_or_zero(sent_packets)
+mem_bw_mean = mean_or_zero(mem_bws);                    mem_bw_stddev = stdev_or_zero(mem_bws)
+pcie_wr_tput_mean = mean_or_zero(pcie_wr_tput);         pcie_wr_tput_stddev = stdev_or_zero(pcie_wr_tput)
+
+iotlb_first_lookup_mean = mean_or_zero(iotlb_first_lookup);  iotlb_first_lookup_stddev = stdev_or_zero(iotlb_first_lookup)
+iotlb_all_lookup_mean  = mean_or_zero(iotlb_all_lookup);     iotlb_all_lookup_stddev  = stdev_or_zero(iotlb_all_lookup)
+iotlb_miss_mean        = mean_or_zero(iotlb_miss);           iotlb_miss_stddev        = stdev_or_zero(iotlb_miss)
+iommu_mem_access_mean  = mean_or_zero(iommu_mem_access);     iommu_mem_access_stddev  = stdev_or_zero(iommu_mem_access)
+iotlb_inv_mean         = mean_or_zero(iotlb_inv);            iotlb_inv_stddev         = stdev_or_zero(iotlb_inv)
+pwt_occupancy_mean     = mean_or_zero(pwt_occupancy);        pwt_occupancy_stddev     = stdev_or_zero(pwt_occupancy)
 
 mlc_tput_mean = 0
 mlc_tput_stddev = 0
@@ -173,22 +156,28 @@ if (COLLECT_MLC_TPUT > 0):
     else:
         mlc_tput_stddev = 0
 
-# TODO: convert to tuple list and use zip with unpacking to make it cleaner to read and less error prone
-output_list = [("cpu_utils_mean", cpu_utils_mean), ("cpu_utils_stddev", cpu_utils_stddev), ("net_tput_mean", net_tput_mean), ("net_tput_stddev", net_tput_stddev),
-               ("retx_rate_mean", retx_rate_mean), ("retx_rate_stddev", retx_rate_stddev),
-               ("mem_bw_mean", mem_bw_mean), ("mem_bw_stddev", mem_bw_stddev), ("pcie_wr_tput_mean", pcie_wr_tput_mean),
-               ("pcie_wr_tput_stddev", pcie_wr_tput_stddev), ("iotlb_hits_mean", iotlb_hits_mean), ("iotlb_hits_stddev", iotlb_hits_stddev), 
-               ("iotlb_misses_mean", iotlb_misses_mean), ("iotlb_misses_stddev", iotlb_misses_stddev), ("ctxt_misses_mean", ctxt_misses_mean),
-               ("ctxt_misses_stddev", ctxt_misses_stddev), ("l1_misses_mean", l1_misses_mean), ("l1_misses_stddev", l1_misses_stddev), 
-               ("l2_misses_mean", l2_misses_mean), ("l2_misses_stddev", l2_misses_stddev), ("l3_misses_mean", l3_misses_mean), 
-               ("l3_misses_stddev", l3_misses_stddev), ("mem_read_mean", mem_read_mean), ("mem_read_stddev", mem_read_stddev), 
-               ("mlc_tput_mean", mlc_tput_mean), ("mlc_tput_stddev", mlc_tput_stddev), ("sent_packets_mean", sent_packets_mean), 
-               ("sent_packets_stddev", sent_packets_stddev)]
+output_list = [
+    ("cpu_utils_mean", cpu_utils_mean), ("cpu_utils_stddev", cpu_utils_stddev),
+    ("net_tput_mean", net_tput_mean), ("net_tput_stddev", net_tput_stddev),
+    ("retx_rate_mean", retx_rate_mean), ("retx_rate_stddev", retx_rate_stddev),
+    ("mem_bw_mean", mem_bw_mean), ("mem_bw_stddev", mem_bw_stddev),
+    ("pcie_wr_tput_mean", pcie_wr_tput_mean), ("pcie_wr_tput_stddev", pcie_wr_tput_stddev),
+
+    ("iotlb_first_lookup_mean", iotlb_first_lookup_mean), ("iotlb_first_lookup_stddev", iotlb_first_lookup_stddev),
+    ("iotlb_all_lookup_mean",  iotlb_all_lookup_mean),   ("iotlb_all_lookup_stddev",  iotlb_all_lookup_stddev),
+    ("iotlb_miss_mean", iotlb_miss_mean), ("iotlb_miss_stddev", iotlb_miss_stddev),
+    ("iommu_mem_access_mean", iommu_mem_access_mean), ("iommu_mem_access_stddev", iommu_mem_access_stddev),
+    ("iotlb_inv_mean", iotlb_inv_mean), ("iotlb_inv_stddev", iotlb_inv_stddev),
+    ("pwt_occupancy_mean", pwt_occupancy_mean), ("pwt_occupancy_stddev", pwt_occupancy_stddev),
+
+    ("mlc_tput_mean", 0 if not mlc_tputs else mean_or_zero(mlc_tputs)),
+    ("mlc_tput_stddev", 0 if len(mlc_tputs) < 2 else stdev_or_zero(mlc_tputs)),
+    ("sent_packets_mean", sent_packets_mean), ("sent_packets_stddev", sent_packets_stddev),
+]
 
 headers, outputs = zip(*output_list)
 headers = ",".join(headers) 
 outputs = list(outputs)
-
 
 # Save array to DAT file
 np.savetxt(FILE_NAME + '/tput_metrics.dat',

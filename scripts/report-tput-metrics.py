@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 
-# Check if the directory argument is provided
 if len(sys.argv) != 3:
     print("Usage: python script.py <exp_name> <metrics>")
     sys.exit(1)
@@ -14,37 +13,31 @@ os.chdir(script_dir)
 # Get the filename from the user
 exp_name = sys.argv[1]
 metrics_arg = sys.argv[2]
-metrics = metrics_arg.split(",")
-metrics = list(map(str.lower, metrics))
+metrics = list(map(str.lower, metrics_arg.split(",")))
 
-# Combine the base path with the filename
 full_path = os.path.join("../utils/reports/", exp_name, "tput_metrics.dat")
-
 results = np.genfromtxt(full_path, dtype=float, delimiter=',', names=True)
 
-# -------- Print out metrics from paper ----------- #
-
-
-def misses_per_page(misses, tput_mean):
-    # a bit of a round-a-bout way from when I used per desc, but it works so not touching it!
-    mbs_per_second = tput_mean * 125
-    descriptors_per_second = mbs_per_second * 4 
-    misses_per_page = misses / descriptors_per_second
-    # GETTING MISSES PER PAGE
-    misses_per_page = misses_per_page / 64
-    return misses_per_page
+def per_page(value, tput_gbps_mean):
+    tput_bps = tput_gbps_mean * 1e9
+    tput_Bps = tput_bps / 8
+    pages_ps = tput_Bps / 4096
+    return value/pages_ps
 
 
 tput = results['net_tput_mean']
-sent_packets = results['sent_packets_mean']/20
-drop_rate = results["retx_rate_mean"]
-cpu = results["cpu_utils_mean"]
+sent_packets = results['sent_packets_mean'] / 20
+drop_rate = results['retx_rate_mean']
+cpu = results['cpu_utils_mean']
+pwt = results['pwt_occupancy_mean']
 
-acks_page = misses_per_page(sent_packets, tput)
-iotlb_miss_page = misses_per_page(results['iotlb_misses_mean'], tput)
-l1_miss_page = misses_per_page(results['l1_misses_mean'], tput)
-l2_miss_page = misses_per_page(results['l2_misses_mean'], tput)
-l3_miss_page = misses_per_page(results['l3_misses_mean'], tput)
+acks_page = per_page(sent_packets, tput)
+iotlb_miss_page = per_page(results['iotlb_miss_mean'], tput)
+iotlb_flkp_page = per_page(results['iotlb_first_lookup_mean'], tput)
+iotlb_alllkp_page = per_page(results['iotlb_all_lookup_mean'], tput)
+iommu_mem_access_page = per_page(results['iommu_mem_access_mean'], tput)
+iotlb_inv_page = per_page(results['iotlb_inv_mean'], tput)
+
 
 print(f"------- {exp_name} Run Metrics -------")
 
@@ -57,15 +50,20 @@ if "drops" in metrics or "all" in metrics:
 if "acks" in metrics or "all" in metrics:
     print(f"Acks per page: {acks_page}")
 if "iommu" in metrics or "all" in metrics:
-    print(f"Misses per page:")
-    print(f"\tIOTLB: {iotlb_miss_page}")
-    print(f"\tL1: {l1_miss_page}")
-    print(f"\tL2: {l2_miss_page}")
-    print(f"\tL3: {l3_miss_page}")
+    print("Per page stats:")
+    print(f"\tIOTLB Miss: {iotlb_miss_page}")
+    print(f"\tIOTLB First Lookup: {iotlb_flkp_page}")
+    print(f"\tIOTLB All Lookups: {iotlb_alllkp_page}")
+    print(f"\tIOTLB Inv: {iotlb_inv_page}")
+    print(f"\tIOMMU Mem Access: {iommu_mem_access_page}")
 
-if (not results['net_tput_stddev']):
+    # Also print the raw IOMMU/IOTLB counters you now export
+    print(f"\tPWT Occupancy: {pwt}")
+
+# If no stddevs (single run), stop here
+if not results['net_tput_stddev']:
     print("")
-    exit()
+    sys.exit(0)
 
 print(f"------- {exp_name} Run Metrics stddev -------")
 if "tput" in metrics or "all" in metrics:
@@ -76,10 +74,4 @@ if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {results['retx_rate_stddev']}")
 if "acks" in metrics or "all" in metrics:
     print(f"Acks per page: {misses_per_page(results['sent_packets_stddev'], tput)}")
-if "iommu" in metrics or "all" in metrics:
-    print(f"Misses per page:")
-    print(f"\tIOTLB: {misses_per_page(results['iotlb_misses_stddev'],tput)}")
-    print(f"\tL1: {misses_per_page(results['l1_misses_stddev'],tput)}")
-    print(f"\tL2: {misses_per_page(results['l2_misses_stddev'],tput)}")
-    print(f"\tL3: {misses_per_page(results['l3_misses_stddev'],tput)}")
 print("")

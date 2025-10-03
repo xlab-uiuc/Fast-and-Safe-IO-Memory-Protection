@@ -21,7 +21,7 @@
 static volatile bool exiting = false;
 static FILE *output_agg_data_file = NULL;
 
-static char qemu_bin_path[PATH_MAX] = "/home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64";
+static char qemu_bin_path[PATH_MAX] = "/home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64";
 static pid_t qemu_pid = 17640;
 
 // --- Command Line Argument Parsing ---
@@ -108,20 +108,22 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL, false},
     {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC, false},
     {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC, false},
-//    {"uprobe_address_space_rw", "address_space_rw", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_RW, true},
-  //  {"uretprobe_address_space_rw", "address_space_rw", PROBE_TYPE_URETPROBE, QEMU_ADDRESS_SPACE_RW, true},
-  //  {"uprobe_address_space_write", "address_space_write", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_WRITE, true},
-   // {"uretprobe_address_space_write", "address_space_write", PROBE_TYPE_URETPROBE, QEMU_ADDRESS_SPACE_WRITE, true},
-  //  {"uprobe_vtd_mem_write", "vtd_mem_write", PROBE_TYPE_UPROBE, QEMU_VTD_MEM_WRITE, true},
-   // {"uretprobe_vtd_mem_write", "vtd_mem_write", PROBE_TYPE_URETPROBE, QEMU_VTD_MEM_WRITE, true},
-   // {"uprobe_vfio_container_dma_map", "vfio_container_dma_map", PROBE_TYPE_UPROBE, QEMU_VFIO_DMA_MAP, true},
-   // {"uretprobe_vfio_container_dma_map", "vfio_container_dma_map", PROBE_TYPE_URETPROBE, QEMU_VFIO_DMA_MAP, true},
-   // {"uprobe_vfio_container_dma_unmap", "vfio_container_dma_unmap", PROBE_TYPE_UPROBE, QEMU_VFIO_DMA_UNMAP, true},
-   // {"uretprobe_vfio_container_dma_unmap", "vfio_container_dma_unmap", PROBE_TYPE_URETPROBE, QEMU_VFIO_DMA_UNMAP, true},
-    //{"uprobe_vfio_region_write", "vfio_region_write", PROBE_TYPE_UPROBE, QEMU_VFIO_REGION_WRITE, true},
-  //  {"uretprobe_vfio_region_write", "vfio_region_write", PROBE_TYPE_URETPROBE, QEMU_VFIO_REGION_WRITE, true},
-  //  {"uprobe_vtd_iommu_translate", "vtd_iommu_translate", PROBE_TYPE_UPROBE, QEMU_VTD_IOMMU_TRANSLATE, true},
-   // {"uretprobe_vtd_iommu_translate", "vtd_iommu_translate", PROBE_TYPE_URETPROBE, QEMU_VTD_IOMMU_TRANSLATE, true},
+    {"uprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_UPROBE, QEMU_VTD_FETCH_INV_DESC, true},
+    {"uretprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_URETPROBE, QEMU_VTD_FETCH_INV_DESC, true},
+    // {"uprobe_address_space_rw", "address_space_rw", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_RW, true},
+    // {"uretprobe_address_space_rw", "address_space_rw", PROBE_TYPE_URETPROBE, QEMU_ADDRESS_SPACE_RW, true},
+    // {"uprobe_address_space_write", "address_space_write", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_WRITE, true},
+    // {"uretprobe_address_space_write", "address_space_write", PROBE_TYPE_URETPROBE, QEMU_ADDRESS_SPACE_WRITE, true},
+    // {"uprobe_vtd_mem_write", "vtd_mem_write", PROBE_TYPE_UPROBE, QEMU_VTD_MEM_WRITE, true},
+    // {"uretprobe_vtd_mem_write", "vtd_mem_write", PROBE_TYPE_URETPROBE, QEMU_VTD_MEM_WRITE, true},
+    // {"uprobe_vfio_container_dma_map", "vfio_container_dma_map", PROBE_TYPE_UPROBE, QEMU_VFIO_DMA_MAP, true},
+    // {"uretprobe_vfio_container_dma_map", "vfio_container_dma_map", PROBE_TYPE_URETPROBE, QEMU_VFIO_DMA_MAP, true},
+    // {"uprobe_vfio_container_dma_unmap", "vfio_container_dma_unmap", PROBE_TYPE_UPROBE, QEMU_VFIO_DMA_UNMAP, true},
+    // {"uretprobe_vfio_container_dma_unmap", "vfio_container_dma_unmap", PROBE_TYPE_URETPROBE, QEMU_VFIO_DMA_UNMAP, true},
+    // {"uprobe_vfio_region_write", "vfio_region_write", PROBE_TYPE_UPROBE, QEMU_VFIO_REGION_WRITE, true},
+    // {"uretprobe_vfio_region_write", "vfio_region_write", PROBE_TYPE_URETPROBE, QEMU_VFIO_REGION_WRITE, true},
+    // {"uprobe_vtd_iommu_translate", "vtd_iommu_translate", PROBE_TYPE_UPROBE, QEMU_VTD_IOMMU_TRANSLATE, true},
+    // {"uretprobe_vtd_iommu_translate", "vtd_iommu_translate", PROBE_TYPE_URETPROBE, QEMU_VTD_IOMMU_TRANSLATE, true},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];

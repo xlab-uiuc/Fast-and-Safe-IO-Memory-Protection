@@ -146,92 +146,104 @@ int BPF_KRETPROBE(kretprobe_intel_iommu_tlb_sync)
   return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:address_space_rw")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_fetch_inv_desc")
+int BPF_UPROBE(uprobe_vtd_fetch_inv_desc, void *s)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_fetch_inv_desc")
+int BPF_URETPROBE(uretprobe_vtd_fetch_inv_desc)
+{
+    return _bpf_utils_trace_func_exit(ctx, QEMU, true);
+}
+
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:address_space_rw")
 int BPF_UPROBE(uprobe_address_space_rw, void *as, u64 addr, u64 attrs,
                void *buf, u64 len, int is_write)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:address_space_rw")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:address_space_rw")
 int BPF_URETPROBE(uretprobe_address_space_rw, int ret_val)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:address_space_write")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:address_space_write")
 int BPF_UPROBE(uprobe_address_space_write, void *as, u64 addr, u64 attrs,
                const void *buf, u64 len)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:address_space_write")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:address_space_write")
 int BPF_URETPROBE(uretprobe_address_space_write, int ret_val)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vtd_mem_write")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_mem_write")
 int BPF_UPROBE(uprobe_vtd_mem_write, void *opaque, u64 addr,
                u64 val, unsigned int size)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vtd_mem_write")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_mem_write")
 int BPF_URETPROBE(uretprobe_vtd_mem_write)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_container_dma_map")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_container_dma_map")
 int BPF_UPROBE(uprobe_vfio_container_dma_map, void *bcontainer, u64 iova,
                u64 size, void *vaddr, int readonly)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_container_dma_map")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_container_dma_map")
 int BPF_URETPROBE(uretprobe_vfio_container_dma_map, int ret_val)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_container_dma_unmap")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_container_dma_unmap")
 int BPF_UPROBE(uprobe_vfio_container_dma_unmap, void *bcontainer, u64 iova,
                u64 size, void *iotlb)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_container_dma_unmap")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_container_dma_unmap")
 int BPF_URETPROBE(uretprobe_vfio_container_dma_unmap, int ret_val)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_region_write")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_region_write")
 int BPF_UPROBE(uprobe_vfio_region_write, void *opaque, u64 addr,
                u64 data, unsigned int size)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vfio_region_write")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vfio_region_write")
 int BPF_URETPROBE(uretprobe_vfio_region_write)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
 }
 
-SEC("uprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vtd_iommu_translate")
+SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_iommu_translate")
 int BPF_UPROBE(uprobe_vtd_iommu_translate, void *iommu, u64 addr,
                u64 flag, int iommu_idx)
 {
   return _bpf_utils_trace_func_entry(ctx);
 }
 
-SEC("uretprobe//home/saksham/viommu/vanilla-source-code/qemu-viommu/build/qemu-system-x86_64:vtd_iommu_translate")
+SEC("uretprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_iommu_translate")
 int BPF_URETPROBE(uretprobe_vtd_iommu_translate, void *ret_val_ptr)
 {
   return _bpf_utils_trace_func_exit(ctx, QEMU, true);
