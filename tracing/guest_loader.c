@@ -126,16 +126,16 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC,NULL},
     {"kprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KPROBE, PAGE_POOL_DMA_MAP,NULL},
     {"kretprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KRETPROBE, PAGE_POOL_DMA_MAP,NULL},
-    {"kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
-    {"kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
-    {"kprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
-    {"kretprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
-    {"kprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
-    {"kretprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
-    {"kprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
-    {"kretprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
-    {"kprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
-    {"kretprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
     {"kprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
     {"kretprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KRETPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
     {"kprobe_trace_qi_submit_sync_lock_wrapper", "trace_qi_submit_sync_lock_wrapper", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_LOCK_WRAPPER,NULL},
@@ -151,8 +151,8 @@ probe_def_t probes_to_attach[] = {
     {"kprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KPROBE, PAGE_POOL_PUT_PAGE,NULL},
     {"kretprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_PAGE,NULL},
     // --- Additions for count functions ---
-    {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
-    {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    // {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    // {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
     {"kprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
     {"kretprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
     {"kprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
@@ -445,12 +445,12 @@ int main(int argc, char **argv)
     struct bpf_link *link = NULL;
     if (p_def->type == PROBE_TYPE_KPROBE)
     {
-      LIBBPF_OPTS(bpf_kprobe_opts, k_opts, .bpf_cookie = p_def->cookie,.module = p_def->module_name);
+      LIBBPF_OPTS(bpf_kprobe_opts, k_opts, .bpf_cookie = p_def->cookie);
       link = bpf_program__attach_kprobe_opts(prog, p_def->target_name, &k_opts);
     }
     else if (p_def->type == PROBE_TYPE_KRETPROBE)
     {
-      LIBBPF_OPTS(bpf_kprobe_opts, kr_opts, .bpf_cookie = p_def->cookie, .retprobe = true,.module = p_def->module_name);
+      LIBBPF_OPTS(bpf_kprobe_opts, kr_opts, .bpf_cookie = p_def->cookie, .retprobe = true);
       link = bpf_program__attach_kprobe_opts(prog, p_def->target_name, &kr_opts);
     }
 
