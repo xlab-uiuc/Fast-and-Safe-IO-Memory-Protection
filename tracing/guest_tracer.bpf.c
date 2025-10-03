@@ -1,6 +1,7 @@
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
 
 #include "tracing_utils.h"
 
@@ -22,8 +23,34 @@ struct
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, u32);
   __type(value, struct latency_stats_t);
-  __uint(max_entries, MAX_ENUM_FUNCTIONS);
+  __uint(max_entries, FUNCTION_NAME_MAX);
 } func_latency_stats SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, TRACE_FUNCS_END * HISTO_BUCKETS); 
+    __type(key, u32);
+    __type(value, u64);
+} latency_histogram SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, u32);
+    __type(value, u64);
+    __uint(max_entries, FUNCTION_NAME_MAX);
+} func_call_counts SEC(".maps");
+
+static __always_inline u32 log2_u64(u64 v)
+{
+    u32 r = 0;
+    if (v > 0xFFFFFFFF) { v >>= 32; r += 32; }
+    if (v > 0xFFFF)     { v >>= 16; r += 16; }
+    if (v > 0xFF)       { v >>= 8;  r += 8; }
+    if (v > 0xF)        { v >>= 4;  r += 4; }
+    if (v > 0x3)        { v >>= 2;  r += 2; }
+    if (v > 0x1)        { r += 1; }
+    return r;
+}
 
 static __always_inline int
 _bpf_utils_trace_func_entry(struct pt_regs *ctx)
@@ -31,9 +58,14 @@ _bpf_utils_trace_func_entry(struct pt_regs *ctx)
   // u32 rnd = bpf_get_prandom_u32();
   // if (rnd & SAMPLE_MASK)
   //   return 0;
+  
+  u64 cookie = bpf_get_attach_cookie(ctx);
+
+  if (cookie >= TRACE_FUNCS_END) {
+    return 0;
+  }
 
   u64 pid_tgid = bpf_get_current_pid_tgid();
-  u64 cookie = bpf_get_attach_cookie(ctx);
   struct entry_key_t key = {.id = pid_tgid, .cookie = cookie};
   struct entry_val_t val = {.ts = bpf_ktime_get_ns()};
   return bpf_map_update_elem(&entry_traces, &key, &val, BPF_ANY);
@@ -42,36 +74,57 @@ _bpf_utils_trace_func_entry(struct pt_regs *ctx)
 static __always_inline int
 _bpf_utils_trace_func_exit(struct pt_regs *ctx, enum Domain domain, bool is_uprobe)
 {
-  u64 pid_tgid = bpf_get_current_pid_tgid();
   u64 cookie = bpf_get_attach_cookie(ctx);
+
+  if (cookie >= TRACE_FUNCS_END) {
+    u32 func_enum_key = (u32)cookie;
+    u64 *count = bpf_map_lookup_elem(&func_call_counts, &func_enum_key);
+    if (count) {
+      __sync_fetch_and_add(count, 1);
+    }
+
+    return 0;
+  }
+
+  u64 pid_tgid = bpf_get_current_pid_tgid();
   struct entry_key_t key = {.id = pid_tgid, .cookie = cookie};
   struct entry_val_t *entry_val_p;
 
   entry_val_p = bpf_map_lookup_elem(&entry_traces, &key);
-  if (!entry_val_p)
-  {
+  if (!entry_val_p) {
     return 0;
   }
 
   u64 duration_ns;
   u64 duration_us;
-  bool is_sampled_event;
+  // bool is_sampled_event;
   u32 func_enum_key;
 
   duration_ns = bpf_ktime_get_ns() - entry_val_p->ts;
   func_enum_key = (u32)key.cookie;
 
   struct latency_stats_t *stats = bpf_map_lookup_elem(&func_latency_stats, &func_enum_key);
-  if (stats)
-  {
-    stats->count++;
-    stats->total_duration_ns += duration_ns;
-
+  if (stats) {
+    __sync_fetch_and_add(&stats->count, 1);
+    __sync_fetch_and_add(&stats->total_duration_ns, duration_ns);
+    
     // Convert duration to microseconds for sum of squares to prevent overflow
     duration_us = duration_ns / 1000;
-    stats->sum_sq_duration_us += duration_us * duration_us;
+    __sync_fetch_and_add(&stats->sum_sq_duration_us, duration_us * duration_us);
   }
 
+  if (duration_ns > 0) {
+    u32 bucket = log2_u64(duration_ns);
+    if (bucket >= HISTO_BUCKETS) {
+        bucket = HISTO_BUCKETS - 1;
+    }
+    u32 histo_key = func_enum_key * HISTO_BUCKETS + bucket; 
+    u64 *count = bpf_map_lookup_elem(&latency_histogram, &histo_key);
+    if (count) {
+        __sync_fetch_and_add(count, 1);
+    }   
+  }
+        
   bpf_map_delete_elem(&entry_traces, &key);
   return 0;
 }

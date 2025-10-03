@@ -18,7 +18,7 @@ struct
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, u32);
   __type(value, struct latency_stats_t);
-  __uint(max_entries, MAX_ENUM_FUNCTIONS);
+  __uint(max_entries, FUNCTION_NAME_MAX);
 } func_latency_stats SEC(".maps");
 
 static __always_inline int

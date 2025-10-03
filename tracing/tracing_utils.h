@@ -12,7 +12,7 @@ typedef int s32;
 #define BPF_MAX_STACK_DEPTH 127
 #endif
 
-#define MAX_ENUM_FUNCTIONS 16
+#define HISTO_BUCKETS 21
 
 enum Domain
 {
@@ -23,31 +23,31 @@ enum Domain
 
 enum FunctionName
 {
-  IOMMU_MAP = 0,
-  IOMMU_MAP_INTERNAL = 1,
-  IOMMU_IOTLB_SYNC_MAP = 2, // intel_iommu_iotlb_sync_map
-  IOMMU_UNMAP = 3,
-  CACHE_TAG_FLUSH_RANGE_NP = 4,
-  IOMMU_FLUSH_WRITE_BUFFER = 5,
-  IOMMU_UNMAP_INTERNAL = 6,
-  IOMMU_TLB_SYNC = 7, // intel_iommu_tlb_sync
-  CACHE_TAG_FLUSH_RANGE = 8,
-  PAGE_POOL_ALLOC = 9,
-  PAGE_POOL_SLOW = 10,
-  QI_SUBMIT_SYNC = 11, 
-  QI_BATCH_FLUSH_DESCS = 12,
-  QEMU_VTD_FETCH_INV_DESC = 13,
-  // VFIO_IOCTL_MAP_DMA = 6,
-  // VFIO_IOCTL_UNMAP_DMA = 7,
-  // QEMU_ADDRESS_SPACE_RW = 8,
-  // QEMU_ADDRESS_SPACE_WRITE = 9,
-  // QEMU_SHADOW_PAGE_TABLE = 8,
-  // QEMU_VTD_MEM_WRITE = 9,
-  // QEMU_VFIO_DMA_MAP = 10,
-  // QEMU_VFIO_DMA_UNMAP = 11,
-  // QEMU_VFIO_REGION_WRITE = 12,
-  // QEMU_VTD_IOMMU_TRANSLATE = 13,
-  FUNCTION_NAME_MAX,
+    // --- Section for Latency Tracing ---
+    TRACE_FUNC_START = 0,
+    IOMMU_MAP = TRACE_FUNC_START,
+    IOMMU_MAP_INTERNAL,
+    IOMMU_IOTLB_SYNC_MAP, // intel_iommu_iotlb_sync_map
+    IOMMU_UNMAP,
+    CACHE_TAG_FLUSH_RANGE_NP,
+    IOMMU_FLUSH_WRITE_BUFFER,
+    IOMMU_UNMAP_INTERNAL,
+    IOMMU_TLB_SYNC, // intel_iommu_tlb_sync
+    CACHE_TAG_FLUSH_RANGE,
+    PAGE_POOL_ALLOC,
+    PAGE_POOL_SLOW,
+    QI_SUBMIT_SYNC,
+    QI_BATCH_FLUSH_DESCS,
+    QEMU_VTD_FETCH_INV_DESC,
+    TRACE_FUNCS_END, // Marks the end of trace functions
+
+    // --- Section for Simple Frequency Counting ---
+    COUNT_FUNC_START = TRACE_FUNCS_END,
+    COUNT_PAGE_POOL_RELEASE = COUNT_FUNC_START,
+    COUNT_PAGE_POOL_RECYCLE,
+    COUNT_FUNCS_END,
+
+    FUNCTION_NAME_MAX = COUNT_FUNCS_END,
 };
 
 struct entry_key_t
