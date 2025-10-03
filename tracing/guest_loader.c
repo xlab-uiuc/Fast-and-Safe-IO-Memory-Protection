@@ -97,16 +97,30 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe___iommu_map", "__iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP_INTERNAL},
     {"kprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KPROBE, IOMMU_IOTLB_SYNC_MAP},
     {"kretprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KRETPROBE, IOMMU_IOTLB_SYNC_MAP},
+    //cache_tag_flush_range_np
+    {"kprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE_NP},
+    {"kretprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE_NP},
+    // iommu_flush_write_buffer
+    {"kprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KPROBE, IOMMU_FLUSH_WRITE_BUFFER},
+    {"kretprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KRETPROBE, IOMMU_FLUSH_WRITE_BUFFER},
     {"kprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP},
     {"kretprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP},
     {"kprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP_INTERNAL},
     {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL},
     {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC},
     {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC},
+    // cache_tag_flush_range
+    {"kprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE},
+    {"kretprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE},
     {"kprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KPROBE, PAGE_POOL_ALLOC},
     {"kretprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_ALLOC},
     {"kprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KPROBE, PAGE_POOL_SLOW},
     {"kretprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KRETPROBE, PAGE_POOL_SLOW},
+    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
+    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
+    // qi_batch_flush_descs
+    {"kprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KPROBE, QI_BATCH_FLUSH_DESCS},
+    {"kretprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KRETPROBE, QI_BATCH_FLUSH_DESCS},
     {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
     {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
 };
@@ -130,16 +144,24 @@ const char *func_name_to_string(enum FunctionName fn)
     return "__iommu_map";
   case IOMMU_IOTLB_SYNC_MAP:
     return "intel_iommu_iotlb_sync_map";
+  case CACHE_TAG_FLUSH_RANGE_NP:
+    return "cache_tag_flush_range_np";
+  case IOMMU_FLUSH_WRITE_BUFFER:
+    return "iommu_flush_write_buffer";
   case IOMMU_UNMAP:
     return "iommu_unmap";
   case IOMMU_UNMAP_INTERNAL:
     return "__iommu_unmap";
   case IOMMU_TLB_SYNC:
     return "intel_iommu_tlb_sync";
+  case CACHE_TAG_FLUSH_RANGE:
+    return "cache_tag_flush_range";
   case PAGE_POOL_ALLOC:
     return "page_pool_alloc_netmem";
   case PAGE_POOL_SLOW:
     return "page_pool_alloc_pages_slow";
+  case QI_BATCH_FLUSH_DESCS:
+    return "qi_batch_flush_descs";
   case QI_SUBMIT_SYNC:
     return "qi_submit_sync";
   default:
@@ -212,7 +234,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
               cpu,
               (unsigned long long)s->count,
               (unsigned long long)s->total_duration_ns,
-              0.0, 
+              (double)s->total_duration_ns / (double)s->count, 
               0.0);
               // (double)s->total_duration_ns / (double)s->count,
               // ((double)s->sum_sq_duration_us / (double)s->count) - ((double)s->total_duration_ns / (double)s->count) * ((double)s->total_duration_ns / (double)s->count));
