@@ -1,5 +1,4 @@
 #default values
-set -x
 SCRIPT_NAME="record-host-metrics"
 
 DEP_DIR="/home/schai"

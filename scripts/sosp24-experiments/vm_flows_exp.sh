@@ -88,17 +88,21 @@ sleep 1
 client_cores="32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
-num_cores=20
-client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
-server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+# num_cores=20
+# client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+# server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 # 5 10 20 40
 for socket_buf in 1; do
     for ring_buffer in 512; do
     # 5 10 20 40
-        for i in 20; do
-            format_i=$(printf "%02d\n" $i)
+        for i in 1 4 8 20; do
+  	    num_cores=$i
+	    client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+	    server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+
+      	    format_i=$(printf "%02d\n" $i)
             exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
             echo $exp_name
 
