@@ -292,3 +292,197 @@ int BPF_KRETPROBE(kretprobe_iommu_flush_write_buffer, void *ret)
 {
   return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
+
+SEC("kprobe/page_pool_dma_map")
+int BPF_KPROBE(kprobe_page_pool_dma_map, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/page_pool_dma_map")
+int BPF_KRETPROBE(kretprobe_page_pool_dma_map, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/page_pool_return_page")
+int BPF_KPROBE(kprobe_page_pool_return_page, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/page_pool_return_page")
+int BPF_KRETPROBE(kretprobe_page_pool_return_page, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/page_pool_put_unrefed_netmem")
+int BPF_KPROBE(kprobe_page_pool_put_unrefed_netmem, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/page_pool_put_unrefed_netmem")
+int BPF_KRETPROBE(kretprobe_page_pool_put_unrefed_netmem, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/page_pool_put_unrefed_page")
+int BPF_KPROBE(kprobe_page_pool_put_unrefed_page, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/page_pool_put_unrefed_page")
+int BPF_KRETPROBE(kretprobe_page_pool_put_unrefed_page, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+
+SEC("kprobe/trace_mlx5e_tx_dma_unmap_ktls_hook")
+int BPF_KPROBE(kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_mlx5e_tx_dma_unmap_ktls_hook")
+int BPF_KRETPROBE(kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_mlx5e_dma_push_build_single_hook")
+int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_build_single_hook, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_mlx5e_dma_push_build_single_hook")
+int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_build_single_hook, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_mlx5e_dma_push_xmit_single_hook")
+int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_xmit_single_hook, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_mlx5e_dma_push_xmit_single_hook")
+int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_xmit_single_hook, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_mlx5e_dma_push_page_hook")
+int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_page_hook, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_mlx5e_dma_push_page_hook")
+int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_page_hook, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_mlx5e_tx_dma_unmap_hook")
+int BPF_KPROBE(kprobe_trace_mlx5e_tx_dma_unmap_hook, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_mlx5e_tx_dma_unmap_hook")
+int BPF_KRETPROBE(kretprobe_trace_mlx5e_tx_dma_unmap_hook, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_qi_submit_sync_cs")
+int BPF_KPROBE(kprobe_trace_qi_submit_sync_cs, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_qi_submit_sync_cs")
+int BPF_KRETPROBE(kretprobe_trace_qi_submit_sync_cs, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_qi_submit_sync_lock_wrapper")
+int BPF_KPROBE(kprobe_trace_qi_submit_sync_lock_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_qi_submit_sync_lock_wrapper")
+int BPF_KRETPROBE(kretprobe_trace_qi_submit_sync_lock_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_iommu_flush_write_buffer_cs")
+int BPF_KPROBE(kprobe_trace_iommu_flush_write_buffer_cs, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_iommu_flush_write_buffer_cs")
+int BPF_KRETPROBE(kretprobe_trace_iommu_flush_write_buffer_cs, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/trace_iommu_flush_write_buffer_lock_wrapper")
+int BPF_KPROBE(kprobe_trace_iommu_flush_write_buffer_lock_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/trace_iommu_flush_write_buffer_lock_wrapper")
+int BPF_KRETPROBE(kretprobe_trace_iommu_flush_write_buffer_lock_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
+int BPF_KPROBE(kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
+int BPF_KRETPROBE(kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/count_page_pool_release_page_dma_hook")
+int BPF_KPROBE(kprobe_count_page_pool_release_page_dma_hook, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/count_page_pool_release_page_dma_hook")
+int BPF_KRETPROBE(kretprobe_count_page_pool_release_page_dma_hook, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/count_page_pool_recycle_in_cache_hook")
+int BPF_KPROBE(kprobe_count_page_pool_recycle_in_cache_hook, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/count_page_pool_recycle_in_cache_hook")
+int BPF_KRETPROBE(kretprobe_count_page_pool_recycle_in_cache_hook, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+

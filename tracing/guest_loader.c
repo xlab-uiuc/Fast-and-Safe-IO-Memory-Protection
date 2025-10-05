@@ -90,41 +90,73 @@ typedef struct
   const char *target_name;
   probe_type_t type;
   enum FunctionName cookie;
+  const char *module_name;
 } probe_def_t;
 
 probe_def_t probes_to_attach[] = {
-    {"kprobe_iommu_map", "iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP},
-    {"kretprobe_iommu_map", "iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP},
-    {"kprobe___iommu_map", "__iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP_INTERNAL},
-    {"kretprobe___iommu_map", "__iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP_INTERNAL},
-    {"kprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KPROBE, IOMMU_IOTLB_SYNC_MAP},
-    {"kretprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KRETPROBE, IOMMU_IOTLB_SYNC_MAP},
+    {"kprobe_iommu_map", "iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP,NULL},
+    {"kretprobe_iommu_map", "iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP,NULL},
+    {"kprobe___iommu_map", "__iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP_INTERNAL,NULL},
+    {"kretprobe___iommu_map", "__iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP_INTERNAL,NULL},
+    {"kprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KPROBE, IOMMU_IOTLB_SYNC_MAP,NULL},
+    {"kretprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KRETPROBE, IOMMU_IOTLB_SYNC_MAP,NULL},
     //cache_tag_flush_range_np
-    {"kprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE_NP},
-    {"kretprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE_NP},
+    {"kprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE_NP,NULL},
+    {"kretprobe_cache_tag_flush_range_np", "cache_tag_flush_range_np", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE_NP,NULL},
     // iommu_flush_write_buffer
-    {"kprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KPROBE, IOMMU_FLUSH_WRITE_BUFFER},
-    {"kretprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KRETPROBE, IOMMU_FLUSH_WRITE_BUFFER},
-    {"kprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP},
-    {"kretprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP},
-    {"kprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP_INTERNAL},
-    {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL},
-    {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC},
-    {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC},
+    {"kprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KPROBE, IOMMU_FLUSH_WRITE_BUFFER,NULL},
+    {"kretprobe_iommu_flush_write_buffer", "iommu_flush_write_buffer", PROBE_TYPE_KRETPROBE, IOMMU_FLUSH_WRITE_BUFFER,NULL},
+    {"kprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP,NULL},
+    {"kretprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP,NULL},
+    {"kprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP_INTERNAL,NULL},
+    {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL,NULL},
+    {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC,NULL},
+    {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC,NULL},
     // cache_tag_flush_range
-    {"kprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE},
-    {"kretprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE},
-    {"kprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KPROBE, PAGE_POOL_ALLOC},
-    {"kretprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_ALLOC},
-    {"kprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KPROBE, PAGE_POOL_SLOW},
-    {"kretprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KRETPROBE, PAGE_POOL_SLOW},
-    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
-    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
+    {"kprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE,NULL},
+    {"kretprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE,NULL},
+    {"kprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KPROBE, PAGE_POOL_ALLOC,NULL},
+    {"kretprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_ALLOC,NULL},
+    {"kprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KPROBE, PAGE_POOL_SLOW,NULL},
+    {"kretprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KRETPROBE, PAGE_POOL_SLOW,NULL},
     // qi_batch_flush_descs
-    {"kprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KPROBE, QI_BATCH_FLUSH_DESCS},
-    {"kretprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KRETPROBE, QI_BATCH_FLUSH_DESCS},
-    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
-    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
+    {"kprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KPROBE, QI_BATCH_FLUSH_DESCS,NULL},
+    {"kretprobe_qi_batch_flush_descs", "qi_batch_flush_descs", PROBE_TYPE_KRETPROBE, QI_BATCH_FLUSH_DESCS,NULL},
+    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC,NULL},
+    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC,NULL},
+    {"kprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KPROBE, PAGE_POOL_DMA_MAP,NULL},
+    {"kretprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KRETPROBE, PAGE_POOL_DMA_MAP,NULL},
+    // {"kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    // {"kprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    // {"kretprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    {"kprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
+    {"kretprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KRETPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
+    {"kprobe_trace_qi_submit_sync_lock_wrapper", "trace_qi_submit_sync_lock_wrapper", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_LOCK_WRAPPER,NULL},
+    {"kretprobe_trace_qi_submit_sync_lock_wrapper", "trace_qi_submit_sync_lock_wrapper", PROBE_TYPE_KRETPROBE, TRACE_QI_SUBMIT_SYNC_LOCK_WRAPPER,NULL},
+    {"kprobe_trace_iommu_flush_write_buffer_cs", "trace_iommu_flush_write_buffer_cs", PROBE_TYPE_KPROBE, TRACE_IOMMU_FLUSH_WRITE_BUFFER_CS,NULL},
+    {"kretprobe_trace_iommu_flush_write_buffer_cs", "trace_iommu_flush_write_buffer_cs", PROBE_TYPE_KRETPROBE, TRACE_IOMMU_FLUSH_WRITE_BUFFER_CS,NULL},
+    {"kprobe_trace_iommu_flush_write_buffer_lock_wrapper", "trace_iommu_flush_write_buffer_lock_wrapper", PROBE_TYPE_KPROBE, TRACE_IOMMU_FLUSH_WRITE_BUFFER_LOCK_WRAPPER,NULL},
+    {"kretprobe_trace_iommu_flush_write_buffer_lock_wrapper", "trace_iommu_flush_write_buffer_lock_wrapper", PROBE_TYPE_KRETPROBE, TRACE_IOMMU_FLUSH_WRITE_BUFFER_LOCK_WRAPPER,NULL},
+    {"kprobe_page_pool_return_page", "page_pool_return_page", PROBE_TYPE_KPROBE, PAGE_POOL_RETURN_PAGE,NULL},
+    {"kretprobe_page_pool_return_page", "page_pool_return_page", PROBE_TYPE_KRETPROBE, PAGE_POOL_RETURN_PAGE,NULL},
+    {"kprobe_page_pool_put_unrefed_netmem", "page_pool_put_unrefed_netmem", PROBE_TYPE_KPROBE, PAGE_POOL_PUT_NETMEM,NULL},
+    {"kretprobe_page_pool_put_unrefed_netmem", "page_pool_put_unrefed_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_NETMEM,NULL},
+    {"kprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KPROBE, PAGE_POOL_PUT_PAGE,NULL},
+    {"kretprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_PAGE,NULL},
+    // --- Additions for count functions ---
+    // {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    // {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    {"kprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
+    {"kretprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
+    {"kprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
+    {"kretprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];
@@ -166,6 +198,38 @@ const char *func_name_to_string(enum FunctionName fn)
     return "qi_batch_flush_descs";
   case QI_SUBMIT_SYNC:
     return "qi_submit_sync";
+  case TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK:
+    return "trace_mlx5e_tx_dma_unmap_ktls_hook";
+  case TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK:
+    return "trace_mlx5e_dma_push_build_single_hook";
+  case TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK:
+    return "trace_mlx5e_dma_push_xmit_single_hook";
+  case TRACE_MLX5E_DMA_PUSH_PAGE_HOOK:
+    return "trace_mlx5e_dma_push_page_hook";
+  case TRACE_MLX5E_TX_DMA_UNMAP_HOOK:
+    return "trace_mlx5e_tx_dma_unmap_hook";
+  case TRACE_QI_SUBMIT_SYNC_CS:
+    return "trace_qi_submit_sync_cs";
+  case TRACE_QI_SUBMIT_SYNC_LOCK_WRAPPER:
+    return "trace_qi_submit_sync_lock_wrapper";
+  case TRACE_IOMMU_FLUSH_WRITE_BUFFER_CS:
+    return "trace_iommu_flush_write_buffer_cs";
+  case TRACE_IOMMU_FLUSH_WRITE_BUFFER_LOCK_WRAPPER:
+    return "trace_iommu_flush_write_buffer_lock_wrapper";
+  case PAGE_POOL_DMA_MAP:
+    return "page_pool_dma_map";
+  case PAGE_POOL_RETURN_PAGE:
+    return "page_pool_return_page";
+  case COUNT_PAGE_POOL_RELEASE:
+    return "count_page_pool_release_page_dma_hook";
+  case COUNT_PAGE_POOL_RECYCLE:
+    return "count_page_pool_recycle_in_cache_hook";
+  case COUNT_MLX5E_RX_MPWQE_PER_PAGE:
+    return "count_mlx5e_alloc_rx_mpwqe_perpage_hook";
+  case PAGE_POOL_PUT_NETMEM:
+    return "page_pool_put_unrefed_netmem";
+  case PAGE_POOL_PUT_PAGE:
+    return "page_pool_put_unrefed_page";
   default:
     return "UnknownFunction";
   }
