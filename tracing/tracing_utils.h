@@ -52,6 +52,7 @@ enum FunctionName
     PAGE_POOL_PUT_NETMEM,
     PAGE_POOL_PUT_PAGE,
     QEMU_VTD_FETCH_INV_DESC,
+    IOMMUFD_FOPS_IOCTL,
     TRACE_FUNCS_END, // Marks the end of trace functions
 
     // --- Section for Simple Frequency Counting ---
