@@ -275,7 +275,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
       
     for (int cpu = 0; cpu < num_cpus; cpu++) {
       struct latency_stats_t *s = &percpu_stats[cpu];
-      if (s->count == 0) continue;
+      // if (s->count == 0) continue;
         
       fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
               fn_name,

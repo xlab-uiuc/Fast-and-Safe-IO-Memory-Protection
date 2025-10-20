@@ -30,9 +30,55 @@ def __get_ebpf_stats(exp_name, run_id):
     if not os.path.exists(ebpf_path):
         return None
     print(f"Reading eBPF stats from {ebpf_path}")
-    ebpf_results = pd.read_csv(ebpf_path)
-    # only show aggragete results
-    ebpf_results = ebpf_results[ebpf_results['core'] == -1]
+
+#     # Per-Function Latency Statistics
+# function,type,count,total_duration_ns,mean_ns,variance_us
+# iommu_map,-1,171036,1139456425,6662.09,-4.24
+# __iommu_map,-1,170998,185684984,1085.89,-0.69
+# intel_iommu_iotlb_sync_map,-1,170922,686091943,4014.06,-3.05
+# cache_tag_flush_range_np,-1,170866,498774037,2919.09,-2.03
+# iommu_flush_write_buffer,-1,170811,118642694,694.58,-0.26
+# __iommu_unmap,-1,170698,186294285,1091.37,-0.74
+# intel_iommu_tlb_sync,-1,170646,2118537135,12414.81,385.33
+# cache_tag_flush_range,-1,170591,1922281964,11268.37,383.70
+# qi_submit_sync,-1,170362,1494422523,8772.04,378.01
+# qi_batch_flush_descs,-1,340833,1807166455,5302.21,210.82
+# trace_qi_submit_sync_cs,-1,170252,1294629687,7604.20,377.08
+# page_pool_put_unrefed_netmem,-1,8695550,6395061571,735.44,-0.28
+# page_pool_put_unrefed_page,-1,122,266038,2180.64,-1.07
+# # Per-Function Per-CPU Counts
+
+    # Read the ebpf_guest_stats.csv file and extract the lines between:
+    #   "# Per-Function Latency Statistics" and "# Per-Function Per-CPU Counts"
+    # Return as a pandas DataFrame with columns: function, type, count, total_duration_ns, mean_ns, variance_us
+
+    with open(ebpf_path, 'r') as f:
+        lines = f.readlines()
+
+    start_idx = None
+    end_idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith("# Per-Function Latency Statistics"):
+            start_idx = i + 1
+        if line.strip().startswith("# Per-Function Per-CPU Counts"):
+            end_idx = i
+            break
+
+    if start_idx is None or end_idx is None or end_idx <= start_idx:
+        return None
+
+    # The first line after start_idx is the header
+    header = lines[start_idx].strip()
+    data_lines = [l.strip() for l in lines[start_idx+1:end_idx] if l.strip() and not l.strip().startswith("#")]
+
+    from io import StringIO
+    csv_content = header + "\n" + "\n".join(data_lines)
+    ebpf_results = pd.read_csv(StringIO(csv_content))
+
+    # print(ebpf_results.to_string())
+    # ebpf_results = pd.read_csv(ebpf_path)
+    # # only show aggragete results
+    # ebpf_results = ebpf_results[ebpf_results['core'] == -1]
 
     # return {key: ebpf_results[key] for key in ebpf_results.dtype.names}
     return ebpf_results
@@ -46,7 +92,7 @@ def get_ebpf_stats(exp_name, tput, profile_duration=20):
             continue
         total_data = tput * 1e9 / 8 * profile_duration  # bytes
         total_pages = total_data / 4096
-        run_stats['count_per_page'] = run_stats['count'] / total_pages
+        run_stats['count_per_page'] = run_stats['cpu'] / total_pages
         run_stats = run_stats.reset_index(drop=True)
         print(run_stats.to_string())
 

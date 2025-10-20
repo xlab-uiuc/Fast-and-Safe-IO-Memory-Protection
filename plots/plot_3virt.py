@@ -133,32 +133,82 @@ def plot_iommu_misses_stats(iommu_on_data, x_labels, title, x_label):
     plt.close()
 
 
-def plot_bars3(host_strict_guest_off, host_strict_guest_shadow, host_strict_guest_nested, x_labels, title, xlabel, ylabel):
+# def plot_bars3(host_strict_guest_off, host_strict_guest_shadow, host_strict_guest_nested, x_labels, title, xlabel, ylabel):
     
+#     print(host_strict_guest_off)
+#     print(host_strict_guest_shadow)
+#     print(host_strict_guest_nested)
+#     print(x_labels)
+#     print(title)
+#     print(xlabel)
+#     print(ylabel)
+#     bar_width = 0.3
+#     gap_factor = 1.5
+#     x = np.arange(len(x_labels)) * gap_factor
+#     plt.bar(x - bar_width, host_strict_guest_off, bar_width, label='Host IOMMU Strict; Guest IOMMU Off')
+#     plt.bar(x,              host_strict_guest_shadow, bar_width, label='Host IOMMU Strict; Guest IOMMU Shadow')
+#     plt.bar(x + bar_width,  host_strict_guest_nested, bar_width, label='Host IOMMU Strict; Guest IOMMU Nested')
+
+#     plt.xlabel(xlabel)
+#     plt.ylabel(ylabel)
+#     plt.title(title)
+#     plt.xticks(x, x_labels)
+
+#     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=2)
+#     plt.subplots_adjust(bottom=0.25)
+
+#     plt.savefig(title + '.png', bbox_inches='tight')
+#     print('Saved plot to ' + title + '.png')
+#     plt.close()
+
+def plot_bars3(host_strict_guest_off, host_strict_guest_shadow, host_strict_guest_nested, x_labels, title, xlabel, ylabel):
     print(host_strict_guest_off)
     print(host_strict_guest_shadow)
     print(host_strict_guest_nested)
     print(x_labels)
-    print(title)
-    print(xlabel)
-    print(ylabel)
-    bar_width = 0.3
+    print(title, xlabel, ylabel)
+
+    plt.figure(figsize=(10, 6))
+    plt.rcParams.update({'font.size': 12})
+
+    bar_width = 0.38
     gap_factor = 1.5
     x = np.arange(len(x_labels)) * gap_factor
-    plt.bar(x - bar_width, host_strict_guest_off, bar_width, label='Host IOMMU Strict; Guest IOMMU Off')
-    plt.bar(x,              host_strict_guest_shadow, bar_width, label='Host IOMMU Strict; Guest IOMMU Shadow')
-    plt.bar(x + bar_width,  host_strict_guest_nested, bar_width, label='Host IOMMU Strict; Guest IOMMU Nested')
+
+    colors = ['#0072B2', '#E69F00', '#009E73']
+
+    bars_off = plt.bar(x - bar_width, host_strict_guest_off, bar_width,
+                       color=colors[0], label='Host Strict; Guest Off')
+    bars_shadow = plt.bar(x, host_strict_guest_shadow, bar_width,
+                          color=colors[1], label='Host Strict; Guest Shadow')
+    bars_nested = plt.bar(x + bar_width, host_strict_guest_nested, bar_width,
+                          color=colors[2], label='Host Strict; Guest Nested')
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.title(title)
     plt.xticks(x, x_labels)
-
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=2)
-    plt.subplots_adjust(bottom=0.25)
 
+
+    def add_labels(bars):
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + (0.02 * max(host_strict_guest_off + host_strict_guest_shadow + host_strict_guest_nested)),
+                f"{height:.1f}",
+                ha='center', va='bottom', fontsize=12
+            )
+
+    add_labels(bars_off)
+    add_labels(bars_shadow)
+    add_labels(bars_nested)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(title + '.png', bbox_inches='tight')
-    print('Saved plot to ' + title + '.png')
+    print(f'Saved plot to {title}.png')
     plt.close()
 
 def plot_all_subplots(host_strict_guest_off_data, host_strict_guest_shadow_data, host_strict_guest_nested_data, x_labels, title_key, xlabel):
