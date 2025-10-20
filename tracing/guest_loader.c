@@ -16,7 +16,7 @@
 #include "tracing_utils.h"
 
 #define PERF_BUFFER_PAGES 64
-#define MAX_PROBES 50
+#define MAX_PROBES 127
 #define MAX_STACK_DEPTH 127
 
 static volatile bool exiting = false;
@@ -126,16 +126,16 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC,NULL},
     {"kprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KPROBE, PAGE_POOL_DMA_MAP,NULL},
     {"kretprobe_page_pool_dma_map", "page_pool_dma_map", PROBE_TYPE_KRETPROBE, PAGE_POOL_DMA_MAP,NULL},
-    // {"kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
-    // {"kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
-    // {"kprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
-    // {"kretprobe_trace_mlx5e_dma_push_build_single_hook", "trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
-    // {"kprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
-    // {"kretprobe_trace_mlx5e_dma_push_xmit_single_hook", "trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
-    // {"kprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
-    // {"kretprobe_trace_mlx5e_dma_push_page_hook", "trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
-    // {"kprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
-    // {"kretprobe_trace_mlx5e_tx_dma_unmap_hook", "trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    {"kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "mlx5_core:trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    {"kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook", "mlx5_core:trace_mlx5e_tx_dma_unmap_ktls_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_KTLS_HOOK,"mlx5_core"},
+    {"kprobe_trace_mlx5e_dma_push_build_single_hook", "mlx5_core:trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    {"kretprobe_trace_mlx5e_dma_push_build_single_hook", "mlx5_core:trace_mlx5e_dma_push_build_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_BUILD_SINGLE_HOOK,"mlx5_core"},
+    {"kprobe_trace_mlx5e_dma_push_xmit_single_hook", "mlx5_core:trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    {"kretprobe_trace_mlx5e_dma_push_xmit_single_hook", "mlx5_core:trace_mlx5e_dma_push_xmit_single_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_XMIT_SINGLE_HOOK,"mlx5_core"},
+    {"kprobe_trace_mlx5e_dma_push_page_hook", "mlx5_core:trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    {"kretprobe_trace_mlx5e_dma_push_page_hook", "mlx5_core:trace_mlx5e_dma_push_page_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_DMA_PUSH_PAGE_HOOK,"mlx5_core"},
+    {"kprobe_trace_mlx5e_tx_dma_unmap_hook", "mlx5_core:trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
+    {"kretprobe_trace_mlx5e_tx_dma_unmap_hook", "mlx5_core:trace_mlx5e_tx_dma_unmap_hook", PROBE_TYPE_KRETPROBE, TRACE_MLX5E_TX_DMA_UNMAP_HOOK,"mlx5_core"},
     {"kprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
     {"kretprobe_trace_qi_submit_sync_cs", "trace_qi_submit_sync_cs", PROBE_TYPE_KRETPROBE, TRACE_QI_SUBMIT_SYNC_CS,NULL},
     {"kprobe_trace_qi_submit_sync_lock_wrapper", "trace_qi_submit_sync_lock_wrapper", PROBE_TYPE_KPROBE, TRACE_QI_SUBMIT_SYNC_LOCK_WRAPPER,NULL},
@@ -151,8 +151,8 @@ probe_def_t probes_to_attach[] = {
     {"kprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KPROBE, PAGE_POOL_PUT_PAGE,NULL},
     {"kretprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_PAGE,NULL},
     // --- Additions for count functions ---
-    // {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
-    // {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
+    {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
     {"kprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
     {"kretprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
     {"kprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
@@ -275,7 +275,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
       
     for (int cpu = 0; cpu < num_cpus; cpu++) {
       struct latency_stats_t *s = &percpu_stats[cpu];
-      // if (s->count == 0) continue;
+      if (s->count == 0) continue;
         
       fprintf(fp, "%s,%d,%llu,%llu,%.2f,%.2f\n",
               fn_name,
