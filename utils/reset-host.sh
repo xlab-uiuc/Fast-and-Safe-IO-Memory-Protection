@@ -1,6 +1,6 @@
 SCRIPT_NAME="reset-host"
 
-CPUPOWER_PATH="/home/lbalara/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
+CPUPOWER_PATH="/home/lbalara/viommu/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
 
 LD_LIBRARY_PATH=$CPUPOWER_PATH $CPUPOWER_PATH/cpupower --cpu all frequency-set --governor ondemand
 echo on > /sys/devices/system/cpu/smt/control

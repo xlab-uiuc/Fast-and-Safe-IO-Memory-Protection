@@ -10,7 +10,7 @@ LOCK_FREQ=1
 DISABLE_HYPER=1
 DISABLE_NUMA_BALANCE=1
 CPU_FREQ="2000MHz"
-CPUPOWER_PATH="/home/lbalara/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
+CPUPOWER_PATH="/home/lbalara/viommu/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
 
 
 help()
