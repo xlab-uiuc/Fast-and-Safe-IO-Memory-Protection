@@ -6,6 +6,12 @@ TCP_SOCKET_BUF_MB=1
 ECN_ENABLED=1
 HWPREF_ENABLED=1
 RDMA=0
+LOCK_FREQ=1
+DISABLE_HYPER=1
+DISABLE_NUMA_BALANCE=1
+CPU_FREQ="2000MHz"
+CPUPOWER_PATH="/home/lbalara/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
+
 
 help()
 {
@@ -80,4 +86,19 @@ else
     log_info "Disabling hardware prefetching..."
     modprobe msr
     wrmsr -a 0x1a4 1
+fi
+
+if [ "$LOCK_FREQ" -eq 1 ]; then
+    log_info "Disabling turbo..."
+    LD_LIBRARY_PATH=$CPUPOWER_PATH $CPUPOWER_PATH/cpupower --cpu all frequency-set --freq $CPU_FREQ
+fi
+
+if [ "$DISABLE_HYPER" -eq 1 ]; then
+    log_info "Disabling hyperthreading..."
+    echo off > /sys/devices/system/cpu/smt/control
+fi
+
+if [ "$DISABLE_NUMA_BALANCE" -eq 1 ]; then
+    log_info "Disabling numa balance..."
+    echo 0 > /proc/sys/kernel/numa_balancing
 fi
