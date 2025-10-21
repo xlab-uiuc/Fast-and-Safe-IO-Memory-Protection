@@ -97,13 +97,13 @@ timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 for socket_buf in 1; do
     for ring_buffer in 512; do
     # 5 10 20 40
-        for i in 1 4 8 16 20; do
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
             num_cores=$i
-            client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
-            server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+            client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
+            server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
       	    format_i=$(printf "%02d\n" $i)
-            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
+            exp_name="static-${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
             echo $exp_name
 
             if [ "$DRY_RUN" -eq 1 ]; then
@@ -116,7 +116,7 @@ for socket_buf in 1; do
             --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
             --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
             -e "$exp_name" -m 4000 -r $ring_buffer -b "100g" -d 1\
-            --socket-buf $socket_buf --mlc-cores 'none' --runs 1
+            --socket-buf $socket_buf --mlc-cores 'none' --runs 3
 
             # > /dev/null 2>&1
             #sudo bash run-dctcp-tput-experiment.sh -E $exp_name -M 4000 --num_servers $i --num_clients $i -c "4" -m "20" --ring_buffer 256 --buf 1 --mlc_cores 'none' --bandwidth "100g" --server_intf $server_intf --client_intf $client_intf    
@@ -134,4 +134,44 @@ for socket_buf in 1; do
             #     --log_file "iova.log"
         done
     done
-done 
+done
+
+# Temporary loop to measure impact of core randomization
+for random in 1 2 3; do
+    # 5 10 20 40
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+            num_cores=$i
+            client_cores_mask=($(echo $client_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+            server_cores_mask=($(echo $server_cores | tr ',' '\n' | shuf -n $num_cores | tr '\n' ','))
+
+            format_i=$(printf "%02d\n" $i)
+            exp_name="rand-${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-512_sokcetbuf1_${num_cores}cores"
+            echo $exp_name
+
+            if [ "$DRY_RUN" -eq 1 ]; then
+                continue
+            fi
+
+            sudo bash vm-run-dctcp-tput-experiment.sh \
+            --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c $server_cores_mask \
+            --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C $client_cores_mask \
+            --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
+            --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+            -e "$exp_name" -m 4000 -r 512 -b "100g" -d 1\
+            --socket-buf 1 --mlc-cores 'none' --runs 1
+
+            # > /dev/null 2>&1
+            #sudo bash run-dctcp-tput-experiment.sh -E $exp_name -M 4000 --num_servers $i --num_clients $i -c "4" -m "20" --ring_buffer 256 --buf 1 --mlc_cores 'none' --bandwidth "100g" --server_intf $server_intf --client_intf $client_intf
+            python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
+            echo $PWD
+            cd ../utils/reports/$exp_name
+
+            sudo bash -c "cat /sys/kernel/debug/tracing/trace > iova.log"
+	     cd -
+            sudo chmod +666 -R ../utils/reports/$exp_name
+
+            # python sosp24-experiments/plot_iova_logging.py \
+            #     --exp_folder "../utils/reports/$exp_name" \
+            #     --log_file "iova.log"
+        done
+done

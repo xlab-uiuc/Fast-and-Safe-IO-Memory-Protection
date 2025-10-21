@@ -13,7 +13,7 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=0
+PERF_TRACING_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
@@ -301,11 +301,9 @@ cleanup() {
     sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
-    log_info "Resetting HOST ftrace..."
+    log_info "Resetting HOST..."
     $SSH_HOST_CMD \
-    "sudo bash -c 'echo 0 > /sys/kernel/debug/tracing/tracing_on; \
-                    echo 0 > /sys/kernel/debug/tracing/options/overwrite; \
-                    echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb'"
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
 
     log_info "Resetting GUEST network interface $GUEST_INTF..."
     sudo ip link set "$GUEST_INTF" down
@@ -337,6 +335,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     guest_server_app_log_file="${current_guest_reports_dir}/server_app.log"
     guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
     perf_host_data_file_remote="${host_reports_dir_remote}/perf_host_cpu.data"
+    perf_kvm_data_file_remote="${host_reports_dir_remote}/perf_host_kvm.data"
+    perf_sched_data_file_remot="${host_reports_dir_remote}/perf_host_sched.data"
     iova_ftrace_host_output_file_remote="${host_reports_dir_remote}/iova_ftrace_host.txt"
     ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
 
@@ -423,6 +423,17 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
         host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
         $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+	host_perf_kvm_cmd="sudo '$HOST_PERF' kvm stat record -p \$(pidof qemu-system-x86_64 | tr ' ' ,) -o '$perf_kvm_data_file_remote'; exec bash"
+	$SSH_HOST_CMD "screen -dmS perf_kvm_screen sudo bash -c \"$host_perf_kvm_cmd\""
+	host_perf_sched_cmd="QPID=\$(pidof qemu-system-x86_64 | tr ' ' ,); \
+		TIDS=\$(ps -T -p \"\$QPID\" -o tid=,comm= | awk '/CPU .*KVM/ {print \$1}' | paste -sd, -); \
+		if [ -z \"\$TIDS\" ]; then \
+		echo 'Error: No KVM vCPU threads found.' >&2; \
+		else \
+		sudo '$HOST_PERF' sched record -t \"\$TIDS\" -o '$perf_sched_data_file_remote'; \
+		fi; \
+		exec bash"
+	$SSH_HOST_CMD "screen -dmS perf_sched_screen sudo bash -c \"$host_perf_sched_cmd\""
     fi
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
@@ -473,6 +484,10 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
+    fi
+    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
+	$SSH_HOST_CMD "screen -X -S perf_kvm_screen quit"
+	$SSH_HOST_CMD "screen -X -S perf_sched_screen quit"
     fi
 
  

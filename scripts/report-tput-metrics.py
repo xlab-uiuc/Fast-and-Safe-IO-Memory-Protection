@@ -92,7 +92,7 @@ def get_ebpf_stats(exp_name, tput, profile_duration=20):
             continue
         total_data = tput * 1e9 / 8 * profile_duration  # bytes
         total_pages = total_data / 4096
-        run_stats['count_per_page'] = run_stats['cpu'] / total_pages
+        run_stats['count_per_page'] = run_stats['count'] / total_pages
         run_stats = run_stats.reset_index(drop=True)
         print(run_stats.to_string())
 
