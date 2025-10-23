@@ -292,7 +292,7 @@ cleanup() {
     $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
     $SSH_HOST_CMD \
-	'screen -ls | grep -E "\.host_session|\.perf_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
+	'screen -ls | grep -E "\.host_session|\.perf_screen|\.perf_kvm_screen|\.perf_sched_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
     $SSH_HOST_CMD \
         'screen -wipe || true'
 
@@ -336,7 +336,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
     perf_host_data_file_remote="${host_reports_dir_remote}/perf_host_cpu.data"
     perf_kvm_data_file_remote="${host_reports_dir_remote}/perf_host_kvm.data"
-    perf_sched_data_file_remot="${host_reports_dir_remote}/perf_host_sched.data"
+    perf_sched_data_file_remote="${host_reports_dir_remote}/perf_host_sched.data"
     iova_ftrace_host_output_file_remote="${host_reports_dir_remote}/iova_ftrace_host.txt"
     ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
 
@@ -423,16 +423,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
         host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
         $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
-	host_perf_kvm_cmd="sudo '$HOST_PERF' kvm stat record -p \$(pidof qemu-system-x86_64 | tr ' ' ,) -o '$perf_kvm_data_file_remote'; exec bash"
+	host_perf_kvm_cmd="'$HOST_PERF' kvm stat record -p 7027 -o '$perf_kvm_data_file_remote'; exec bash"
 	$SSH_HOST_CMD "screen -dmS perf_kvm_screen sudo bash -c \"$host_perf_kvm_cmd\""
-	host_perf_sched_cmd="QPID=\$(pidof qemu-system-x86_64 | tr ' ' ,); \
-		TIDS=\$(ps -T -p \"\$QPID\" -o tid=,comm= | awk '/CPU .*KVM/ {print \$1}' | paste -sd, -); \
-		if [ -z \"\$TIDS\" ]; then \
-		echo 'Error: No KVM vCPU threads found.' >&2; \
-		else \
-		sudo '$HOST_PERF' sched record -t \"\$TIDS\" -o '$perf_sched_data_file_remote'; \
-		fi; \
-		exec bash"
+	host_perf_sched_cmd="'$HOST_PERF' sched record -t 7058,7060,7061,7062,7063,7065,7066,7068,7069,7070,7073,7074,7075,7076,7078,7079,7080,7081,7082,7083,7084,7085,7086,7087,7088,7089,7090,7091,7092,7093,7094,7095 -o '$perf_sched_data_file_remote'; exec bash"
 	$SSH_HOST_CMD "screen -dmS perf_sched_screen sudo bash -c \"$host_perf_sched_cmd\""
     fi
 
