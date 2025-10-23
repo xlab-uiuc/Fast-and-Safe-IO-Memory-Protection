@@ -11,7 +11,9 @@ DISABLE_HYPER=1
 DISABLE_NUMA_BALANCE=1
 CPU_FREQ="2000MHz"
 CPUPOWER_PATH="/home/lbalara/viommu/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
-
+VM_USER=schai
+VM_ADDR=192.168.122.53
+VM_KEY=/home/lbalara/.ssh/id_rsa
 
 help()
 {
@@ -51,6 +53,10 @@ done
 log_info() {
     echo "[INFO] - $1"
 }
+
+mkdir -p temp
+scp -i ${VM_KEY} ${VM_USER}@${VM_ADDR}:/proc/kallsyms temp/kallsyms
+scp -i ${VM_KEY} ${VM_USER}@${VM_ADDR}:/proc/modules temp/modules
 
 if [ "$RDMA" -eq 1 ]; then
   log_info "Configuring MTU according to RDMA supported values..."

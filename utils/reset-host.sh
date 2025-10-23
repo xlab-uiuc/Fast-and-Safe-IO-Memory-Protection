@@ -8,3 +8,5 @@ echo 1 > /proc/sys/kernel/numa_balancing
 echo 0 > /sys/kernel/debug/tracing/tracing_on
 echo 0 > /sys/kernel/debug/tracing/options/overwrite
 echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+rm -rf temp/
