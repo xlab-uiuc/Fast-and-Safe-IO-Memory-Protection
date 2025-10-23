@@ -421,12 +421,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         log_info "Starting GUEST perf record (CPU profiling)..."
         sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
-        host_perf_cmd="sudo '$HOST_PERF' record -F 99 -a -g --call-graph dwarf -o '$perf_host_data_file_remote' -- sleep '$PROFILING_LOGGING_DUR_S'; exec bash"
+        host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
         $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
-	host_perf_kvm_cmd="'$HOST_PERF' kvm stat record -p 7027 -o '$perf_kvm_data_file_remote'; exec bash"
-	$SSH_HOST_CMD "screen -dmS perf_kvm_screen sudo bash -c \"$host_perf_kvm_cmd\""
-	host_perf_sched_cmd="'$HOST_PERF' sched record -t 7058,7060,7061,7062,7063,7065,7066,7068,7069,7070,7073,7074,7075,7076,7078,7079,7080,7081,7082,7083,7084,7085,7086,7087,7088,7089,7090,7091,7092,7093,7094,7095 -o '$perf_sched_data_file_remote'; exec bash"
-	$SSH_HOST_CMD "screen -dmS perf_sched_screen sudo bash -c \"$host_perf_sched_cmd\""
     fi
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
@@ -478,11 +474,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
-    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
-	$SSH_HOST_CMD "screen -X -S perf_kvm_screen quit"
-	$SSH_HOST_CMD "screen -X -S perf_sched_screen quit"
-    fi
-
  
     # --- Transfer Report Files from Remote Machines ---
     log_info "Transferring report files from CLIENT and HOST..."
