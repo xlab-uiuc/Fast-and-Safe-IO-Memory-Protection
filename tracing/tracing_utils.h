@@ -53,6 +53,8 @@ enum FunctionName
     PAGE_POOL_PUT_PAGE,
     QEMU_VTD_FETCH_INV_DESC,
     IOMMUFD_FOPS_IOCTL,
+    WRITEL_WRAPPER,
+    AFTER_WRITEL_WHILE_WRAPPER,
     TRACE_FUNCS_END, // Marks the end of trace functions
 
     // --- Section for Simple Frequency Counting ---

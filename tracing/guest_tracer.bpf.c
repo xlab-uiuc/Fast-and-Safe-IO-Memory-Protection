@@ -450,6 +450,30 @@ int BPF_KRETPROBE(kretprobe_trace_iommu_flush_write_buffer_lock_wrapper, void *r
     return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
 
+SEC("kprobe/writel_wrapper")
+int BPF_KPROBE(kprobe_writel_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/writel_wrapper")
+int BPF_KRETPROBE(kretprobe_writel_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/after_writel_while_wrapper")
+int BPF_KPROBE(kprobe_after_writel_while_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/after_writel_while_wrapper")
+int BPF_KRETPROBE(kretprobe_after_writel_while_wrapper, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
 SEC("kprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
 int BPF_KPROBE(kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
 {

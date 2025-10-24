@@ -150,6 +150,10 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_page_pool_put_unrefed_netmem", "page_pool_put_unrefed_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_NETMEM,NULL},
     {"kprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KPROBE, PAGE_POOL_PUT_PAGE,NULL},
     {"kretprobe_page_pool_put_unrefed_page", "page_pool_put_unrefed_page", PROBE_TYPE_KRETPROBE, PAGE_POOL_PUT_PAGE,NULL},
+    {"kprobe_writel_wrapper", "writel_wrapper", PROBE_TYPE_KPROBE, WRITEL_WRAPPER,NULL},
+    {"kretprobe_writel_wrapper", "writel_wrapper", PROBE_TYPE_KRETPROBE, WRITEL_WRAPPER,NULL},
+    {"kprobe_after_writel_while_wrapper", "after_writel_while_wrapper", PROBE_TYPE_KPROBE, AFTER_WRITEL_WHILE_WRAPPER,NULL},
+    {"kretprobe_after_writel_while_wrapper", "after_writel_while_wrapper", PROBE_TYPE_KRETPROBE, AFTER_WRITEL_WHILE_WRAPPER,NULL},
     // --- Additions for count functions ---
     {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
     {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
