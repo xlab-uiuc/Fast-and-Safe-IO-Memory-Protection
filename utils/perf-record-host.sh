@@ -56,4 +56,4 @@ mkdir -p reports/${EXP_NAME}
 # $PERF record -F 99 -a -g --call-graph dwarf -o reports/${EXP_NAME}/${CPU_DATA} -- sleep $DURATION &
 # $PERF kvm --guest --host --guestkallsyms=${VM_COPY_DIR}/kallsyms --guestmodules=${VM_COPY_DIR}/modules --guestvmlinux=$GUEST_SRC/vmlinux record -p $QPID -F 99 -o reports/${EXP_NAME}/${KVM_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
 $PERF kvm stat record -p $QPID -o reports/${EXP_NAME}/${KVM_STAT_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
-$PERF sched record -p $QPID -o reports/${EXP_NAME}/${SCHED_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
+# $PERF sched record -p $QPID -o reports/${EXP_NAME}/${SCHED_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
