@@ -13,7 +13,8 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=1
+PERF_TRACING_ENABLED=0
+PERF_TRACING_HOST_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
@@ -263,6 +264,9 @@ cleanup() {
         sudo pkill -SIGINT -f "$GUEST_PERF record"
         sleep 1
         sudo pkill -9 -f "$GUEST_PERF record"
+    fi
+
+    if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
         $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
