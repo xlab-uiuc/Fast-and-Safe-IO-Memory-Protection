@@ -378,23 +378,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     sudo bash run-netapp-tput.sh --mode server -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
         -p "$INIT_PORT" -c "$GUEST_CPU_MASK" &> "$guest_server_app_log_file" &
     sleep 2 # Allow server app to initialize
-    cd - > /dev/null
-   
-    # --- Ftrace Setup (Guest & Host) ---
-    log_info "Configuring GUEST ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
-    sudo echo "$FTRACE_BUFFER_SIZE_KB" > /sys/kernel/debug/tracing/buffer_size_kb
-    sudo echo "$FTRACE_OVERWRITE_ON_FULL" > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer
-    sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
-    log_info "GUEST IOVA ftrace is ON."
-
-    log_info "Configuring HOST ftrace for IOVA logging on $HOST_IP..."
-    $SSH_HOST_CMD \
-    "sudo bash -c 'sudo echo '$FTRACE_BUFFER_SIZE_KB' > /sys/kernel/debug/tracing/buffer_size_kb; \
-         sudo echo '$FTRACE_OVERWRITE_ON_FULL' > /sys/kernel/debug/tracing/options/overwrite; \
-         sudo echo > /sys/kernel/debug/tracing/trace; \
-         sudo echo 1 > /sys/kernel/debug/tracing/tracing_on'"
-    log_info "HOST IOVA ftrace is ON."
+    cd - > /dev/null   
 
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
