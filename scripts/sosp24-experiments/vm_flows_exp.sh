@@ -27,7 +27,7 @@ HOST_IP="192.17.101.97"
 HOST_UNAME="lbalara"
 HOST_HOME="/home/lbalara"
 CLIENT_HOME="/home/siyuanc3"
-CLIENT_INTF="ens5008np0"
+CLIENT_INTF="ens1006np0"
 CLIENT_IP="192.168.101.3"
 CLIENT_SSH_UNAME="siyuanc3"
 CLIENT_SSH_HOST="nexus03.csl.illinois.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
@@ -97,7 +97,7 @@ $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
 
 sleep 1
 
-client_cores="32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63"
+client_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
