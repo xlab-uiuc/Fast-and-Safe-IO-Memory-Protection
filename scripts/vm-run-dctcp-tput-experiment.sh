@@ -13,7 +13,8 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=1
+PERF_TRACING_ENABLED=0
+PERF_TRACING_HOST_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 GUEST_FandS_REL="viommu"
@@ -263,6 +264,9 @@ cleanup() {
         sudo pkill -SIGINT -f "$GUEST_PERF record"
         sleep 1
         sudo pkill -9 -f "$GUEST_PERF record"
+    fi
+
+    if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
         $SSH_HOST_CMD \
         "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
@@ -420,6 +424,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting GUEST perf record (CPU profiling)..."
         sudo "$GUEST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_guest_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+    fi
+
+    if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
         host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
         $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
