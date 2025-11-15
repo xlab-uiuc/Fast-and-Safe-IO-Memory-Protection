@@ -36,7 +36,7 @@ CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
 # off, shadow or nested
-VIRT_TECH="off"
+VIRT_TECH="nested"
 
 function verify_virt_tech() {
     local tech="$1"
@@ -62,6 +62,49 @@ function verify_virt_tech() {
     fi
 }
 
+parse_iommu_mode() {
+	local cmdline="${1:-$(</proc/cmdline)}"
+	local cl
+	cl="$(printf '%s' "$cmdline" | tr '[:upper:]' '[:lower:]')"
+
+	# Passthrough (separate case)
+	if [[ "$cl" =~ (^|[[:space:]])(iommu=pt|iommu\.passthrough=(1|on|y|yes|true))($|[[:space:]]) ]]; then
+		echo passthrough
+		return
+	fi
+
+	# Off
+	if [[ "$cl" =~ (^|[[:space:]])(noiommu|iommu=off|intel_iommu=off|amd_iommu=off)($|[[:space:]]) ]]; then
+		echo off
+		return
+	fi
+
+	# Strict
+	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(1|on|y|yes|true)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]]; then
+		echo strict
+		return
+	fi
+
+	# Lazy (non-strict)
+	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(0|off|n|no|false)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]]; then
+		echo lazy
+		return
+	fi
+
+	# Explicitly enabled but no strictness specified → assume strict
+	if [[ "$cl" =~ (^|[[:space:]])(iommu=on|intel_iommu=on|amd_iommu=on)($|[[:space:]]) ]]; then
+		echo strict
+		return
+	fi
+
+	# Default if unspecified
+	echo strict
+}
+
 verify_virt_tech $VIRT_TECH
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
@@ -70,26 +113,15 @@ else
 	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
 
-iommu_on=$(grep -o intel_iommu=on /proc/cmdline)
-iommu_mode=$(sudo dmesg | grep -o 'iommu\.strict=[0-9]' | tail -n1 | cut -d= -f2)
-iommu_config=""
+guest_cmdline=$(cat /proc/cmdline)
+guest_iommu_config=$(parse_iommu_mode $guest_cmdline)
+host_cmdline=$(ssh -i "$CLIENT_SSH_IDENTITY_FILE" "${HOST_UNAME}@${HOST_IP}" 'cat /proc/cmdline')
+host_iommu_config=$(parse_iommu_mode $host_cmdline)
 
-if [ -z $iommu_on ]; then
-    iommu_config="host-strict-guest-off"
-else
-    if [ "$iommu_mode" == "1" ]; then
-	echo "IOMMU is in STRICT mode, assuming the same for host"
-        iommu_config="host-strict-guest-on-$VIRT_TECH"
-    elif [ "$iommu_mode" == "0" ]; then
-	echo "IOMMU is in LAZY mode, assuming the same for host"
-        iommu_config="host-lazy-guest-on-$VIRT_TECH"
-    else
-	echo "IOMMU strictness could not be determined"
-	iommu_config="guest-on-$VIRT_TECH"
-    fi
-fi
+iommu_config="host-${guest_iommu_config}-guest-${host_iommu_config}-$VIRT_TECH"
 
-
+echo "iommu_config: $iommu_config"
+# exit 0
 # pause the frame
 sudo ethtool --pause $GUEST_INTF tx off rx off
 $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
@@ -110,7 +142,7 @@ for socket_buf in 1; do
             server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
       	    format_i=$(printf "%02d\n" $i)
-            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores"
+            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf1_${num_cores}cores"
             echo $exp_name
 
             if [ "$DRY_RUN" -eq 1 ]; then
