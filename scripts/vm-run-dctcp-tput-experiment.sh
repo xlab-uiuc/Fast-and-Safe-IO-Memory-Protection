@@ -317,6 +317,49 @@ cleanup() {
     log_info "--- Cleanup Phase Finished ---"
 }
 
+save_config_to_report_json() {
+    local report_dir="${1:-$current_guest_reports_dir}"
+    local config_file="$report_dir/config.json"
+
+    local guest_cmdline=$(cat /proc/cmdline)
+    local guest_kernel=$(uname -r)
+    local host_cmdline=$($SSH_HOST_CMD 'cat /proc/cmdline')
+    local host_kernel=$($SSH_HOST_CMD 'uname -r')
+
+    cat > "$config_file" << EOF
+{
+  "timestamp": "$(date -Iseconds)",
+  "test_params": {
+    "core_duration_s": "$CORE_DURATION_S",
+    "mtu": "$MTU",
+    "ddio_enabled": "$DDIO_ENABLED",
+    "ring_buffer_size": "$RING_BUFFER_SIZE",
+    "tcp_socket_buf_mb": "$TCP_SOCKET_BUF_MB",
+    "mlc_cores": "$MLC_CORES"
+  },
+  "guest": {
+    "ip": "$GUEST_IP",
+    "interface": "$GUEST_INTF",
+    "num_servers": "$GUEST_NUM_SERVERS",
+    "cpu_mask": "$GUEST_CPU_MASK",
+    "nic_bus": "$GUEST_NIC_BUS",
+    "kernel": "$guest_kernel",
+    "cmdline": "$guest_cmdline"
+  },
+  "client": {
+    "ip": "$CLIENT_IP",
+    "interface": "$CLIENT_INTF",
+    "num_clients": "$CLIENT_NUM_CLIENTS",
+    "cpu_mask": "$CLIENT_CPU_MASK",
+    "bandwidth": "$CLIENT_BANDWIDTH"
+  },
+  "host": {
+    "kernel": "$host_kernel",
+    "cmdline": "$host_cmdline"
+  }
+}
+EOF
+}
 
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
@@ -349,6 +392,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     # --- Pre-run cleanup ---
     cleanup
+
+    # --- Add config to reports ---
+    save_config_to_report_json "$current_guest_reports_dir"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then

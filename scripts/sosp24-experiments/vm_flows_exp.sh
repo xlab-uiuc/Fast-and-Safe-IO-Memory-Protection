@@ -114,9 +114,9 @@ else
 fi
 
 guest_cmdline=$(cat /proc/cmdline)
-guest_iommu_config=$(parse_iommu_mode $guest_cmdline)
+guest_iommu_config=$(parse_iommu_mode "$guest_cmdline")
 host_cmdline=$(ssh -i "$CLIENT_SSH_IDENTITY_FILE" "${HOST_UNAME}@${HOST_IP}" 'cat /proc/cmdline')
-host_iommu_config=$(parse_iommu_mode $host_cmdline)
+host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 
 iommu_config="host-${guest_iommu_config}-guest-${host_iommu_config}-$VIRT_TECH"
 
@@ -142,7 +142,7 @@ for socket_buf in 1; do
             server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
       	    format_i=$(printf "%02d\n" $i)
-            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf1_${num_cores}cores"
+            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores"
             echo $exp_name
 
             if [ "$DRY_RUN" -eq 1 ]; then
