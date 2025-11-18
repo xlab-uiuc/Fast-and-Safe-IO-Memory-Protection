@@ -361,6 +361,35 @@ save_config_to_report_json() {
 EOF
 }
 
+save_vm_config_to_report() {
+    local report_dir="${1:-$current_guest_reports_dir}"
+
+    log_info "Fetching running VM configurations..."
+
+    local virsh_out=$($SSH_HOST_CMD 'bash -l -c "virsh list --all"')
+    local running_vms=$(echo "$virsh_out" | grep running | awk '{print $2}')
+
+    if [ -z "$running_vms" ]; then
+        log_error "Warning: No VMs are currently running"
+        return 1
+    fi
+
+    log_info "Found running VMs: $running_vms"
+
+    for vm in $running_vms; do
+        log_info "Dumping XML for: $vm"
+        local xml_file="$report_dir/${vm}_domain.xml"
+
+        $SSH_HOST_CMD "bash -l -c \"virsh dumpxml $vm\"" > "$xml_file" 2>&1
+
+        if [ $? -eq 0 ]; then
+            log_info "Saved to: ${vm}_domain.xml"
+        else
+            log_error "Failed to dump XML for $vm"
+        fi
+    done
+}
+
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 
@@ -395,6 +424,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     # --- Add config to reports ---
     save_config_to_report_json "$current_guest_reports_dir"
+    save_vm_config_to_report "$current_guest_reports_dir"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
