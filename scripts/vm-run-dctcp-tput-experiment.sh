@@ -317,6 +317,82 @@ cleanup() {
     log_info "--- Cleanup Phase Finished ---"
 }
 
+save_config_to_report_json() {
+    local report_dir="${1:-$current_guest_reports_dir}"
+    local config_file="$report_dir/config.json"
+
+    local guest_cmdline=$(cat /proc/cmdline)
+    local guest_kernel=$(uname -r)
+    local host_cmdline=$($SSH_HOST_CMD 'cat /proc/cmdline')
+    local host_kernel=$($SSH_HOST_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+
+    cat > "$config_file" << EOF
+{
+  "timestamp": "$(date -Iseconds)",
+  "test_params": {
+    "core_duration_s": "$CORE_DURATION_S",
+    "mtu": "$MTU",
+    "ddio_enabled": "$DDIO_ENABLED",
+    "ring_buffer_size": "$RING_BUFFER_SIZE",
+    "tcp_socket_buf_mb": "$TCP_SOCKET_BUF_MB",
+    "mlc_cores": "$MLC_CORES"
+  },
+  "guest": {
+    "ip": "$GUEST_IP",
+    "interface": "$GUEST_INTF",
+    "num_servers": "$GUEST_NUM_SERVERS",
+    "cpu_mask": "$GUEST_CPU_MASK",
+    "nic_bus": "$GUEST_NIC_BUS",
+    "kernel": "$guest_kernel",
+    "cmdline": "$guest_cmdline"
+  },
+  "client": {
+    "ip": "$CLIENT_IP",
+    "interface": "$CLIENT_INTF",
+    "num_clients": "$CLIENT_NUM_CLIENTS",
+    "cpu_mask": "$CLIENT_CPU_MASK",
+    "bandwidth": "$CLIENT_BANDWIDTH",
+    "kernel": "$client_kernel",
+    "cmdline": "$client_cmdline"
+  },
+  "host": {
+    "kernel": "$host_kernel",
+    "cmdline": "$host_cmdline"
+  }
+}
+EOF
+}
+
+save_vm_config_to_report() {
+    local report_dir="${1:-$current_guest_reports_dir}"
+
+    log_info "Fetching running VM configurations..."
+
+    local virsh_out=$($SSH_HOST_CMD 'bash -l -c "virsh list --all"')
+    local running_vms=$(echo "$virsh_out" | grep running | awk '{print $2}')
+
+    if [ -z "$running_vms" ]; then
+        log_error "Warning: No VMs are currently running"
+        return 1
+    fi
+
+    log_info "Found running VMs: $running_vms"
+
+    for vm in $running_vms; do
+        log_info "Dumping XML for: $vm"
+        local xml_file="$report_dir/${vm}_domain.xml"
+
+        $SSH_HOST_CMD "bash -l -c \"virsh dumpxml $vm\"" > "$xml_file" 2>&1
+
+        if [ $? -eq 0 ]; then
+            log_info "Saved to: ${vm}_domain.xml"
+        else
+            log_error "Failed to dump XML for $vm"
+        fi
+    done
+}
 
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
@@ -349,6 +425,10 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     # --- Pre-run cleanup ---
     cleanup
+
+    # --- Add config to reports ---
+    save_config_to_report_json "$current_guest_reports_dir"
+    save_vm_config_to_report "$current_guest_reports_dir"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
