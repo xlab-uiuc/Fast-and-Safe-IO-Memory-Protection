@@ -325,6 +325,8 @@ save_config_to_report_json() {
     local guest_kernel=$(uname -r)
     local host_cmdline=$($SSH_HOST_CMD 'cat /proc/cmdline')
     local host_kernel=$($SSH_HOST_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
 
     cat > "$config_file" << EOF
 {
@@ -351,7 +353,9 @@ save_config_to_report_json() {
     "interface": "$CLIENT_INTF",
     "num_clients": "$CLIENT_NUM_CLIENTS",
     "cpu_mask": "$CLIENT_CPU_MASK",
-    "bandwidth": "$CLIENT_BANDWIDTH"
+    "bandwidth": "$CLIENT_BANDWIDTH",
+    "kernel": "$client_kernel",
+    "cmdline": "$client_cmdline"
   },
   "host": {
     "kernel": "$host_kernel",
