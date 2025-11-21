@@ -123,10 +123,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-iommu_config="host-${guest_iommu_config}-guest-${host_iommu_config}-$virt_tech"
-
+iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"
 echo "iommu_config: $iommu_config"
-# exit 0
+
 # pause the frame
 sudo ethtool --pause $GUEST_INTF tx off rx off
 $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
