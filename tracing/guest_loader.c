@@ -439,6 +439,7 @@ int main(int argc, char **argv)
   }
 
   printf("Attaching probes... time=%ld\n", time(NULL));
+  int n_failed = 0;
   for (int i = 0; i < num_probes_to_attach; i++)
   {
     probe_def_t *p_def = &probes_to_attach[i];
@@ -468,11 +469,17 @@ int main(int argc, char **argv)
       fprintf(stderr, "Failed to attach %s '%s' to '%s': %s\n",
               p_def->type == PROBE_TYPE_KPROBE ? "kprobe" : "kretprobe",
               p_def->bpf_prog_name, p_def->target_name, strerror(-err));
-      goto cleanup_file;
+      // goto cleanup_file;
+      n_failed++;
     }
     attached_links[attached_count++] = link;
   }
-  printf("All %d probes attached successfully. time=%ld\n", attached_count, time(NULL));
+
+  if (n_failed > 0) {
+    printf("[WARN] %d probes failed to attach. time=%ld\n", n_failed, time(NULL));
+  } else {
+    printf("All %d probes attached successfully. time=%ld\n", attached_count, time(NULL));
+  }
 
   signal(SIGINT, sig_handler);
   signal(SIGTERM, sig_handler);
