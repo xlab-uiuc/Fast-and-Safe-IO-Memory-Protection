@@ -17,7 +17,7 @@ PERF_TRACING_ENABLED=0
 PERF_TRACING_HOST_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-GUEST_FandS_REL="viommu"
+GUEST_FandS_REL="viommu_siyuan"
 GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
@@ -515,7 +515,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
-        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 1 --bw 1 --flame 0 \
+        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 0 --bw 1 --flame 0 \
         --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
     $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
