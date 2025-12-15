@@ -111,7 +111,6 @@ iotlb_alllkp_page = per_page(results['iotlb_all_lookup_mean'], tput)
 iommu_mem_access_page = per_page(results['iommu_mem_access_mean'], tput)
 iotlb_inv_page = per_page(results['iotlb_inv_mean'], tput)
 
-
 print(f"------- {exp_name} Run Metrics -------")
 
 if "tput" in metrics or "all" in metrics:
@@ -147,5 +146,5 @@ if "cpu" in metrics or "all" in metrics:
 if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {results['retx_rate_stddev']}")
 if "acks" in metrics or "all" in metrics:
-    print(f"Acks per page: {misses_per_page(results['sent_packets_stddev'], tput)}")
+    print(f"Acks per page: {per_page(results['sent_packets_stddev'], tput)}")
 print("")
