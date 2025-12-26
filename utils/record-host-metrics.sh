@@ -299,7 +299,7 @@ fi
 if [ "$MEMBW_REPORTING" -eq 1 ]; then
   echo "Collecting Memory bandwidth..."
   dump_membw > logs/$OUT_DIR/membw.log &
-  sleep 30
+  # sleep 30
   sleep $DURATION_S
   sudo pkill -9 -f "pcm"
   parse_membw
