@@ -17,7 +17,8 @@ PERF_TRACING_ENABLED=0
 PERF_TRACING_HOST_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-GUEST_FandS_REL="viommu_siyuan"
+SCRIPT_DIR=$(dirname "$0")
+GUEST_FandS_REL=$(basename $(realpath "$SCRIPT_DIR/../"))
 GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
