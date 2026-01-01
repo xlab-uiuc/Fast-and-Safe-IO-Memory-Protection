@@ -543,7 +543,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
         --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 0 \
-        --pcie 1 --membw 1 --iio 1 --pfc 0 --type 0; exec bash"
+        --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
+        # --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
     echo $host_logging_cmd
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
@@ -551,7 +552,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
     --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
-    --pcie 0 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
+    --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
+    # --pcie 0 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
     cd - > /dev/null
 
     log_info "Logging done."
@@ -605,9 +607,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-        sshpass -p $HOST_SSH_PASSWORD scp \
-        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        # sshpass -p $HOST_SSH_PASSWORD scp \
+        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
@@ -615,9 +617,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
-    	scp -i "$HOST_SSH_IDENTITY_FILE" \
-        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
+    	# scp -i "$HOST_SSH_IDENTITY_FILE" \
+        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
