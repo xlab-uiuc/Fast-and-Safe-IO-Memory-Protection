@@ -126,50 +126,45 @@ fi
 iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"
 echo "iommu_config: $iommu_config"
 
-# pause the frame
-sudo ethtool --pause $GUEST_INTF tx off rx off
-$SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
-$SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
-
-sleep 1
 
 client_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
+N_RUNS=3
 for socket_buf in 1; do
     for ring_buffer in 512; do
-        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
-        #for i in 16 24; do
-            num_cores=$i
-            client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
-            server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
+        for i in 1; do
+            # for num_cores in 1 4 8 12 16 20 24; do
+            for num_cores in 16; do
+                client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
+                server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
-      	    format_i=$(printf "%02d\n" $i)
-            exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores"
-            echo $exp_name
+                n_val=$(( i * num_cores ))
+                # echo $n_val
+                format_i=$(printf "%02d\n" $n_val)
+                exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores"
+                echo "Run $exp_name ($N_RUNS runs)..."
 
-            if [ "$DRY_RUN" -eq 1 ]; then
-                continue
-            fi
+                if [ "$DRY_RUN" -eq 1 ]; then
+                    continue
+                fi
 
-            sudo bash vm-run-dctcp-tput-experiment.sh \
-            --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c $server_cores_mask \
-            --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C $client_cores_mask \
-            --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
-            --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
-            -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
-            --socket-buf $socket_buf --mlc-cores 'none' --runs 3
+                sudo bash vm-run-dctcp-tput-experiment.sh \
+                    --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
+                    --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
+                    --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
+                    --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+                    -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
+                    --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS
 
-            python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
-            echo $PWD
-            cd ../utils/reports/$exp_name
+                python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
+                echo $PWD
+                cd ../utils/reports/$exp_name
 
-            sudo bash -c "cat /sys/kernel/debug/tracing/trace > iova.log"
-
-            cd -
-            sudo chmod +666 -R ../utils/reports/$exp_name
-
+                cd -
+                sudo chmod +666 -R ../utils/reports/$exp_name
+            done
         done
     done
 done
