@@ -137,12 +137,12 @@ for socket_buf in 1; do
         for i in 1; do
             # for num_cores in 1 4 8 12 16 20 24; do
             for z in 1 10 100; do
-            for num_cores in 16; do
-                client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
-                server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
+                for num_cores in 16; do
+                    client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
+                    server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
-                n_val=$(( i * num_cores ))
-                # echo $n_val
+                    n_val=$(( i * num_cores ))
+                    # echo $n_val
                     format_i=$(printf "%02d\n" $n_val)
                     exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores_zval${z}"
                     echo "Run $exp_name ($N_RUNS runs)..."
@@ -151,26 +151,27 @@ for socket_buf in 1; do
                         continue
                     fi
 
-                # Save the current Z value to the leader_max_flushes
+                    # Save the current Z value to the leader_max_flushes
 
-                echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
+                    echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
 
-                echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
+                    echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
 
-                sudo bash vm-run-dctcp-tput-experiment.sh \
-                    --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
-                    --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
-                    --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
-                    --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
-                    -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
-                    --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS
+                    sudo bash vm-run-dctcp-tput-experiment.sh \
+                        --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
+                        --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
+                        --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
+                        --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+                        -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
+                        --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS
 
-                python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
-                echo $PWD
-                cd ../utils/reports/$exp_name
+                    python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
+                    echo $PWD
+                    cd ../utils/reports/$exp_name
 
-                cd -
-                sudo chmod +666 -R ../utils/reports/$exp_name
+                    cd -
+                    sudo chmod +666 -R ../utils/reports/$exp_name
+                done
             done
         done
     done
