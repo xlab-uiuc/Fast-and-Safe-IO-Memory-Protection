@@ -97,7 +97,7 @@ timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 for socket_buf in 1; do
     for ring_buffer in 512; do
     # 5 10 20 40
-        for z in 1 10 100
+        for z in 1 10 100; do
             for i in 20; do
                 format_i=$(printf "%02d\n" $i)
                 exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-ringbuf-${ring_buffer}_sokcetbuf${socket_buf}_${num_cores}cores_zval${z}"
