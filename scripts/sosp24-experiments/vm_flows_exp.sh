@@ -33,7 +33,7 @@ CLIENT_SSH_UNAME="siyuanc3"
 CLIENT_SSH_HOST="nexus03.csl.illinois.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
-CLIENT_SSH_IDENTITY_FILE="/home/cochell2/.ssh/id_rsa"
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
 # off, shadow or nested
 VIRT_TECH="nested"
@@ -111,7 +111,7 @@ for socket_buf in 1; do
 
                 echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
 
-                echo "Leader Max Flushes: $(cat /sys/kernel/debug/iommu/leader_max_flushes)"
+                echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
 
                 sudo bash vm-run-dctcp-tput-experiment.sh \
                 --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c $server_cores_mask \
