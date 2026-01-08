@@ -2,7 +2,6 @@ import sys
 import numpy as np
 import statistics
 import subprocess
-import os
 
 # TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
 
@@ -48,7 +47,7 @@ for i in range(NUM_RUNS):
                 net_tputs.append(tput)
             break
 
-    with open(FILE_NAME + '-RUN-' + str(i) + '/client-retx.rpt') as f1:
+    with open(FILE_NAME + '-RUN-' + str(i) + '/retx.rpt') as f1:
         for line in f1:
             line_str = line.split()
             if (line_str[0] == 'Retx_percent:'):  # always come last so we can break
@@ -60,24 +59,19 @@ for i in range(NUM_RUNS):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
 
-    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt'
-    if os.path.exists(host_membw_file):
-        with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
-            try:
-                for line in f1:
-                    line_str = line.split()
-                    if (line_str[0] != 'Node0_total_bw:'):
-                        continue
-                    else:
-                        membw = float(line_str[-1])
-                        if (membw >= 0):
-                            mem_bws.append(membw)
-                        break
-            except Exception as e:
-                mem_bws.append(0)
-    else:
-        mem_bws.append(0)
-        print(f"[WARN] Host membw file not found: {host_membw_file}")
+    with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
+        try:
+            for line in f1:
+                line_str = line.split()
+                if (line_str[0] != 'Node0_total_bw:'):
+                    continue
+                else:
+                    membw = float(line_str[-1])
+                    if (membw >= 0):
+                        mem_bws.append(membw)
+                    break
+        except Exception as e:
+            mem_bws.append(0)
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/cpu_util.rpt') as f1:
         for line in f1:

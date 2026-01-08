@@ -96,20 +96,24 @@ typedef struct
 } probe_def_t;
 
 probe_def_t probes_to_attach[] = {
-    {"kprobe_iommu_map", "iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP, false},
-    {"kretprobe_iommu_map", "iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP, false},
-    {"kprobe___iommu_map", "__iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP_INTERNAL, false},
-    {"kretprobe___iommu_map", "__iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP_INTERNAL, false},
-    {"kprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KPROBE, IOMMU_IOTLB_SYNC_MAP, false},
-    {"kretprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KRETPROBE, IOMMU_IOTLB_SYNC_MAP, false},
-    {"kprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP, false},
-    {"kretprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP, false},
-    {"kprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP_INTERNAL, false},
-    {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL, false},
-    {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC, false},
-    {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC, false},
-    {"uprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_UPROBE, QEMU_VTD_FETCH_INV_DESC, true},
-    {"uretprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_URETPROBE, QEMU_VTD_FETCH_INV_DESC, true},
+    // {"kprobe_iommu_map", "iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP, false},
+    // {"kretprobe_iommu_map", "iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP, false},
+    // {"kprobe___iommu_map", "__iommu_map", PROBE_TYPE_KPROBE, IOMMU_MAP_INTERNAL, false},
+    // {"kretprobe___iommu_map", "__iommu_map", PROBE_TYPE_KRETPROBE, IOMMU_MAP_INTERNAL, false},
+    // {"kprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KPROBE, IOMMU_IOTLB_SYNC_MAP, false},
+    // {"kretprobe_intel_iommu_iotlb_sync_map", "intel_iommu_iotlb_sync_map", PROBE_TYPE_KRETPROBE, IOMMU_IOTLB_SYNC_MAP, false},
+    // {"kprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP, false},
+    // {"kretprobe_iommu_unmap", "iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP, false},
+    // {"kprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KPROBE, IOMMU_UNMAP_INTERNAL, false},
+    // {"kretprobe___iommu_unmap", "__iommu_unmap", PROBE_TYPE_KRETPROBE, IOMMU_UNMAP_INTERNAL, false},
+    // {"kprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KPROBE, IOMMU_TLB_SYNC, false},
+    // {"kretprobe_intel_iommu_tlb_sync", "intel_iommu_tlb_sync", PROBE_TYPE_KRETPROBE, IOMMU_TLB_SYNC, false},
+    // {"uprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_UPROBE, QEMU_VTD_FETCH_INV_DESC, true},
+    // {"uretprobe_vtd_fetch_inv_desc", "vtd_fetch_inv_desc", PROBE_TYPE_URETPROBE, QEMU_VTD_FETCH_INV_DESC, true},
+    {"kprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KPROBE, QI_SUBMIT_SYNC },
+    {"kretprobe_qi_submit_sync", "qi_submit_sync", PROBE_TYPE_KRETPROBE, QI_SUBMIT_SYNC},
+    {"kprobe_iommufd_fops_ioctl", "iommufd_fops_ioctl", PROBE_TYPE_KPROBE, IOMMUFD_FOPS_IOCTL },
+    {"kretprobe_iommufd_fops_ioctl", "iommufd_fops_ioctl", PROBE_TYPE_KRETPROBE, IOMMUFD_FOPS_IOCTL},
     // {"uprobe_address_space_rw", "address_space_rw", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_RW, true},
     // {"uretprobe_address_space_rw", "address_space_rw", PROBE_TYPE_URETPROBE, QEMU_ADDRESS_SPACE_RW, true},
     // {"uprobe_address_space_write", "address_space_write", PROBE_TYPE_UPROBE, QEMU_ADDRESS_SPACE_WRITE, true},
@@ -151,6 +155,10 @@ const char *func_name_to_string(enum FunctionName fn)
     return "__iommu_unmap";
   case IOMMU_TLB_SYNC:
     return "intel_iommu_tlb_sync";
+  case QI_SUBMIT_SYNC:
+    return "qi_submit_sync";
+  case IOMMUFD_FOPS_IOCTL:
+    return "iommufd_fops_ioctl";
   default:
     return "UnknownFunction";
   }
