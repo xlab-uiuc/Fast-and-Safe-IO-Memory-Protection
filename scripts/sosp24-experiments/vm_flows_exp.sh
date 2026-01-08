@@ -144,7 +144,7 @@ for socket_buf in 1; do
                     n_val=$(( i * num_cores ))
                     # echo $n_val
                     format_i=$(printf "%02d\n" $n_val)
-                    exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores_zval${z}"
+                    exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-zval${z}"
                     echo "Run $exp_name ($N_RUNS runs)..."
 
                     if [ "$DRY_RUN" -eq 1 ]; then
