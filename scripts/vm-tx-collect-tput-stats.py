@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import statistics
 import subprocess
-
+import os
 # TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
 
 EXP_NAME = sys.argv[1]
@@ -58,20 +58,21 @@ for i in range(NUM_RUNS):
             elif (line_str[0] == "Recv:"):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
-
-    with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
-        try:
-            for line in f1:
-                line_str = line.split()
-                if (line_str[0] != 'Node0_total_bw:'):
-                    continue
-                else:
-                    membw = float(line_str[-1])
-                    if (membw >= 0):
-                        mem_bws.append(membw)
-                    break
-        except Exception as e:
-            mem_bws.append(0)
+    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt'
+    if os.path.exists(host_membw_file):
+        with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
+            try:
+                for line in f1:
+                    line_str = line.split()
+                    if (line_str[0] != 'Node0_total_bw:'):
+                        continue
+                    else:
+                        membw = float(line_str[-1])
+                        if (membw >= 0):
+                            mem_bws.append(membw)
+                        break
+            except Exception as e:
+                mem_bws.append(0)
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/cpu_util.rpt') as f1:
         for line in f1:
