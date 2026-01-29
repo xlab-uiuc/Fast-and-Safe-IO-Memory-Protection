@@ -17,8 +17,7 @@ PERF_TRACING_ENABLED=0
 PERF_TRACING_HOST_ENABLED=1
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-SCRIPT_DIR=$(dirname "$0")
-GUEST_FandS_REL=$(basename $(realpath "$SCRIPT_DIR/../"))
+GUEST_FandS_REL="viommu_iks"
 GUEST_PERF_REL="linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 HOST_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
@@ -254,36 +253,6 @@ progress_bar() {
 }
 
 # --- Cleanup Function ---
-
-pre_exp_setup() {
-    log_info "--- Starting Pre-experiment Cleanup Phase ---"
-
-    log_info "Disabling TX/RX on GUEST and CLIENT"
-    sudo ethtool --pause $GUEST_INTF tx off rx off
-    $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
-    
-    log_info "Disabling SMT on Client"
-    $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
-
-    # Host's smt, cpu power, numa balance will be setup in setup-host.sh
-    log_info "--- Pre-experiment Cleanup Phase Finished ---"
-}
-
-post_exp_cleanup() {
-    log_info "--- Starting Post-experiment Cleanup Phase ---"
-    
-    log_info "Resetting GUEST ftrace..."
-    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
-
-    log_info "Resetting HOST..."
-    $SSH_HOST_CMD \
-        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
-    
-    log_info "--- Post-experiment Cleanup Phase Finished ---"
-}
-
 cleanup() {
     log_info "--- Starting Cleanup Phase ---"
 
@@ -331,7 +300,20 @@ cleanup() {
     $SSH_HOST_CMD \
         'screen -wipe || true'
 
-    sleep 1
+    log_info "Resetting GUEST ftrace..."
+    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
+    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+    log_info "Resetting HOST..."
+    $SSH_HOST_CMD \
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+
+    log_info "Resetting GUEST network interface $GUEST_INTF..."
+    sudo ip link set "$GUEST_INTF" down
+    sleep 2
+    sudo ip link set "$GUEST_INTF" up
+    sleep 2
     log_info "--- Cleanup Phase Finished ---"
 }
 
@@ -412,8 +394,6 @@ save_vm_config_to_report() {
     done
 }
 
-pre_exp_cleanup
-
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 
@@ -484,7 +464,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
     # echo "sudo bash run-tx-netapp-tput.sh --mode client --server-ip '$CLIENT_IP' -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b '$CLIENT_BANDWIDTH' &> "$guest_server_app_log_file""
     sudo bash run-tx-netapp-tput.sh --mode client --server-ip "$CLIENT_IP" -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
-        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" 
+        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" & 
     sleep 2 # Allow server app to initialize
     cd - > /dev/null   
 
@@ -604,9 +584,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-        # sshpass -p $HOST_SSH_PASSWORD scp \
-        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        #sshpass -p $HOST_SSH_PASSWORD scp \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
@@ -614,9 +594,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
-    	# scp -i "$HOST_SSH_IDENTITY_FILE" \
-        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
+    	#scp -i "$HOST_SSH_IDENTITY_FILE" \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
@@ -625,15 +605,15 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
     progress_bar $((CORE_DURATION_S * 2)) 2
 
+    # --- Post-run cleanup ---
+    # cleanup
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
 done
 
-# --- Post-run cleanup ---
 cleanup
-post_exp_cleanup
 
 if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."
@@ -644,9 +624,9 @@ fi
 log_info "Collecting and processing statistics from all runs..."
 # The '0' or '1' at the end of collect-tput-stats.py might indicate whether MLC was run. Adjust as needed.
 if [ "$MLC_CORES" = "none" ]; then
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
 else
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
 log_info "Experiment $EXP_NAME finished."
