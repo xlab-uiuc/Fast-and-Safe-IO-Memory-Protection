@@ -331,6 +331,10 @@ cleanup() {
     $SSH_HOST_CMD \
         'screen -wipe || true'
 
+    log_info "Resetting GUEST network interface $GUEST_INTF..."
+    sudo ip link set "$GUEST_INTF" down
+    sleep 1
+    sudo ip link set "$GUEST_INTF" up
     sleep 1
     log_info "--- Cleanup Phase Finished ---"
 }
