@@ -485,7 +485,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
     # echo "sudo bash run-tx-netapp-tput.sh --mode client --server-ip '$CLIENT_IP' -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b '$CLIENT_BANDWIDTH' &> "$guest_server_app_log_file""
     sudo bash run-tx-netapp-tput.sh --mode client --server-ip "$CLIENT_IP" -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
-        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" 
+        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" & 
     sleep 2 # Allow server app to initialize
     cd - > /dev/null   
 
@@ -538,23 +538,23 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
-        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 1 --bw 1 --flame 0 \
+        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 0 --bw 1 --flame 0 \
         --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
     $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $HOST_IP..."
     host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
-        --cpu-util 0 --retx 1 --tcplog 1 --bw 1 --flame 0 \
-        --pcie 1 --membw 1 --iio 1 --pfc 0 --type 0; exec bash"
+        --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 0 \
+        --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
     echo $host_logging_cmd
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 1 --bw 1 --flame 0 \
-    --pcie 0 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+    --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
     cd - > /dev/null
 
     log_info "Logging done."
@@ -605,9 +605,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-        sshpass -p $HOST_SSH_PASSWORD scp \
-        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        #sshpass -p $HOST_SSH_PASSWORD scp \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
@@ -615,9 +615,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
-    	scp -i "$HOST_SSH_IDENTITY_FILE" \
-        "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
+    	#scp -i "$HOST_SSH_IDENTITY_FILE" \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
@@ -627,13 +627,14 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     progress_bar $((CORE_DURATION_S * 2)) 2
 
     # --- Post-run cleanup ---
-    cleanup
+    # cleanup
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
 done
 
+cleanup
 
 if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."
@@ -644,9 +645,9 @@ fi
 log_info "Collecting and processing statistics from all runs..."
 # The '0' or '1' at the end of collect-tput-stats.py might indicate whether MLC was run. Adjust as needed.
 if [ "$MLC_CORES" = "none" ]; then
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
 else
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
 log_info "Experiment $EXP_NAME finished."
