@@ -1,0 +1,2 @@
+new value: 16
+### Running wrk with 8 cores and 16 client threads, 16 connections and 16KB value size for 12 seconds with mtu 4000

@@ -1,0 +1,55 @@
+new value: 16
+### Running wrk with 5 cores and 16 client threads, 16 connections and 16KB value size for 12 seconds with mtu 4000
+throughput: 16.282 Gbps
+### Running wrk with 5 cores and 16 client threads, 32 connections and 16KB value size for 12 seconds with mtu 4000
+throughput: 19.329 Gbps
+### Running wrk with 5 cores and 16 client threads, 64 connections and 16KB value size for 12 seconds with mtu 4000
+throughput: 25.872 Gbps
+### Running wrk with 5 cores and 32 client threads, 32 connections and 16KB value size for 12 seconds with mtu 4000
+throughput: 18.009 Gbps
+### Running wrk with 5 cores and 32 client threads, 64 connections and 16KB value size for 12 seconds with mtu 4000
+throughput: 25.052 Gbps
+new value: 32
+### Running wrk with 5 cores and 16 client threads, 16 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 24.279 Gbps
+### Running wrk with 5 cores and 16 client threads, 32 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 34.541 Gbps
+### Running wrk with 5 cores and 16 client threads, 64 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 36.56 Gbps
+### Running wrk with 5 cores and 32 client threads, 32 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 34.132 Gbps
+### Running wrk with 5 cores and 32 client threads, 64 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 37.12 Gbps
+new value: 64
+### Running wrk with 5 cores and 16 client threads, 16 connections and 64KB value size for 12 seconds with mtu 4000
+throughput: 39.36 Gbps
+### Running wrk with 5 cores and 16 client threads, 32 connections and 64KB value size for 12 seconds with mtu 4000
+throughput: 57.44 Gbps
+### Running wrk with 5 cores and 16 client threads, 64 connections and 64KB value size for 12 seconds with mtu 4000
+throughput: 59.6 Gbps
+### Running wrk with 5 cores and 32 client threads, 32 connections and 64KB value size for 12 seconds with mtu 4000
+throughput: 57.68 Gbps
+### Running wrk with 5 cores and 32 client threads, 64 connections and 64KB value size for 12 seconds with mtu 4000
+throughput: 58.72 Gbps
+new value: 128
+### Running wrk with 5 cores and 16 client threads, 16 connections and 128KB value size for 12 seconds with mtu 4000
+throughput: 64.16 Gbps
+### Running wrk with 5 cores and 16 client threads, 32 connections and 128KB value size for 12 seconds with mtu 4000
+throughput: 68.32 Gbps
+### Running wrk with 5 cores and 16 client threads, 64 connections and 128KB value size for 12 seconds with mtu 4000
+throughput: 65.04 Gbps
+### Running wrk with 5 cores and 32 client threads, 32 connections and 128KB value size for 12 seconds with mtu 4000
+throughput: 67.76 Gbps
+### Running wrk with 5 cores and 32 client threads, 64 connections and 128KB value size for 12 seconds with mtu 4000
+throughput: 64.56 Gbps
+new value: 256
+### Running wrk with 5 cores and 16 client threads, 16 connections and 256KB value size for 12 seconds with mtu 4000
+throughput: 75.2 Gbps
+### Running wrk with 5 cores and 16 client threads, 32 connections and 256KB value size for 12 seconds with mtu 4000
+throughput: 72.56 Gbps
+### Running wrk with 5 cores and 16 client threads, 64 connections and 256KB value size for 12 seconds with mtu 4000
+throughput: 67.6 Gbps
+### Running wrk with 5 cores and 32 client threads, 32 connections and 256KB value size for 12 seconds with mtu 4000
+throughput: 72.72 Gbps
+### Running wrk with 5 cores and 32 client threads, 64 connections and 256KB value size for 12 seconds with mtu 4000
+throughput: 66.64 Gbps

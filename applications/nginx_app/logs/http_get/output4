@@ -1,0 +1,11 @@
+Running 12s test @ http://192.168.11.117:6004/file_2000KB.html
+  3 threads and 16 connections
+  Thread calibration: mean lat.: 4874.599ms, rate sampling interval: 17907ms
+  Thread calibration: mean lat.: 5116.427ms, rate sampling interval: 18071ms
+  Thread calibration: mean lat.: 5279.995ms, rate sampling interval: 18268ms
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    11.01s   562.24ms  11.99s    58.99%
+    Req/Sec       -nan      -nan   0.00      0.00%
+  4058 requests in 12.03s, 7.57GB read
+Requests/sec:    337.43
+Transfer/sec:    644.87MB

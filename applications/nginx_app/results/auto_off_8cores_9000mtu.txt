@@ -1,0 +1,88 @@
+new value: 16
+### Running wrk with 8 cores and 16 client threads, 16 connections and 16KB value size for 12 seconds with mtu 9000
+throughput: 23.27 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 16KB value size for 12 seconds with mtu 9000
+throughput: 24.59 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 16KB value size for 12 seconds with mtu 9000
+throughput: 30.708 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 16KB value size for 12 seconds with mtu 9000
+throughput: 24.008 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 16KB value size for 12 seconds with mtu 9000
+throughput: 31.99 Gbps
+new value: 32
+### Running wrk with 8 cores and 16 client threads, 16 connections and 32KB value size for 12 seconds with mtu 9000
+throughput: 26.407 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 32KB value size for 12 seconds with mtu 9000
+throughput: 32.359 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 32KB value size for 12 seconds with mtu 9000
+throughput: 37.274 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 32KB value size for 12 seconds with mtu 9000
+throughput: 31.868 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 32KB value size for 12 seconds with mtu 9000
+throughput: 38.374 Gbps
+new value: 64
+### Running wrk with 8 cores and 16 client threads, 16 connections and 64KB value size for 12 seconds with mtu 9000
+throughput: 55.278 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 64KB value size for 12 seconds with mtu 9000
+throughput: 66.24 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 64KB value size for 12 seconds with mtu 9000
+throughput: 68.8 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 64KB value size for 12 seconds with mtu 9000
+throughput: 71.04 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 64KB value size for 12 seconds with mtu 9000
+throughput: 66.16 Gbps
+new value: 128
+### Running wrk with 8 cores and 16 client threads, 16 connections and 128KB value size for 12 seconds with mtu 9000
+throughput: 86.16 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 128KB value size for 12 seconds with mtu 9000
+throughput: 90.16 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 128KB value size for 12 seconds with mtu 9000
+throughput: 90.72 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 128KB value size for 12 seconds with mtu 9000
+throughput: 90.24 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 128KB value size for 12 seconds with mtu 9000
+throughput: 90.72 Gbps
+new value: 256
+### Running wrk with 8 cores and 16 client threads, 16 connections and 256KB value size for 12 seconds with mtu 9000
+throughput: 91.04 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 256KB value size for 12 seconds with mtu 9000
+throughput: 91.2 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 256KB value size for 12 seconds with mtu 9000
+throughput: 91.12 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 256KB value size for 12 seconds with mtu 9000
+throughput: 91.28 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 256KB value size for 12 seconds with mtu 9000
+throughput: 91.2 Gbps
+new value: 512
+### Running wrk with 8 cores and 16 client threads, 16 connections and 512KB value size for 12 seconds with mtu 9000
+throughput: 91.44 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 512KB value size for 12 seconds with mtu 9000
+throughput: 91.44 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 512KB value size for 12 seconds with mtu 9000
+throughput: 91.28 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 512KB value size for 12 seconds with mtu 9000
+throughput: 91.44 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 512KB value size for 12 seconds with mtu 9000
+throughput: 91.28 Gbps
+new value: 1000
+### Running wrk with 8 cores and 16 client threads, 16 connections and 1000KB value size for 12 seconds with mtu 9000
+throughput: 91.36 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 1000KB value size for 12 seconds with mtu 9000
+throughput: 91.2 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 1000KB value size for 12 seconds with mtu 9000
+throughput: 91.12 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 1000KB value size for 12 seconds with mtu 9000
+throughput: 91.12 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 1000KB value size for 12 seconds with mtu 9000
+throughput: 90.96 Gbps
+new value: 2000
+### Running wrk with 8 cores and 16 client threads, 16 connections and 2000KB value size for 12 seconds with mtu 9000
+throughput: 91.36 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 2000KB value size for 12 seconds with mtu 9000
+throughput: 91.2 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 2000KB value size for 12 seconds with mtu 9000
+throughput: 90.96 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 2000KB value size for 12 seconds with mtu 9000
+throughput: 91.28 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 2000KB value size for 12 seconds with mtu 9000
+throughput: 91.2 Gbps

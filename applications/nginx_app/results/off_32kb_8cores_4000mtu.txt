@@ -1,0 +1,11 @@
+new value: 32
+### Running wrk with 8 cores and 16 client threads, 16 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 33.351 Gbps
+### Running wrk with 8 cores and 16 client threads, 32 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 33.834 Gbps
+### Running wrk with 8 cores and 16 client threads, 64 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 35.018 Gbps
+### Running wrk with 8 cores and 32 client threads, 32 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 35.179 Gbps
+### Running wrk with 8 cores and 32 client threads, 64 connections and 32KB value size for 12 seconds with mtu 4000
+throughput: 34.883 Gbps
