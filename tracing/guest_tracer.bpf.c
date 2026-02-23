@@ -10,13 +10,16 @@ char LICENSE[] SEC("license") = "GPL";
 #define SAMPLE_RATE_POW2 1024
 #define SAMPLE_MASK (SAMPLE_RATE_POW2 - 1)
 
-struct
-{
-  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-  __uint(max_entries, 16384);
-  __type(key, struct entry_key_t);
-  __type(value, struct entry_val_t);
-} entry_traces SEC(".maps");
+struct task_trace_data_t {
+    u64 start_times[TRACE_FUNCS_END];
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_TASK_STORAGE);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, int);
+    __type(value, struct task_trace_data_t);
+} task_storage SEC(".maps");
 
 struct
 {
@@ -55,20 +58,20 @@ static __always_inline u32 log2_u64(u64 v)
 static __always_inline int
 _bpf_utils_trace_func_entry(struct pt_regs *ctx)
 {
-  // u32 rnd = bpf_get_prandom_u32();
-  // if (rnd & SAMPLE_MASK)
-  //   return 0;
-  
   u64 cookie = bpf_get_attach_cookie(ctx);
 
   if (cookie >= TRACE_FUNCS_END) {
     return 0;
   }
 
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct entry_key_t key = {.id = pid_tgid, .cookie = cookie};
-  struct entry_val_t val = {.ts = bpf_ktime_get_ns()};
-  return bpf_map_update_elem(&entry_traces, &key, &val, BPF_ANY);
+  struct task_struct *task = bpf_get_current_task_btf();
+  struct task_trace_data_t *data = bpf_task_storage_get(&task_storage, task, 0, BPF_LOCAL_STORAGE_GET_F_CREATE);
+  
+  if (!data)
+      return 0;
+
+  data->start_times[cookie] = bpf_ktime_get_ns();
+  return 0;
 }
 
 static __always_inline int
@@ -86,22 +89,31 @@ _bpf_utils_trace_func_exit(struct pt_regs *ctx, enum Domain domain, bool is_upro
     return 0;
   }
 
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct entry_key_t key = {.id = pid_tgid, .cookie = cookie};
-  struct entry_val_t *entry_val_p;
+  struct task_struct *task = bpf_get_current_task_btf();
+  struct task_trace_data_t *data = bpf_task_storage_get(&task_storage, task, 0, 0);
 
-  entry_val_p = bpf_map_lookup_elem(&entry_traces, &key);
-  if (!entry_val_p) {
-    return 0;
-  }
+  if (!data)
+      return 0;
+
+  u64 start_ts = data->start_times[cookie];
+  if (start_ts == 0)
+      return 0;
+
+  // Clear it (optional, but good practice)
+  data->start_times[cookie] = 0;
 
   u64 duration_ns;
   u64 duration_us;
-  // bool is_sampled_event;
   u32 func_enum_key;
 
-  duration_ns = bpf_ktime_get_ns() - entry_val_p->ts;
-  func_enum_key = (u32)key.cookie;
+  duration_ns = bpf_ktime_get_ns() - start_ts;
+  func_enum_key = (u32)cookie;
+
+  // Sanity check: if duration is larger than 1 second, it's likely a stale entry
+  // or something went wrong.
+  if (duration_ns > 1000000000ULL) {
+      return 0;
+  }
 
   struct latency_stats_t *stats = bpf_map_lookup_elem(&func_latency_stats, &func_enum_key);
   if (stats) {
@@ -125,7 +137,6 @@ _bpf_utils_trace_func_exit(struct pt_regs *ctx, enum Domain domain, bool is_upro
     }   
   }
         
-  bpf_map_delete_elem(&entry_traces, &key);
   return 0;
 }
 
