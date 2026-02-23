@@ -115,6 +115,8 @@ probe_def_t probes_to_attach[] = {
     // cache_tag_flush_range
     {"kprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE,NULL},
     {"kretprobe_cache_tag_flush_range", "cache_tag_flush_range", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE,NULL},
+    {"kprobe_cache_tag_flush_range_call", "cache_tag_flush_range_call", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_RANGE_CALL,NULL},
+    {"kretprobe_cache_tag_flush_range_call", "cache_tag_flush_range_call", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_RANGE_CALL,NULL},
     {"kprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KPROBE, PAGE_POOL_ALLOC,NULL},
     {"kretprobe_page_pool_alloc_netmem", "page_pool_alloc_netmem", PROBE_TYPE_KRETPROBE, PAGE_POOL_ALLOC,NULL},
     {"kprobe___page_pool_alloc_pages_slow", "__page_pool_alloc_pages_slow", PROBE_TYPE_KPROBE, PAGE_POOL_SLOW,NULL},
@@ -161,6 +163,10 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_count_page_pool_release_page_dma_hook", "count_page_pool_release_page_dma_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RELEASE, NULL},
     {"kprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
     {"kretprobe_count_page_pool_recycle_in_cache_hook", "count_page_pool_recycle_in_cache_hook", PROBE_TYPE_KRETPROBE, COUNT_PAGE_POOL_RECYCLE, NULL},
+    {"kprobe_sys_flush_handler", "sys_flush_handler", PROBE_TYPE_KPROBE, SYS_FLUSH_HANDLER, NULL},
+    {"kretprobe_sys_flush_handler", "sys_flush_handler", PROBE_TYPE_KRETPROBE, SYS_FLUSH_HANDLER, NULL},
+    {"kprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KPROBE, __SYS_FLUSH_HANDLER, NULL},
+    {"kretprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KRETPROBE, __SYS_FLUSH_HANDLER, NULL},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];
@@ -194,6 +200,8 @@ const char *func_name_to_string(enum FunctionName fn)
     return "intel_iommu_tlb_sync";
   case CACHE_TAG_FLUSH_RANGE:
     return "cache_tag_flush_range";
+  case CACHE_TAG_FLUSH_RANGE_CALL:
+    return "cache_tag_flush_range_call";
   case PAGE_POOL_ALLOC:
     return "page_pool_alloc_netmem";
   case PAGE_POOL_SLOW:
@@ -238,6 +246,10 @@ const char *func_name_to_string(enum FunctionName fn)
     return "writel_wrapper";
   case AFTER_WRITEL_WHILE_WRAPPER:
     return "after_writel_while_wrapper";
+  case SYS_FLUSH_HANDLER:
+    return "sys_flush_handler";
+  case __SYS_FLUSH_HANDLER:
+    return "__sys_flush_handler";
   default:
     return "UnknownFunction";
   }

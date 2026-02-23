@@ -269,6 +269,18 @@ int BPF_KRETPROBE(kretprobe_cache_tag_flush_range, void *ret)
   return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
 
+SEC("kprobe/cache_tag_flush_range_call")
+int BPF_KPROBE(kprobe_cache_tag_flush_range_call, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/cache_tag_flush_range_call")
+int BPF_KRETPROBE(kretprobe_cache_tag_flush_range_call, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
 SEC("kprobe/cache_tag_flush_range_np")
 int BPF_KPROBE(kprobe_cache_tag_flush_range_np, void *ret)
 {
@@ -510,3 +522,26 @@ int BPF_KRETPROBE(kretprobe_count_page_pool_recycle_in_cache_hook, void *ret)
     return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
 
+SEC("kprobe/sys_flush_handler")
+int BPF_KPROBE(kprobe_sys_flush_handler, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/sys_flush_handler")
+int BPF_KRETPROBE(kretprobe_sys_flush_handler, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/__sys_flush_handler")
+int BPF_KPROBE(kprobe___sys_flush_handler, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/__sys_flush_handler")
+int BPF_KRETPROBE(kretprobe___sys_flush_handler, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
