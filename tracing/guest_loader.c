@@ -283,7 +283,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
     const char *fn_name = func_name_to_string((enum FunctionName)fn);
     size_t per_cpu_sz = sizeof(struct latency_stats_t);
     size_t buf_sz = per_cpu_sz * num_cpus;
-    struct latency_stats_t *percpu_stats = malloc(buf_sz);
+    struct latency_stats_t *percpu_stats = calloc(1, buf_sz);
     if (!percpu_stats || bpf_map_lookup_elem(stats_fd, &fn, percpu_stats) != 0) {
       free(percpu_stats);
       continue;
@@ -349,7 +349,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
   for (int fn = TRACE_FUNCS_END; fn < FUNCTION_NAME_MAX; fn++) {
     const char *fn_name = func_name_to_string((enum FunctionName)fn);
     size_t counts_sz = sizeof(__u64) * num_cpus;
-    __u64 *percpu_counts = malloc(counts_sz);
+    __u64 *percpu_counts = calloc(1, counts_sz);
     if (!percpu_counts || bpf_map_lookup_elem(counts_fd, &fn, percpu_counts) != 0) {
       free(percpu_counts);
       continue;
@@ -394,7 +394,7 @@ static void dump_aggregate_to_file(FILE *fp, struct guest_tracer_bpf *skel)
     for (int bucket = 0; bucket < HISTO_BUCKETS; bucket++) {
       u32 histo_key = fn * HISTO_BUCKETS + bucket;
       size_t counts_sz = sizeof(__u64) * num_cpus;
-      __u64 *percpu_counts = malloc(counts_sz);
+      __u64 *percpu_counts = calloc(1, counts_sz);
       if (!percpu_counts || bpf_map_lookup_elem(histo_fd, &histo_key, percpu_counts) != 0) {
         free(percpu_counts);
         continue;
