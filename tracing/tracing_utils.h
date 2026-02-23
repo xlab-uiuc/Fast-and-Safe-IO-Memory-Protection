@@ -55,6 +55,9 @@ enum FunctionName
     IOMMUFD_FOPS_IOCTL,
     WRITEL_WRAPPER,
     AFTER_WRITEL_WHILE_WRAPPER,
+    SYS_FLUSH_HANDLER,
+    __SYS_FLUSH_HANDLER,
+    CACHE_TAG_FLUSH_RANGE_CALL,
     TRACE_FUNCS_END, // Marks the end of trace functions
 
     // --- Section for Simple Frequency Counting ---
