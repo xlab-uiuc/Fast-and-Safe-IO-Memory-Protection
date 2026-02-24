@@ -397,6 +397,27 @@ save_vm_config_to_report() {
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 
+
+check_client_kernel() {
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    if [[ "$client_cmdline" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client IOMMU is not expected. Expected: $CLIENT_EXPECTED_IOMMU, Actual: $client_cmdline"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+}
+
+check_client_kernel
+
 for ((j = 0; j < NUM_RUNS; j += 1)); do
     echo
     log_info "############################################################"
