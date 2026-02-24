@@ -14,7 +14,7 @@ GUEST_MLC_DIR_REL="mlc/Linux"
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
 PERF_TRACING_ENABLED=0
-PERF_TRACING_HOST_ENABLED=1
+PERF_TRACING_HOST_ENABLED=0
 
 # --- Base Directory Paths (Relative to respective home directories) ---
 SCRIPT_DIR=$(dirname "$0")
@@ -68,6 +68,8 @@ CLIENT_INTF="eno12409np1"
 CLIENT_NUM_CLIENTS=5
 CLIENT_CPU_MASK="0,4,8,12,16"
 CLIENT_BANDWIDTH="100g"
+CLIENT_EXPECTED_KERNEL="6.12.9"
+CLIENT_EXPECTED_IOMMU="intel_iommu=off"
 
 # --- Host Machine Configuration ---
 HOST_HOME="/users/Leshna"
@@ -254,9 +256,29 @@ progress_bar() {
 }
 
 # --- Cleanup Function ---
+check_client_kernel() {
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    if [[ "$client_cmdline" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client IOMMU is not expected. Expected: $CLIENT_EXPECTED_IOMMU, Actual: $client_cmdline"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+}
+
 pre_exp_setup() {
     log_info "--- Starting Pre-experiment Cleanup Phase ---"
 
+    check_client_kernel
+    
     log_info "Disabling TX/RX on GUEST and CLIENT"
     sudo ethtool --pause $GUEST_INTF tx off rx off
     $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
