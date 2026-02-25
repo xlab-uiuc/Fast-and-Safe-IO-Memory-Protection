@@ -150,6 +150,8 @@ for socket_buf in 1; do
                     continue
                 fi
 
+                mkdir -p ../utils/reports/$exp_name
+
                 echo "Starting memory collection script..."
                 sudo bash collect-mem-stats.sh "../utils/reports/$exp_name/memory_stats.csv" &
                 mem_pid=$!
