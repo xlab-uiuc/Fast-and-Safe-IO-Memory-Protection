@@ -85,6 +85,9 @@ CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
 
+CLIENT_EXPECTED_KERNEL="6.12.9"
+CLIENT_EXPECTED_IOMMU="intel_iommu=off"
+
 #-------------------------------------------------------------------------------
 # Help/usage
 #-------------------------------------------------------------------------------
@@ -401,7 +404,7 @@ log_info "Number of runs: $NUM_RUNS"
 check_client_kernel() {
     local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
     local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
-    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_KERNEL"* ]]; then
         log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
         log_error "To fix, run this"
         log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
@@ -414,6 +417,8 @@ check_client_kernel() {
         log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
         exit 1
     fi
+
+    log_info "Client kernel check PASSED!"
 }
 
 check_client_kernel
