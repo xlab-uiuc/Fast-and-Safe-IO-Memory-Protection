@@ -58,6 +58,10 @@ enum FunctionName
     SYS_FLUSH_HANDLER,
     __SYS_FLUSH_HANDLER,
     CACHE_TAG_FLUSH_RANGE_CALL,
+    IOMMU_DMA_FREE_IOVA,
+    IOMMU_DMA_FREE_IOVA_CALL,
+    __IOMMU_DMA_UNMAP_CALL,
+    __IOMMU_DMA_UNMAP,
     TRACE_FUNCS_END, // Marks the end of trace functions
 
     // --- Section for Simple Frequency Counting ---

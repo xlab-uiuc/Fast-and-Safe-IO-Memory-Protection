@@ -156,6 +156,14 @@ probe_def_t probes_to_attach[] = {
     // {"kretprobe_writel_wrapper", "writel_wrapper", PROBE_TYPE_KRETPROBE, WRITEL_WRAPPER,NULL},
     // {"kprobe_after_writel_while_wrapper", "after_writel_while_wrapper", PROBE_TYPE_KPROBE, AFTER_WRITEL_WHILE_WRAPPER,NULL},
     // {"kretprobe_after_writel_while_wrapper", "after_writel_while_wrapper", PROBE_TYPE_KRETPROBE, AFTER_WRITEL_WHILE_WRAPPER,NULL},
+    {"kprobe_iommu_dma_free_iova", "iommu_dma_free_iova", PROBE_TYPE_KPROBE, IOMMU_DMA_FREE_IOVA, NULL},
+    {"kretprobe_iommu_dma_free_iova", "iommu_dma_free_iova", PROBE_TYPE_KRETPROBE, IOMMU_DMA_FREE_IOVA, NULL},
+    {"kprobe_iommu_dma_free_iova_call", "iommu_dma_free_iova_call", PROBE_TYPE_KPROBE, IOMMU_DMA_FREE_IOVA_CALL, NULL},
+    {"kretprobe_iommu_dma_free_iova_call", "iommu_dma_free_iova_call", PROBE_TYPE_KRETPROBE, IOMMU_DMA_FREE_IOVA_CALL, NULL},
+    {"kprobe___iommu_dma_unmap_call", "__iommu_dma_unmap_call", PROBE_TYPE_KPROBE, __IOMMU_DMA_UNMAP_CALL, NULL},
+    {"kretprobe___iommu_dma_unmap_call", "__iommu_dma_unmap_call", PROBE_TYPE_KRETPROBE, __IOMMU_DMA_UNMAP_CALL, NULL},
+    {"kprobe___iommu_dma_unmap", "__iommu_dma_unmap", PROBE_TYPE_KPROBE, __IOMMU_DMA_UNMAP, NULL},
+    {"kretprobe___iommu_dma_unmap", "__iommu_dma_unmap", PROBE_TYPE_KRETPROBE, __IOMMU_DMA_UNMAP, NULL},
     // --- Additions for count functions ---
     {"kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
     {"kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook", "mlx5_core:count_mlx5e_alloc_rx_mpwqe_perpage_hook", PROBE_TYPE_KRETPROBE, COUNT_MLX5E_RX_MPWQE_PER_PAGE,"mlx5_core"},
@@ -202,6 +210,14 @@ const char *func_name_to_string(enum FunctionName fn)
     return "cache_tag_flush_range";
   case CACHE_TAG_FLUSH_RANGE_CALL:
     return "cache_tag_flush_range_call";
+  case IOMMU_DMA_FREE_IOVA:
+    return "iommu_dma_free_iova";
+  case IOMMU_DMA_FREE_IOVA_CALL:
+    return "iommu_dma_free_iova_call";
+  case __IOMMU_DMA_UNMAP_CALL:
+    return "__iommu_dma_unmap_call";
+  case __IOMMU_DMA_UNMAP:
+    return "__iommu_dma_unmap";
   case PAGE_POOL_ALLOC:
     return "page_pool_alloc_netmem";
   case PAGE_POOL_SLOW:

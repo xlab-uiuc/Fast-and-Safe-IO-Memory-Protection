@@ -497,6 +497,54 @@ int BPF_KRETPROBE(kretprobe_after_writel_while_wrapper, void *ret)
     return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
 
+SEC("kprobe/iommu_dma_free_iova")
+int BPF_KPROBE(kprobe_iommu_dma_free_iova, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/iommu_dma_free_iova")
+int BPF_KRETPROBE(kretprobe_iommu_dma_free_iova, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/iommu_dma_free_iova_call")
+int BPF_KPROBE(kprobe_iommu_dma_free_iova_call, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/iommu_dma_free_iova_call")
+int BPF_KRETPROBE(kretprobe_iommu_dma_free_iova_call, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/__iommu_dma_unmap_call")
+int BPF_KPROBE(kprobe___iommu_dma_unmap_call, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/__iommu_dma_unmap_call")
+int BPF_KRETPROBE(kretprobe___iommu_dma_unmap_call, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/__iommu_dma_unmap")
+int BPF_KPROBE(kprobe___iommu_dma_unmap, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/__iommu_dma_unmap")
+int BPF_KRETPROBE(kretprobe___iommu_dma_unmap, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
 SEC("kprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
 int BPF_KPROBE(kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
 {
