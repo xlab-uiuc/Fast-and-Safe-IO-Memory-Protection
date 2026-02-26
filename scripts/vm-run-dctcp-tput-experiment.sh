@@ -479,7 +479,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     save_vm_config_to_report "$current_guest_reports_dir"
 
     log_info "Starting memory collection script..."
-    sudo bash collect-mem-stats.sh "../utils/reports/$exp_name/memory_stats.csv" 0.5 &
+    sudo bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
     mem_pid=$!
     log_info "Memory collection started with PID $mem_pid"
 
