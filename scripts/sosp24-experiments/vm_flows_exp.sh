@@ -150,13 +150,6 @@ for socket_buf in 1; do
                     continue
                 fi
 
-                mkdir -p ../utils/reports/$exp_name
-
-                echo "Starting memory collection script..."
-                sudo bash collect-mem-stats.sh "../utils/reports/$exp_name/memory_stats.csv" &
-                mem_pid=$!
-                echo "Memory collection started with PID $mem_pid"
-
                 sudo bash vm-run-dctcp-tput-experiment.sh \
                     --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
                     --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
@@ -164,9 +157,6 @@ for socket_buf in 1; do
                     --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
                     -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
                     --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS
-
-                echo "Experiment completed, killing memory collection with PID $mem_pid"
-                sudo kill "$mem_pid"
 
                 python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
                 echo $PWD
