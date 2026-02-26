@@ -7,7 +7,7 @@ set -euo pipefail
 OUT="${1:-memory_stats.csv}"
 
 # Time to wait between samples (in seconds)
-WAIT=5
+WAIT="${2:-1}"
 
 # Write header once
 if [[ ! -f "$OUT" ]]; then

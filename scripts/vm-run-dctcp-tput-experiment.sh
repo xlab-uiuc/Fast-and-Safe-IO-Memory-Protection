@@ -478,6 +478,11 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     save_config_to_report_json "$current_guest_reports_dir"
     save_vm_config_to_report "$current_guest_reports_dir"
 
+    log_info "Starting memory collection script..."
+    sudo bash collect-mem-stats.sh "../utils/reports/$exp_name/memory_stats.csv" 0.5 &
+    mem_pid=$!
+    log_info "Memory collection started with PID $mem_pid"
+
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
         log_info "Starting MLC on cores: $MLC_CORES; logs at $guest_mlc_log_file..."
@@ -586,6 +591,10 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     log_info "Logging done."
     log_info "Primary data collection phase on GUEST complete."
+
+    log_info "Killing memory collection with PID $mem_pid"
+    sudo kill "$mem_pid"
+
 
     # --- Save Ftrace Data (Guest & Host) ---
     log_info "Stopping and saving GUEST IOVA ftrace data..."
