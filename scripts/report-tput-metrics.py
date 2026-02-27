@@ -121,9 +121,12 @@ if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {drop_rate}")
 if "acks" in metrics or "all" in metrics:
     print(f"Acks per page: {acks_page}")
-if "mem_mean" in results:
-    print(f"Mean Memory: {results["mem_mean"]}")
-    print(f"Max Memory: {results["mem_max"]}")
+try:
+    # Some runs won't have memory stats
+    print(f"Mean Memory: {results['mem_mean']}")
+    print(f"Max Memory: {results['mem_max']}")
+except:
+    pass
 if "iommu" in metrics or "all" in metrics:
     print("Per page stats:")
     print(f"\tIOTLB Miss: {iotlb_miss_page}")
