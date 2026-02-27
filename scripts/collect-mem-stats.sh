@@ -15,7 +15,7 @@ if [[ ! -f "$OUT" ]]; then
 fi
 
 while true; do
-  ts="$(date -Iseconds)"
+  ts="$(date +"%Y-%m-%d %H:%M:%S.%6N%z")"
   free -b | awk -v ts="$ts" '/^Mem:/{m=$2","$3","$4","$5","$6","$7} /^Swap:/{s=$2","$3","$4} END{print ts","m","s}' >> "$OUT"
   sleep "$WAIT"
 done
