@@ -21,6 +21,7 @@ sent_packets = []
 mem_bws = []
 cpu_utils = []
 mlc_tputs = []
+mem_used = []
 
 pcie_wr_tput = []
 iotlb_first_lookup = []
@@ -48,6 +49,18 @@ for i in range(NUM_RUNS):
             if (tput > 0):
                 net_tputs.append(tput)
             break
+
+    try:
+
+        with open(FILE_NAME + '-RUN-' + str(i) + '/memory_stats.csv') as f1:
+            # Read in CSV data
+            reader = csv.DictReader(f1)
+            for row in reader:
+                mem_used.append(int(row['mem_used']))
+
+    except FileNotFoundError:
+        # No memory stats, do nothing
+        print("No memory stats recorded!")
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/retx.rpt') as f1:
         for line in f1:
@@ -137,6 +150,7 @@ for i in range(NUM_RUNS):
 
 def mean_or_zero(arr): return statistics.mean(arr) if arr else 0
 def stdev_or_zero(arr): return statistics.stdev(arr) if len(arr) > 1 else 0
+def max_or_zero(arr): return max(arr) if len(arr) > 1 else 0
 
 
 cpu_utils_mean = mean_or_zero(cpu_utils);               cpu_utils_stddev = stdev_or_zero(cpu_utils)
@@ -152,6 +166,8 @@ iotlb_miss_mean        = mean_or_zero(iotlb_miss);           iotlb_miss_stddev  
 iommu_mem_access_mean  = mean_or_zero(iommu_mem_access);     iommu_mem_access_stddev  = stdev_or_zero(iommu_mem_access)
 iotlb_inv_mean         = mean_or_zero(iotlb_inv);            iotlb_inv_stddev         = stdev_or_zero(iotlb_inv)
 pwt_occupancy_mean     = mean_or_zero(pwt_occupancy);        pwt_occupancy_stddev     = stdev_or_zero(pwt_occupancy)
+mem_stats_mean = mean_or_zero(mem_stats)
+mem_stats_max = max_or_zero(mem_stats)
 
 mlc_tput_mean = 0
 mlc_tput_stddev = 0
@@ -180,6 +196,8 @@ output_list = [
     ("mlc_tput_mean", 0 if not mlc_tputs else mean_or_zero(mlc_tputs)),
     ("mlc_tput_stddev", 0 if len(mlc_tputs) < 2 else stdev_or_zero(mlc_tputs)),
     ("sent_packets_mean", sent_packets_mean), ("sent_packets_stddev", sent_packets_stddev),
+    ("mem_mean", mem_stats_mean), ("mem_max", mem_stats_max)
+
 ]
 
 headers, outputs = zip(*output_list)

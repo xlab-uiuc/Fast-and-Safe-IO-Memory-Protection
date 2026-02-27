@@ -50,7 +50,7 @@ for i in range(NUM_RUNS):
 
     try:
 
-        with open(ILE_NAME + '-RUN-' + str(i) + '/memory_stats.csv') as f1:
+        with open(FILE_NAME + '-RUN-' + str(i) + '/memory_stats.csv') as f1:
             # Read in CSV data
             reader = csv.DictReader(f1)
             for row in reader:
@@ -58,7 +58,7 @@ for i in range(NUM_RUNS):
 
     except FileNotFoundError:
         # No memory stats, do nothing
-        pass
+        print("No memory stats recorded!")
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/retx.rpt') as f1:
         for line in f1:
