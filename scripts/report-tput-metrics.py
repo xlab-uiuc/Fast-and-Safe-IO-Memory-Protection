@@ -103,6 +103,8 @@ sent_packets = results['sent_packets_mean'] / 20
 drop_rate = results['retx_rate_mean']
 cpu = results['cpu_utils_mean']
 pwt = results['pwt_occupancy_mean']
+mem_mean = results["mem_mean"]
+mem_max = results["mem_max"]
 
 acks_page = per_page(sent_packets, tput)
 iotlb_miss_page = per_page(results['iotlb_miss_mean'], tput)
@@ -131,6 +133,9 @@ if "iommu" in metrics or "all" in metrics:
 
     # Also print the raw IOMMU/IOTLB counters you now export
     print(f"\tPWT Occupancy: {pwt}")
+if "mem" in metrics or "all" in metrics:
+    print(f"Mean Memory: {mem_mean}")
+    print(f"Max Memory: {mem_max}")
 
 get_ebpf_stats(exp_name, tput)
 # If no stddevs (single run), stop here
