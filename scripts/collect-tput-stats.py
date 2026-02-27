@@ -150,8 +150,8 @@ retx_rate_mean = mean_or_zero(retx_rates);              retx_rate_stddev = stdev
 sent_packets_mean = mean_or_zero(sent_packets);         sent_packets_stddev = stdev_or_zero(sent_packets)
 mem_bw_mean = mean_or_zero(mem_bws);                    mem_bw_stddev = stdev_or_zero(mem_bws)
 pcie_wr_tput_mean = mean_or_zero(pcie_wr_tput);         pcie_wr_tput_stddev = stdev_or_zero(pcie_wr_tput)
-mem_stats_mean = mean_or_zero(mem_stats)
-mem_stats_max = max_or_zero(mem_stats)
+mem_stats_mean = mean_or_zero(mem_used)
+mem_stats_max = max_or_zero(mem_used)
 
 iotlb_first_lookup_mean = mean_or_zero(iotlb_first_lookup);  iotlb_first_lookup_stddev = stdev_or_zero(iotlb_first_lookup)
 iotlb_all_lookup_mean  = mean_or_zero(iotlb_all_lookup);     iotlb_all_lookup_stddev  = stdev_or_zero(iotlb_all_lookup)

@@ -3,6 +3,7 @@ import numpy as np
 import statistics
 import subprocess
 import os
+import csv
 
 # TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
 
@@ -166,8 +167,8 @@ iotlb_miss_mean        = mean_or_zero(iotlb_miss);           iotlb_miss_stddev  
 iommu_mem_access_mean  = mean_or_zero(iommu_mem_access);     iommu_mem_access_stddev  = stdev_or_zero(iommu_mem_access)
 iotlb_inv_mean         = mean_or_zero(iotlb_inv);            iotlb_inv_stddev         = stdev_or_zero(iotlb_inv)
 pwt_occupancy_mean     = mean_or_zero(pwt_occupancy);        pwt_occupancy_stddev     = stdev_or_zero(pwt_occupancy)
-mem_stats_mean = mean_or_zero(mem_stats)
-mem_stats_max = max_or_zero(mem_stats)
+mem_stats_mean = mean_or_zero(mem_used)
+mem_stats_max = max_or_zero(mem_used)
 
 mlc_tput_mean = 0
 mlc_tput_stddev = 0
