@@ -52,6 +52,7 @@ CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
 EBPF_TRACING_ENABLED=1 #test
 EBPF_TRACING_HOST_ENABLED=0
+COLLECT_MEM_STATS=0
 
 # --- Guest (Server) Machine Configuration ---
 GUEST_HOME="/home/schai"
@@ -123,6 +124,7 @@ help() {
     echo "    [ --dur <seconds> (Core experiment duration in seconds; default: 20) ]"
     echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
     echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
+    echo "    [ --mem-stats <0|1> (Enable collect-mem-stats.sh; default: 1) ]"
     echo
      echo "Client SSH Configuration"
     echo "    [ --client-ssh-name <uname> (SSH username for client) ]"
@@ -143,7 +145,7 @@ SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
 host-home:,host-ip:,\
-exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
+exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,mem-stats:,\
 client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
 PARSED_OPTS=$(getopt -a -n "$SCRIPT_NAME" --options "$SHORT_OPTS" --longoptions "$LONG_OPTS" -- "$@")
@@ -178,6 +180,7 @@ while :; do
         --dur) CORE_DURATION_S="$2"; shift 2 ;;
         --runs) NUM_RUNS="$2"; shift 2 ;;
         --ebpf-tracing) EBPF_TRACING_ENABLED="$2"; shift 2 ;;
+        --mem-stats) COLLECT_MEM_STATS="$2"; shift 2 ;;
 	--client-ssh-name) CLIENT_SSH_UNAME="$2"; shift 2 ;;
         --client-ssh-host) CLIENT_SSH_HOST="$2"; shift 2 ;;
         --client-ssh-use-pass) CLIENT_USE_PASS_AUTH="$2"; shift 2 ;;
@@ -478,10 +481,12 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     save_config_to_report_json "$current_guest_reports_dir"
     save_vm_config_to_report "$current_guest_reports_dir"
 
-    log_info "Starting memory collection script..."
-    sudo bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
-    mem_pid=$!
-    log_info "Memory collection started with PID $mem_pid"
+    if [ "$COLLECT_MEM_STATS" -eq 1 ]; then
+        log_info "Starting memory collection script..."
+        sudo bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
+        mem_pid=$!
+        log_info "Memory collection started with PID $mem_pid"
+    fi
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
@@ -592,8 +597,10 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Logging done."
     log_info "Primary data collection phase on GUEST complete."
 
-    log_info "Killing memory collection with PID $mem_pid"
-    sudo kill "$mem_pid"
+    if [ "$COLLECT_MEM_STATS" -eq 1 ]; then
+        log_info "Killing memory collection with PID $mem_pid"
+        sudo kill "$mem_pid"
+    fi
 
 
     # --- Save Ftrace Data (Guest & Host) ---
