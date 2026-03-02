@@ -496,6 +496,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     save_vm_config_to_report "$current_guest_reports_dir"
 
     if [ "$COLLECT_MEM_STATS" -eq 1 ]; then
+        log_info "Killing memory-intensive programs..."
+        sudo killall -9 code node 2>/dev/null || true
+        sudo killall -9 cursor cursor-server 2>/dev/null || true
         log_info "Starting memory collection script..."
         bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
         mem_pid=$!
