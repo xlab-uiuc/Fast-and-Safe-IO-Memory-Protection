@@ -217,6 +217,20 @@ else
         SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE ${HOST_SSH_UNAME}@${HOST_IP}"
 fi
 
+mem_pid=""
+cleanup_mem_stats() {
+    if [ "$COLLECT_MEM_STATS" -eq 1 ] && [ -n "$mem_pid" ]; then
+        log_info "Killing memory collection (PID $mem_pid)..."
+        sudo kill "$mem_pid" 2>/dev/null || true
+        sudo pkill -P "$mem_pid" 2>/dev/null || true
+        # Fallback: kill by script name in case PID tracking lost the child
+        sudo pkill -f "collect-mem-stats.sh" 2>/dev/null || true
+        wait "$mem_pid" 2>/dev/null || true
+        mem_pid=""
+    fi
+}
+trap cleanup_mem_stats EXIT
+
 log_info() {
     echo "[INFO-$(date +%Y-%m-%d-%H:%M:%S)] - $1"
 }
@@ -483,7 +497,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     if [ "$COLLECT_MEM_STATS" -eq 1 ]; then
         log_info "Starting memory collection script..."
-        sudo bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
+        bash collect-mem-stats.sh "$current_guest_reports_dir/memory_stats.csv" 0.5 &
         mem_pid=$!
         log_info "Memory collection started with PID $mem_pid"
     fi
@@ -597,10 +611,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Logging done."
     log_info "Primary data collection phase on GUEST complete."
 
-    if [ "$COLLECT_MEM_STATS" -eq 1 ]; then
-        log_info "Killing memory collection with PID $mem_pid"
-        sudo kill "$mem_pid"
-    fi
+    cleanup_mem_stats
 
 
     # --- Save Ftrace Data (Guest & Host) ---
