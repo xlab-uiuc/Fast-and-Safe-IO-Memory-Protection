@@ -11,7 +11,16 @@ MEM_FILE = "memory_stats.csv"
 # Contains name and file tuples
 files = []
 
-def read_row(row) -> tuple[int, int]:
+# All X data retrievd from the experiments
+X_DATA = []
+
+# Used stats for each experiment
+USED = []
+
+# Buff stats for each experiment
+BUFF = []
+
+def read_row(row):
 
     # Convert the timestamp into epoch
 
@@ -35,11 +44,14 @@ for i in range(1, len(sys.argv), 2):
     # Name of this experiment on the graph
     name = str(sys.argv[i])
 
+    files.append(name)
+
     # Path to memory stats
     path = "../utils/reports/" + sys.argv[i+1] + "/" + MEM_FILE
 
     x_tmp = []
     y_tmp = []
+    buff_tmp = []
 
     with open(path) as f:
 
@@ -53,13 +65,33 @@ for i in range(1, len(sys.argv), 2):
             x_tmp.append(num)
             y_tmp.append(y)
 
+            buff_tmp.append(int(int(row['mem_buff_cache']) / (1024 ** 2)))
+
     print(x_tmp)
     print(y_tmp)
 
-    plt.plot(x_tmp, y_tmp, label=name)
+    X_DATA.append(x_tmp)
+    USED.append(y_tmp)
+    BUFF.append(buff_tmp)
+
+for num, exp in enumerate(USED):
+
+    plt.plot(X_DATA[num], exp, label=files[num])
 
 plt.ylabel("Memory Usage (MB)")
 plt.xlabel("Samples")
 plt.title("Memory Consumption Over Time")
 plt.legend()
-plt.savefig("mem_fig.png")
+plt.savefig("mem_fig_use.png")
+
+plt.clf()
+
+for num, exp in enumerate(BUFF):
+
+    plt.plot(X_DATA[num], exp, label=files[num])
+
+plt.ylabel("Buffer Cache Usage (MB)")
+plt.xlabel("Samples")
+plt.title("Buffer Cache Usage Over Time")
+plt.legend()
+plt.savefig("mem_fig_buff.png")
