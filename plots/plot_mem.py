@@ -92,8 +92,8 @@ def plot_fig(fig):
 plot_data = [
     {"name": "Async+DFP", "color": "#F0E442", "tag": "2026-03-02-17-51-36-6.12.9-iommufd-vanilla-nested-conf-call-flow24-host-strict-guest-strict-nested-24cores-RUN-0"},
     {"name": "Async", "color": "#56B4E9", "tag": "2026-03-02-17-57-43-6.12.9-iommufd-vanilla-nested-conf-call-flow24-host-strict-guest-strict-nested-24cores-RUN-0"},
-    {"name": "Off", "#0072B2": "tmp", "tag": "2026-03-02-17-06-26-6.12.9-iommufd-flow16-host-strict-guest-off-off-16cores-RUN-0"},
-    {"name": "Nested", "#009E73": "tmp", "tag": "2026-03-02-16-56-42-6.12.9-iommufd-flow16-host-strict-guest-strict-nested-16cores-RUN-0"}
+    {"name": "Off", "color": "#0072B2", "tag": "2026-03-02-17-06-26-6.12.9-iommufd-flow16-host-strict-guest-off-off-16cores-RUN-0"},
+    {"name": "Nested", "color": "#009E73", "tag": "2026-03-02-16-56-42-6.12.9-iommufd-flow16-host-strict-guest-strict-nested-16cores-RUN-0"}
 ]
 
 plot_fig(plot_data)
