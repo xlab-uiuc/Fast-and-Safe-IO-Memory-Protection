@@ -19,6 +19,7 @@ INTF=enp8s0
 
 PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
 
+PERF_PATH="/home/schai/linux-6.12.9/tools/perf/perf"
 cur_dir=$PWD
 
 help()
@@ -83,13 +84,18 @@ mkdir -p reports/$OUT_DIR #Directory to store parsed metrics
 
 function dump_netstat() {
     local SLEEP_TIME=$1
+    local interface=$2
 
     echo "Before measurement"
     netstat -s
+    sudo ip -s link show dev $interface
+
     echo "Sleeping..."
     sleep $SLEEP_TIME
+
     echo "After measurement"
     netstat -s
+    sudo ip -s link show dev $interface
 }
 
 function dump_pciebw() {
@@ -258,9 +264,11 @@ if [ "$TYPE" -eq 0 ]; then
 
     if [ "$RETX_REPORTING" -eq 1 ]; then
       echo "Collecting retransmission rate..."
-      dump_netstat $DURATION_S > logs/$OUT_DIR/retx.log
-      cat logs/$OUT_DIR/retx.log | grep -E "segment|TCPLostRetransmit" > retx.out
-      python3 print_retx_rate.py retx.out $DURATION_S > reports/$OUT_DIR/retx.rpt
+      dump_netstat $DURATION_S $INTF > logs/$OUT_DIR/retx.log
+      python3 print_retx_rate.py logs/$OUT_DIR/retx.log $DURATION_S > reports/$OUT_DIR/retx.rpt
+      # dump_netstat $DURATION_S $INTF > logs/$OUT_DIR/retx.log
+      # cat logs/$OUT_DIR/retx.log | grep -E "segment|TCPLostRetransmit" > retx.out
+      # python3 print_retx_rate.py retx.out $DURATION_S > reports/$OUT_DIR/retx.rpt
     fi
 
     if [ "$TCP_LOG_REPORTING" -eq 1 ]; then
@@ -319,11 +327,13 @@ fi
 if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
     sudo rm -f out.perf-folded
     echo "Creating Flame Graph..."
-    sudo perf record -C $CPU_MASK -g -F 99 -- sleep $DURATION_S
-    sudo perf script | $DEP_DIR/FlameGraph/stackcollapse-perf.pl > out.perf-folded
+    sudo $PERF_PATH record -C $CPU_MASK -g -F 99 -- sleep $DURATION_S
+    sudo $PERF_PATH script | $DEP_DIR/FlameGraph/stackcollapse-perf.pl > out.perf-folded
     sudo $DEP_DIR/FlameGraph/flamegraph.pl out.perf-folded > logs/$OUT_DIR/perf-kernel-flame.svg
+
+    echo "Results saved to $(realpath logs/$OUT_DIR/perf-kernel-flame.svg)"
     # also collect cache miss rates
-    sudo perf stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
+    sudo $PERF_PATH stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
     #loadmisses=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load-misses" | awk '{ printf $1 }')
     #loads=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load " | awk '{ printf $1 }')
 fi
