@@ -166,12 +166,12 @@ for socket_buf in 1; do
                 for z in $run_list; do
                     if [ "$z" != "default" ]; then
                         # DLF Setup
-                        exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}-zval${z}"
+                        exp_name="${timestamp}-$(uname -r)-RX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}-zval${z}"
                         echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
                         echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
                     else
                         # Standard Setup
-                        exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
+                        exp_name="${timestamp}-$(uname -r)-RX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
                     fi
 
                     echo $exp_name
