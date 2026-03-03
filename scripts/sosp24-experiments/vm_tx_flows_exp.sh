@@ -1,5 +1,9 @@
 #!/bin/bash
-cd ..
+# Ensure we are in the scripts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Assuming the script is in scripts/sosp24-experiments/
+# We want to go to scripts/
+cd "$SCRIPT_DIR/.." || exit 1
 echo "Running flow experiment... this may take a few minutes"
 
 # Add dry run flag
@@ -123,66 +127,75 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-iommu_config="host-${guest_iommu_config}-guest-${host_iommu_config}-$virt_tech"
-
+iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"
 echo "iommu_config: $iommu_config"
-# exit 0
-# pause the frame
-sudo ethtool --pause $GUEST_INTF tx off rx off
-$SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
-$SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
-
-sleep 1
 
 client_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
-N_RUNS=3
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 
-# echo 1 | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
+N_RUNS=5
+Z_LIST_DLF="1"
+
 for socket_buf in 1; do
     for ring_buffer in 512; do
-        for z in 1; do
-
-            echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
-
-            for i in 4 8 16 24 28 32; do
-            # for i in 1; do
-
-                echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
-
-                num_cores=$i
+        for i in 1; do
+            # for num_cores in 1 4 8 12 16 20 24; do
+            for num_cores in 1 4 8 12 16 20 24 28 32; do
                 client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
-                format_i=$(printf "%02d\n" $i)
-                exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-zval${z}"
-                # exp_name="TEST"
-                echo $exp_name
+                n_val=$(( i * num_cores ))
+                # echo $n_val
+                format_i=$(printf "%02d\n" $n_val)
 
-                if [ "$DRY_RUN" -eq 1 ]; then
-                    continue
+                # Check for leader_max_flushes to determine mode
+                if sudo test -f "/sys/kernel/debug/iommu/leader_max_flushes"; then
+                    # DLF Mode
+                    z_list="$Z_LIST_DLF"
+                else
+                    # Standard Mode
+                    z_list=""
                 fi
-                sudo mkdir -p ../utils/reports/$exp_name
 
-                sudo bash vm-tx-run-dctcp-tput-experiment.sh \
-                --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$i" -c $server_cores_mask \
-                --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$i" -C $client_cores_mask \
-                --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
-                --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
-                -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
-                --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS | sudo tee ../utils/reports/$exp_name/experiment.log
+                run_list="$z_list"
+                if [ -z "$run_list" ]; then run_list="default"; fi
 
-                python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
-                echo $PWD
-                cd ../utils/reports/$exp_name
+                for z in $run_list; do
+                    if [ "$z" != "default" ]; then
+                        # DLF Setup
+                        exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}-zval${z}"
+                        echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
+                        echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
+                    else
+                        # Standard Setup
+                        exp_name="${timestamp}-$(uname -r)-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
+                    fi
 
-                sudo bash -c "cat /sys/kernel/debug/tracing/trace > iova.log"
+                    echo $exp_name
+                    echo "Running $exp_name" "N_RUN=$N_RUNS"
 
-                cd -
-                sudo chmod +666 -R ../utils/reports/$exp_name
+                    if [ "$DRY_RUN" -eq 1 ]; then
+                        continue
+                    fi
 
+                    sudo mkdir -p ../utils/reports/$exp_name
+                    sudo bash vm-tx-run-dctcp-tput-experiment.sh \
+                        --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
+                        --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
+                        --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
+                        --client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" --client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" --client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+                        -e "$exp_name" -m 4000 -r $ring_buffer -b "400g" -d 1\
+                        --socket-buf $socket_buf --mlc-cores 'none' --runs $N_RUNS 2>&1 | sudo tee ../utils/reports/$exp_name/experiment.log
+
+                    python3 report-tput-metrics.py $exp_name tput,drops,acks,iommu,cpu | sudo tee ../utils/reports/$exp_name/summary.txt
+                    echo $PWD
+                    cd ../utils/reports/$exp_name
+
+                    cd -
+                    sudo chmod +666 -R ../utils/reports/$exp_name
+                done
             done
         done
     done

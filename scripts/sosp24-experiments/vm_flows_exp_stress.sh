@@ -133,12 +133,12 @@ echo "iommu_config: $iommu_config"
 client_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
-# TO debug
-# sudo bash -c "echo 8 > /proc/sys/kernel/printk"
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 
 N_RUNS=5
+Z_LIST_DLF="1"
+
 for socket_buf in 1; do
     for ring_buffer in 512; do
         for i in 1 2 4 8; do
@@ -154,7 +154,7 @@ for socket_buf in 1; do
                 # Check for leader_max_flushes to determine mode
                 if sudo test -f "/sys/kernel/debug/iommu/leader_max_flushes"; then
                     # DLF Mode
-                    z_list="1 10 100"
+                    z_list="$Z_LIST_DLF"
                 else
                     # Standard Mode
                     z_list=""
