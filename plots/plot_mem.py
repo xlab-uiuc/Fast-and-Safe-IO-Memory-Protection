@@ -181,7 +181,7 @@ plot_data = [
     {"name": "Async+DFP", "color": "#F0E442", "tag": "2026-03-05-16-11-28-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
     {"name": "Async", "color": "#56B4E9", "tag": "2026-03-05-16-16-15-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
     {"name": "Off", "color": "#0072B2", "tag": "2026-03-05-16-21-03-6.12.9-iommufd-RX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
-    {"name": "Nested", "color": "#009E73", "tag": "2026-03-05-16-25-47-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1"}
+    {"name": "Nested", "color": "#009E73", "tag": "2026-03-05-16-25-47-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-RUN-0"}
 ]
 
 plot_fig(plot_data)
