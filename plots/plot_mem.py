@@ -54,6 +54,9 @@ def plot_fig(fig, output_dir=None):
     # Buff stats for each experiment
     BUFF = []
 
+    # tx_active_pages stats for each experiment
+    TX_ACTIVE_PAGES = []
+
     for exp in fig:
 
         # Path to memory stats
@@ -62,6 +65,7 @@ def plot_fig(fig, output_dir=None):
         x_tmp = []
         y_tmp = []
         buff_tmp = []
+        tx_tmp = []
 
         with open(path) as f:
 
@@ -77,12 +81,16 @@ def plot_fig(fig, output_dir=None):
 
                 buff_tmp.append(int(int(row['mem_buff_cache']) / (1024 ** 2)))
 
+                tx_val = row.get('tx_active_pages', '-1')
+                tx_tmp.append(int(tx_val) if tx_val and int(tx_val) >= 0 else np.nan)
+
         print(x_tmp)
         print(y_tmp)
 
         X_DATA.append(x_tmp)
         USED.append(y_tmp)
         BUFF.append(buff_tmp)
+        TX_ACTIVE_PAGES.append(tx_tmp)
 
     # --- Memory Usage plot ---
     plt.figure(figsize=(7.0, 3.2))
@@ -140,12 +148,40 @@ def plot_fig(fig, output_dir=None):
     print(f'Saved plot to {buff_path}')
     plt.close()
 
+    # --- tx_active_pages plot ---
+    plt.figure(figsize=(7.0, 3.2))
+
+    for num, exp in enumerate(TX_ACTIVE_PAGES):
+        plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
+
+    plt.ylabel("TX Active Pages", fontsize=9)
+    plt.xlabel("Samples", fontsize=9)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.legend(loc='upper left',
+               ncol=1,
+               fontsize=7,
+               frameon=True,
+               framealpha=0.85,
+               edgecolor='#cccccc',
+               borderpad=0.4,
+               labelspacing=0.25,
+               handlelength=1.4,
+               handletextpad=0.4)
+    plt.tight_layout(pad=0.4)
+
+    tx_path = os.path.join(output_dir, "mem_fig_tx_active_pages.pdf") if output_dir else "mem_fig_tx_active_pages.pdf"
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(tx_path, bbox_inches='tight', format='pdf')
+    print(f'Saved plot to {tx_path}')
+    plt.close()
+
 # TODO: Rerun with 24 cores in vanilla case 
 plot_data = [
-    {"name": "Async+DFP", "color": "#F0E442", "tag": "2026-03-02-17-51-36-6.12.9-iommufd-vanilla-nested-conf-call-flow24-host-strict-guest-strict-nested-24cores-RUN-0"},
-    {"name": "Async", "color": "#56B4E9", "tag": "2026-03-02-17-57-43-6.12.9-iommufd-vanilla-nested-conf-call-flow24-host-strict-guest-strict-nested-24cores-RUN-0"},
-    {"name": "Off", "color": "#0072B2", "tag": "2026-03-02-19-44-07-6.12.9-iommufd-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
-    {"name": "Nested", "color": "#009E73", "tag": "2026-03-02-19-48-57-6.12.9-iommufd-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-RUN-0"}
+    {"name": "Async+DFP", "color": "#F0E442", "tag": "2026-03-05-16-11-28-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    {"name": "Async", "color": "#56B4E9", "tag": "2026-03-05-16-16-15-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    {"name": "Off", "color": "#0072B2", "tag": "2026-03-05-16-21-03-6.12.9-iommufd-RX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
+    {"name": "Nested", "color": "#009E73", "tag": "2026-03-05-16-25-47-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1"}
 ]
 
 plot_fig(plot_data)
