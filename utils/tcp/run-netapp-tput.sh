@@ -52,6 +52,9 @@ done
 
 IFS=',' read -ra core_values <<< $CPU_MASK
 
+IFS='-' read -ra out_dir_parts <<< $OUT_DIR
+EXP_NAME="${out_dir_parts[0]}"
+
 mkdir -p ../reports #Directory to store collected logs
 mkdir -p ../reports/$OUT_DIR #Directory to store collected logs
 mkdir -p ../logs #Directory to store collected logs
@@ -78,12 +81,13 @@ if [ "$MODE" = "server" ]; then
     echo "collecting stats..."
     collect_stats
 elif [ "$MODE" = "client" ]; then
-    sudo pkill -9 -f iperf #kill existing iperf servers/clients
+    # sudo pkill -9 -f iperf #kill existing iperf servers/clients
+
     while [ $counter -lt $NUM_CLIENTS ]; do
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
-        echo "Starting client $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -t 10000 -C dctcp -b $BANDWIDTH &
+        echo "Starting client $counter on core $core with name iperf_$EXP_NAME"
+        taskset -c $core nice -n -20 bash -c "exec -a iperf_$EXP_NAME iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -t 10000 -C dctcp -b $BANDWIDTH &"
         ((counter++))
     done
 else
