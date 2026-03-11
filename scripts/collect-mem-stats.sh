@@ -22,14 +22,26 @@ read_tx_active_pages() {
   fi
 }
 
+read_rx_active_pages() {
+  local counter_file
+
+  counter_file="$(compgen -G '/sys/kernel/debug/mlx5/*/pages/dma_counters/rx_active' | head -n1 || true)"
+  if [[ -n "${counter_file}" && -r "${counter_file}" ]]; then
+    cat "${counter_file}"
+  else
+    echo "-1"
+  fi
+}
+
 # Write header once
 if [[ ! -f "$OUT" ]]; then
-  echo "timestamp,mem_total,mem_used,mem_free,mem_shared,mem_buff_cache,mem_available,swap_total,swap_used,swap_free,tx_active_pages" > "$OUT"
+  echo "timestamp,mem_total,mem_used,mem_free,mem_shared,mem_buff_cache,mem_available,swap_total,swap_used,swap_free,tx_active_pages,rx_active_pages" > "$OUT"
 fi
 
 while true; do
   ts="$(date +"%Y-%m-%d %H:%M:%S.%6N%z")"
   tx_active_pages="$(read_tx_active_pages)"
-  free -b | awk -v ts="$ts" -v tx="$tx_active_pages" '/^Mem:/{m=$2","$3","$4","$5","$6","$7} /^Swap:/{s=$2","$3","$4} END{print ts","m","s","tx}' >> "$OUT"
+  rx_active_pages="$(read_rx_active_pages)"
+  free -b | awk -v ts="$ts" -v tx="$tx_active_pages" -v rx="$rx_active_pages" '/^Mem:/{m=$2","$3","$4","$5","$6","$7} /^Swap:/{s=$2","$3","$4} END{print ts","m","s","tx","rx}' >> "$OUT"
   sleep "$WAIT"
 done
