@@ -330,6 +330,7 @@ post_exp_cleanup() {
 
 
 cleanup() {
+    local out_dir=$1
     log_info "--- Starting Cleanup Phase ---"
 
     log_info "Killing local 'loaded_latency', 'iperf', and 'perf record' processes..."
@@ -370,7 +371,7 @@ cleanup() {
     $SSH_CLIENT_CMD \
         "screen -ls | grep -E '\.client_session_${uuid}|\.logging_session_client_${uuid}' | cut -d. -f1 | xargs -r -I % screen -S % -X quit"
     $SSH_CLIENT_CMD \
-        'sudo pkill -9 -f iperf; screen -wipe || true'
+        'sudo pkill -9 -f iperf_${out_dir}; screen -wipe || true'
     $SSH_HOST_CMD \
 	"screen -ls | grep -E '\.host_session_${uuid}|\.perf_screen_${uuid}|\.perf_kvm_screen_${uuid}|\.perf_sched_screen_${uuid}|\.logging_session_host_${uuid}' | cut -d. -f1 | xargs -r -I % screen -S % -X quit"
     $SSH_HOST_CMD \
@@ -493,7 +494,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     $SSH_HOST_CMD "sudo mkdir -p '$host_reports_dir_remote'"
 
     # --- Pre-run cleanup ---
-    cleanup
+    cleanup ${EXP_NAME}-RUN-${j}
 
     # --- Add config to reports ---
     save_config_to_report_json "$current_guest_reports_dir"
@@ -699,7 +700,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 done
 
 # --- Post-run cleanup ---
-cleanup
+cleanup ${EXP_NAME}-RUN-${j}
 post_exp_cleanup
 
 if [ "$MLC_CORES" != "none" ]; then
