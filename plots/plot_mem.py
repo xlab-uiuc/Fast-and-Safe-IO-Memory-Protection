@@ -57,6 +57,9 @@ def plot_fig(fig, output_dir=None):
     # tx_active_pages stats for each experiment
     TX_ACTIVE_PAGES = []
 
+    # rx_active stats for each experiment
+    RX_ACTIVE_PAGES = []
+
     for exp in fig:
 
         # Path to memory stats
@@ -66,6 +69,7 @@ def plot_fig(fig, output_dir=None):
         y_tmp = []
         buff_tmp = []
         tx_tmp = []
+        rx_tmp = []
 
         with open(path) as f:
 
@@ -84,6 +88,9 @@ def plot_fig(fig, output_dir=None):
                 tx_val = row.get('tx_active_pages', '-1')
                 tx_tmp.append(int(tx_val) if tx_val and int(tx_val) >= 0 else np.nan)
 
+                rx_val = row.get('rx_active_pages', '-1')
+                rx_tmp.append(int(rx_val) if rx_val and int(rx_val) >= 0 else np.nan)
+
         print(x_tmp)
         print(y_tmp)
 
@@ -91,6 +98,7 @@ def plot_fig(fig, output_dir=None):
         USED.append(y_tmp)
         BUFF.append(buff_tmp)
         TX_ACTIVE_PAGES.append(tx_tmp)
+        RX_ACTIVE_PAGES.append(rx_tmp)
 
     # --- Memory Usage plot ---
     plt.figure(figsize=(7.0, 3.2))
@@ -175,6 +183,42 @@ def plot_fig(fig, output_dir=None):
     plt.savefig(tx_path, bbox_inches='tight', format='pdf')
     print(f'Saved plot to {tx_path}')
     plt.close()
+
+    # --- tx_active_pages+rx_active plot ---
+    plt.figure(figsize=(7.0, 3.2))
+
+    for num, exp in enumerate(TX_ACTIVE_PAGES):
+
+        # Sum the values in RX and TX together
+
+        total_pages = []
+        for val in range(exp):
+            total_pages.append(exp[num] + RX_ACTIVE_PAGES[num][val])
+
+        plt.plot(X_DATA[num], total_pages, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
+
+    plt.ylabel("TX+RX Active Pages", fontsize=9)
+    plt.xlabel("Samples", fontsize=9)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.legend(loc='upper left',
+               ncol=1,
+               fontsize=7,
+               frameon=True,
+               framealpha=0.85,
+               edgecolor='#cccccc',
+               borderpad=0.4,
+               labelspacing=0.25,
+               handlelength=1.4,
+               handletextpad=0.4)
+    plt.tight_layout(pad=0.4)
+
+    tx_rx_path = os.path.join(output_dir, "mem_fig_tx_rx_active_pages.pdf") if output_dir else "mem_fig_tx_rx_active_pages.pdf"
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(tx_rx_path, bbox_inches='tight', format='pdf')
+    print(f'Saved plot to {tx_rx_path}')
+    plt.close()
+
 
 # TODO: Rerun with 24 cores in vanilla case 
 plot_data = [
