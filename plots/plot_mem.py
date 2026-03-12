@@ -192,7 +192,7 @@ def plot_fig(fig, output_dir=None):
         # Sum the values in RX and TX together
 
         total_pages = []
-        for val in range(exp):
+        for val in range(len(exp)):
             total_pages.append(exp[num] + RX_ACTIVE_PAGES[num][val])
 
         plt.plot(X_DATA[num], total_pages, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
