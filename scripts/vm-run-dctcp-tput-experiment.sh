@@ -323,7 +323,7 @@ post_exp_cleanup() {
 
     log_info "Resetting HOST..."
     $SSH_HOST_CMD \
-        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host-many.sh"
     
     log_info "--- Post-experiment Cleanup Phase Finished ---"
 }
