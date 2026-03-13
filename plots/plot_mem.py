@@ -80,7 +80,7 @@ def plot_fig(fig, output_dir=None):
 
                 x, y = read_row(row)
 
-                x_tmp.append(num)
+                x_tmp.append(num * 0.5)
                 y_tmp.append(y)
 
                 buff_tmp.append(int(int(row['mem_buff_cache']) / (1024 ** 2)))
@@ -107,7 +107,7 @@ def plot_fig(fig, output_dir=None):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
     plt.ylabel("Memory Usage (MB)", fontsize=9)
-    plt.xlabel("Samples", fontsize=9)
+    plt.xlabel("Seconds", fontsize=9)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -135,7 +135,7 @@ def plot_fig(fig, output_dir=None):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
     plt.ylabel("Buffer Cache Usage (MB)", fontsize=9)
-    plt.xlabel("Samples", fontsize=9)
+    plt.xlabel("Seconds", fontsize=9)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -163,7 +163,7 @@ def plot_fig(fig, output_dir=None):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
     plt.ylabel("TX Active Pages", fontsize=9)
-    plt.xlabel("Samples", fontsize=9)
+    plt.xlabel("Seconds", fontsize=9)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -192,13 +192,13 @@ def plot_fig(fig, output_dir=None):
         # Sum the values in RX and TX together
 
         total_pages = []
-        for val in range(exp):
+        for val in range(len(exp)):
             total_pages.append(exp[num] + RX_ACTIVE_PAGES[num][val])
 
         plt.plot(X_DATA[num], total_pages, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
     plt.ylabel("TX+RX Active Pages", fontsize=9)
-    plt.xlabel("Samples", fontsize=9)
+    plt.xlabel("Seconds", fontsize=9)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -222,10 +222,10 @@ def plot_fig(fig, output_dir=None):
 
 # TODO: Rerun with 24 cores in vanilla case 
 plot_data = [
-    {"name": "Async+DFP", "color": "#F0E442", "tag": "2026-03-05-16-11-28-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
-    {"name": "Async", "color": "#56B4E9", "tag": "2026-03-05-16-16-15-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
-    {"name": "Off", "color": "#0072B2", "tag": "2026-03-05-16-21-03-6.12.9-iommufd-RX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
-    {"name": "Nested", "color": "#009E73", "tag": "2026-03-05-16-25-47-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-RUN-0"}
+    {"name": "Deligated+DFP", "color": "#F0E442", "tag": "2026-03-12-15-17-07-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    {"name": "Deligated", "color": "#56B4E9", "tag": "2026-03-12-15-12-02-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    #{"name": "Off", "color": "#0072B2", "tag": "2026-03-12-15-22-13-6.12.9-iommufd-RX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
+    #{"name": "Nested", "color": "#009E73", "tag": "2026-03-12-15-27-19-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-RUN-0"}
 ]
 
 plot_fig(plot_data)
