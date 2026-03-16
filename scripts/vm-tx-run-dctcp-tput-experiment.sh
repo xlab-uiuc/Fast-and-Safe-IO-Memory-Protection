@@ -656,4 +656,6 @@ else
     sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
+sync
+sleep 1
 log_info "Experiment $EXP_NAME finished."
