@@ -10,6 +10,7 @@ CPU_MASK=0
 RETX_REPORTING=1
 TCP_LOG_REPORTING=0
 FLAMEGRAPH_REPORTING=0
+PERCORE_FLAMEGRAPH=1
 BANDWIDTH_REPORTING=1
 PCIE_REPORTING=1
 MEMBW_REPORTING=1
@@ -33,6 +34,7 @@ help()
                [ --tcplog (=0/1, disable/enable recording TCP log (should be done at TCP senders) ) ] 
                [ --bw (=0/1, disable/enable recording app-level bandwidth ) ] 
                [ -f | --flame (=0/1, disable/enable recording flamegraph (for cores specified via -C/--cores option) ) ] 
+               [ --percore-flame (=0/1, disable/enable per-core flamegraph breakdown (requires --flame=1) ) ] 
                [ --pcie (=0/1, disable/enable recording PCIe bandwidth) ] 
                [ --membw (=0/1, disable/enable recording memory bandwidth) ] 
                [ --iio (=0/1, disable/enable recording IIO occupancy) ] 
@@ -44,7 +46,7 @@ help()
 }
 
 SHORT=o:,c:,f:,t:,h
-LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
+LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
 OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -65,6 +67,7 @@ while :; do
     --tcplog) TCP_LOG_REPORTING="$2"; shift 2 ;;
     --bw) BANDWIDTH_REPORTING="$2"; shift 2 ;;
     -f | --flame) FLAMEGRAPH_REPORTING="$2"; shift 2 ;;
+    --percore-flame) PERCORE_FLAMEGRAPH="$2"; shift 2 ;;
     --pcie) PCIE_REPORTING="$2"; shift 2 ;;
     --membw) MEMBW_REPORTING="$2"; shift 2 ;;
     --iio) IIO_REPORTING="$2"; shift 2 ;;
@@ -258,8 +261,8 @@ if [ "$TYPE" -eq 0 ]; then
     fi
 
     if [ "$BANDWIDTH_REPORTING" -eq 1 ]; then
-      echo "Collecting app bandwidth..."
-      echo "Avg_iperf_tput: " $(cat logs/$OUT_DIR/iperf.bw.log | grep "60.*-90.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
+      echo "Collecting app bandwidth... (no op)"
+      # echo "Avg_iperf_tput: " $(cat logs/$OUT_DIR/iperf.bw.log | grep "60.*-90.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
     fi
 
     if [ "$RETX_REPORTING" -eq 1 ]; then
@@ -325,13 +328,42 @@ if [ "$IIO_REPORTING" -eq 1 ]; then
 fi
 
 if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
-    sudo rm -f out.perf-folded
+    sudo rm -f logs/$OUT_DIR/out.perf-folded
+    sudo rm -f perf.data
     echo "Creating Flame Graph..."
-    sudo $PERF_PATH record -C $CPU_MASK -g -F 99 -- sleep $DURATION_S
-    sudo $PERF_PATH script | $DEP_DIR/FlameGraph/stackcollapse-perf.pl > out.perf-folded
-    sudo $DEP_DIR/FlameGraph/flamegraph.pl out.perf-folded > logs/$OUT_DIR/perf-kernel-flame.svg
 
-    echo "Results saved to $(realpath logs/$OUT_DIR/perf-kernel-flame.svg)"
+    # hack collect the last CPU
+    COLLECT_CPU_MASK=$CPU_MASK"31"
+
+    echo "Collecting flamegraph for cores $COLLECT_CPU_MASK..."
+    sudo $PERF_PATH record -o logs/$OUT_DIR/perf.data -C $COLLECT_CPU_MASK -g -F 99 -- sleep $DURATION_S
+
+    # sudo $PERF_PATH script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
+    # sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
+    # sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
+
+    # echo "Flamegraph Results saved to $(realpath reports/$OUT_DIR/perf-kernel-flame.svg)"
+
+    # Generate per-core flamegraphs
+    if [ "$PERCORE_FLAMEGRAPH" -eq 1 ]; then
+        # IFS=',' read -ra CORES <<< "$CPU_MASK"
+        # for core in "${CORES[@]}"; do
+        for core in 4 31; do
+            # core=$(echo "$core" | xargs)
+            # if [ -z "$core" ]; then continue; fi
+
+            echo "Generating flamegraph for core $core..."
+            sudo $PERF_PATH script -C "$core" -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.cpu$core.txt
+            if [ -s logs/$OUT_DIR/perf.data.cpu$core.txt ]; then
+                sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.cpu$core.txt > logs/$OUT_DIR/out.perf-folded.cpu$core
+                sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded.cpu$core > reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg
+                echo "  Saved to reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg"
+            else
+                echo "  No samples found for core $core"
+            fi
+        done
+    fi
+    
     # also collect cache miss rates
     sudo $PERF_PATH stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
     #loadmisses=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load-misses" | awk '{ printf $1 }')
