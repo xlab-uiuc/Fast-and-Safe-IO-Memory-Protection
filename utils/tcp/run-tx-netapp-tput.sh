@@ -58,10 +58,6 @@ mkdir -p ../logs #Directory to store collected logs
 mkdir -p ../logs/$OUT_DIR #Directory to store collected logs
 rm -f ../logs/$OUT_DIR/iperf.bw.log
 
-function collect_stats() {
-  echo "Collecting app throughput for TCP server..."
-  echo "Avg_iperf_tput: " $(cat ../logs/$OUT_DIR/iperf.bw.log | grep "30.*-60.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > ../reports/$OUT_DIR/iperf.bw.rpt
-}
 
 counter=0
 if [ "$MODE" = "server" ]; then
@@ -82,10 +78,6 @@ elif [ "$MODE" = "client" ]; then
         taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -i 30 -f m -t 10000 -C dctcp -b $BANDWIDTH --logfile ../logs/$OUT_DIR/iperf.bw.log &
         ((counter++))
     done
-    echo "waiting for few minutes before collecting stats..."
-    sleep 120
-    echo "collecting stats..."
-    collect_stats
 else
     echo "incorrect argument specified"
     help

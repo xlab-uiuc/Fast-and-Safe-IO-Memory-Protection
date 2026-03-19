@@ -46,10 +46,11 @@ pwt_occupancy = []
 for i in range(NUM_RUNS):
     with open(FILE_NAME + '-RUN-' + str(i) + '/iperf.bw.rpt') as f1:
         for line in f1:
-            tput = float(line.split()[-1])
-            if (tput > 0):
-                net_tputs.append(tput)
-            break
+            if line.startswith('Avg_iperf_tput:'):
+                tput = float(line.split()[-1])
+                if tput > 0:
+                    net_tputs.append(tput)
+                break
 
     try:
 
