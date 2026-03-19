@@ -5,10 +5,14 @@ import glob
 import os
 import pandas as pd
 
-color_off = '#0072B2'
-color_nested = '#009E73'
-color_shadow = '#CC79A7'
-color_optimization ='#F0E442'
+default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
+                     '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+                     '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+
+color_off = default_colors[0]
+color_nested = default_colors[1]
+color_shadow = default_colors[2]    
+color_optimization = default_colors[3]
 
 def calculate_plot_params(num_x_labels, num_series):
     """
@@ -348,27 +352,113 @@ def get_ebpf_stats_from_csv(path, tput, profile_duration=20):
     
     return run_stats
 
-def get_ebpf_single_run(exp_name, run_id, tput):
+# def get_ebpf_single_run(exp_name, run_id, tput):
+#     """Get eBPF stats for a single run."""
+#     file = exp_name + "-RUN-" + str(run_id) + "/ebpf_guest_stats.csv"
+#     if not os.path.exists(file):
+#         print(f"File {file} does not exist")
+#         return None
+#     return get_ebpf_stats_from_csv(file, tput)
+
+# def get_ebpf_stats(exps, tput):
+#     """Get eBPF stats averaged across multiple runs for each experiment."""
+#     n_runs = 1
+#     ebpf_aggregated_data = []
+    
+#     for idx, exp in enumerate(exps):
+#         ebpf_data_per_exp = []
+        
+#         # Collect data from all runs
+#         for run_id in range(n_runs):
+#             ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+#             if ebpf_data is None:
+#                 print(f"Failed to get eBPF data for {exp} run {run_id}")
+#                 continue
+#             ebpf_data_per_exp.append(ebpf_data)
+        
+#         if len(ebpf_data_per_exp) == 0:
+#             print(f"No eBPF data found for experiment {exp}")
+#             ebpf_aggregated_data.append(None)
+#             continue
+        
+#         # Calculate mean and stddev across runs for each function
+#         # Group by function name and calculate statistics
+#         all_functions = ebpf_data_per_exp[0]['function'].unique()
+        
+#         aggregated_df = pd.DataFrame()
+#         for func_name in all_functions:
+#             func_data_across_runs = []
+#             for run_df in ebpf_data_per_exp:
+#                 func_row = run_df[run_df['function'] == func_name]
+#                 if not func_row.empty:
+#                     func_data_across_runs.append(func_row.iloc[0])
+            
+#             if len(func_data_across_runs) > 0:
+#                 # Convert to DataFrame for easier computation
+#                 func_df = pd.DataFrame(func_data_across_runs)
+                
+#                 # Create aggregated row with mean values
+#                 agg_row = {}
+#                 agg_row['function'] = func_name
+                
+#                 # For numeric columns, calculate mean
+#                 numeric_cols = func_df.select_dtypes(include=[np.number]).columns
+#                 for col in numeric_cols:
+#                     agg_row[col] = func_df[col].mean()
+#                     # Also store stddev with _stddev suffix for future use
+#                     agg_row[f'{col}_stddev'] = func_df[col].std()
+                
+#                 aggregated_df = pd.concat([aggregated_df, pd.DataFrame([agg_row])], ignore_index=True)
+        
+#         # Save for debugging/inspection
+#         output_file = f"ebpf_aggregated_{exp.split('/')[-1]}.csv"
+#         aggregated_df.to_csv(output_file, index=False)
+#         print(f"Saved aggregated eBPF data to {output_file}")
+        
+#         ebpf_aggregated_data.append(aggregated_df)
+    
+#     return ebpf_aggregated_data
+
+def get_tput_from_dat(exp_name, run_id):
+    file = exp_name + "-RUN-" + str(run_id) + "/iperf.bw.rpt"
+    if not os.path.exists(file):
+        return None
+    
+    tput = 0
+    with open(file, 'r') as f1:
+        for line in f1:
+            tput = float(line.split()[-1])
+            if (tput > 0):
+                break
+    if tput == 0:
+        print(f"WARNING: Tput is 0 for experiment {exp_name} run {run_id}")
+    return tput
+
+def get_ebpf_single_run(exp_name, run_id):
     """Get eBPF stats for a single run."""
     file = exp_name + "-RUN-" + str(run_id) + "/ebpf_guest_stats.csv"
     if not os.path.exists(file):
-        print(f"File {file} does not exist")
+        # print(f"File {file} does not exist")
         return None
+    tput = get_tput_from_dat(exp_name, run_id)
+    if tput is None:
+        return None
+    print(f"Reading eBPF stats from {file} tput: {tput}")
     return get_ebpf_stats_from_csv(file, tput)
 
 def get_ebpf_stats(exps, tput):
     """Get eBPF stats averaged across multiple runs for each experiment."""
-    n_runs = 1
+    MAX_RUN = 20
     ebpf_aggregated_data = []
     
     for idx, exp in enumerate(exps):
         ebpf_data_per_exp = []
         
         # Collect data from all runs
-        for run_id in range(n_runs):
-            ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+        for run_id in range(MAX_RUN):
+            # ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+            ebpf_data = get_ebpf_single_run(exp, run_id)
             if ebpf_data is None:
-                print(f"Failed to get eBPF data for {exp} run {run_id}")
                 continue
             ebpf_data_per_exp.append(ebpf_data)
         
@@ -379,7 +469,9 @@ def get_ebpf_stats(exps, tput):
         
         # Calculate mean and stddev across runs for each function
         # Group by function name and calculate statistics
-        all_functions = ebpf_data_per_exp[0]['function'].unique()
+        all_functions = pd.unique(
+            pd.concat([df['function'] for df in ebpf_data_per_exp if df is not None], ignore_index=True)
+        )
         
         aggregated_df = pd.DataFrame()
         for func_name in all_functions:
@@ -407,7 +499,7 @@ def get_ebpf_stats(exps, tput):
                 aggregated_df = pd.concat([aggregated_df, pd.DataFrame([agg_row])], ignore_index=True)
         
         # Save for debugging/inspection
-        output_file = f"ebpf_aggregated_{exp.split('/')[-1]}.csv"
+        output_file = f"csvs/ebpf_aggregated_{exp.split('/')[-1]}.csv"
         aggregated_df.to_csv(output_file, index=False)
         print(f"Saved aggregated eBPF data to {output_file}")
         
@@ -688,4 +780,231 @@ def plot_flows_exp():
     #                              title_key='Emerald-Rapids-CX7-6.12.9-iommufd',
     #                              output_dir="Nested_vs_Off_1_20_cores_no_contention")
 
-plot_flows_exp()
+
+def siyuan_Evaluation_plot_flows_exp():
+    
+    target_values = [4, 8, 12, 16, 20, 24]
+    # x_labels = [f"{i:02d}" for i in range(1, 33)]
+    x_labels = [f"{i:02d}" for i in target_values]
+    print(x_labels)
+
+    off_exps = [
+        f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    ]
+
+
+    nested_exps = [
+        f"/home/schai/viommu/utils/reports/2025-11-15-17-53-09-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    ]
+
+
+    siyuan_no_map_contention = [
+        f"/home/schai/viommu_siyuan/utils/reports/2025-12-05-04-01-47-6.12.9-iommufd-vanilla-based-no-map-contention-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    ]
+
+    
+    siyuan_exp_async_invalid_wait = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-02-03-05-05-6.12.9-iommufd-vanilla-based-no-map-contention-AsyncInvalid-wait-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    ]
+
+    z_val_1 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    z_val_10 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
+    ]
+
+    z_val_100 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    # z_val_1_DFP = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    # ]
+
+    # z_val_10_DFP = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
+    # ]
+
+    # z_val_100_DFP = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in target_values
+    # ]
+
+    z_val_1_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    z_val_10_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
+    ]
+
+    z_val_100_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in target_values
+    ]
+
+
+    z_val_3_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [4, 8, 12]
+    ] + ["/home/schai/viommu_siyuan/utils/reports/2026-02-22-16-37-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow16-host-strict-guest-strict-nested-16cores"] + [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [20, 24]
+    ]
+
+
+    # archived data before deadlock bug fixed
+    # z_val_1= [
+    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in [8,12]
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval1"
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in [20,24]
+    # ]
+
+    # z_val_10= [
+    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in [8,12]
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval10"
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in [20,24]
+    # ]
+
+    # z_val_100= [
+    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in [8,12]
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval100"
+    # ] + [
+    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in [20,24]
+    # ]
+
+
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    
+    host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
+    host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    
+    # z_val_1_data, z_val_1_ebpf_data = get_data(x_labels, z_val_1)
+    # z_val_10_data, z_val_10_ebpf_data = get_data(x_labels, z_val_10)
+    # z_val_100_data, z_val_100_ebpf_data = get_data(x_labels, z_val_100)
+
+    z_val_1_DFP_data, z_val_1_DFP_ebpf_data = get_data(x_labels, z_val_1_DFP)
+    # z_val_10_DFP_data, z_val_10_DFP_ebpf_data = get_data(x_labels, z_val_10_DFP)
+    # z_val_100_DFP_data, z_val_100_DFP_ebpf_data = get_data(x_labels, z_val_100_DFP)
+
+    # z_val_3_DFP_data, z_val_3_DFP_ebpf_data = get_data(x_labels, z_val_3_DFP)
+    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+
+    # Default color palette if not specified
+    # default_colors = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', 
+    #                  '#F0E442', '#D55E00', '#999999', '#FF6600',
+    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+
+
+    # default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
+    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+
+    datasets = [
+        { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
+        { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid Wait', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=1', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[1] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[3] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[4] },
+
+        { 'setup_name': 'Host Strict; Guest vF&S', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
+        # { 'setup_name': 'Host Strict; Guest DLF z=10 (DFP)', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=100 (DFP)', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
+
+        # { 'setup_name': 'Host Strict; Guest DLF z=3 (DFP)', 'data': z_val_3_DFP_data, 'ebpf': z_val_3_DFP_ebpf_data, 'color': default_colors[9] },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='eval_core_exp',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="Siyuan_Evaluation_diff_cores")
+
+    plot_ebpf_selected_functions(datasets=datasets,
+                                 x_labels=x_labels,
+                                 selected_functions=["cache_tag_flush_range_np", "cache_tag_flush_range", "qi_submit_sync",],
+                                 title_key='eval_core_exp',
+                                 output_dir="Siyuan_Evaluation_diff_cores")
+
+def plot_flows_exp_stress():
+    
+    target_values = [1, 2, 4, 8]
+    # x_labels = [f"{i:02d}" for i in range(1, 33)]
+    x_labels = [f"{i:02d}" for i in target_values]
+
+    n_cores = 24
+    print(x_labels)
+
+    off_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-04-03-44-33-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-off-off-{n_cores}cores" for i in target_values
+    ]
+
+    nested_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-04-04-44-58-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores" for i in target_values
+    ]
+
+    siyuan_exp_async_invalid_wait = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-02-03-57-04-6.12.9-iommufd-vanilla-based-no-map-contention-AsyncInvalid-wait-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores" for i in target_values
+    ]
+
+
+    z_val_1_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval1" for i in target_values
+    ]
+
+    z_val_10_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval10" for i in target_values
+    ]
+
+    z_val_100_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval100" for i in target_values
+    ]
+    
+    # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
+    # host_strict_guest_nested_siyuan_one_core_invalid, extra_hooks_siyuan_one_core_invalid_ebpf = get_data(x_labels, siyuan_exp_one_core_invalid)
+    host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(x_labels, nested_exps)
+    host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    # host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    z_val_1_DFP_data, z_val_1_DFP_ebpf_data = get_data(x_labels, z_val_1_DFP)
+    z_val_10_DFP_data, z_val_10_DFP_ebpf_data = get_data(x_labels, z_val_10_DFP)
+    z_val_100_DFP_data, z_val_100_DFP_ebpf_data = get_data(x_labels, z_val_100_DFP)
+
+    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+
+    datasets = [
+        { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
+        { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': color_nested },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid', 'data': host_strict_guest_nested_siyuan_one_core_invalid, 'ebpf': extra_hooks_siyuan_one_core_invalid_ebpf, 'color': '#CC79A7' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid Wait', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
+    
+        { 'setup_name': 'Host Strict; Guest vF&S', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
+        # { 'setup_name': 'Host Strict; Guest vF&S (z=10)', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
+        # { 'setup_name': 'Host Strict; Guest vF&S (z=100)', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='stress_exp',
+                      xlabel=f"Flows per core ({n_cores} cores)",
+                      output_dir="Siyuan_Evaluation_stress_exp")
+
+    plot_ebpf_selected_functions(datasets=datasets,
+                                 x_labels=x_labels,
+                                 selected_functions=["cache_tag_flush_range_np", "cache_tag_flush_range", "qi_submit_sync",],
+                                 title_key='stress_exp',
+                                 output_dir="Siyuan_Evaluation_stress_exp")
+
+
+if __name__ == "__main__":
+    # plot_flows_exp()
+    siyuan_Evaluation_plot_flows_exp()
+    plot_flows_exp_stress()

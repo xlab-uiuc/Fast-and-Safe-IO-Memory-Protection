@@ -530,7 +530,7 @@ def get_tput_from_iperf_logs(exp_path):
     return float(np.mean(tputs)), float(np.std(tputs))
 
 
-def get_data(x_labels, exps):
+def get_data(x_labels, exps, collect_ebpf=True):
     files = [
         os.path.join(exp, "tput_metrics.dat") for exp in exps
     ]
@@ -550,7 +550,10 @@ def get_data(x_labels, exps):
     #         print(f"No iperf logs found for {os.path.basename(exp.rstrip('/'))}, using tput_metrics.dat value")
 
     # tput = [d['net_tput_mean'] for d in data]
-    ebpf_data = get_ebpf_stats(exps)
+    if collect_ebpf:
+        ebpf_data = get_ebpf_stats(exps)
+    else:
+        ebpf_data = None     
     # ebpf_data = None
     return data, ebpf_data
 
@@ -678,8 +681,13 @@ def get_tput_from_dat(exp_name, run_id):
     tput = 0
     with open(file, 'r') as f1:
         for line in f1:
-            tput = float(line.split()[-1])
-            if (tput > 0):
+            if line.startswith('Avg_iperf_tput:'):
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        tput = float(parts[-1])
+                    except ValueError:
+                        pass
                 break
     if tput == 0:
         print(f"WARNING: Tput is 0 for experiment {exp_name} run {run_id}")
@@ -797,6 +805,10 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
     if datasets is None or len(datasets) == 0:
         return
 
+    datasets = [ds for ds in datasets if ds.get('ebpf') is not None]
+    if len(datasets) == 0:
+        return
+
     num_experiments = len(x_labels) if x_labels is not None else 0
     for ds in datasets:
         ebpf_list = ds.get('ebpf', [])
@@ -876,6 +888,27 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
                         title=f"{title_key}-{sanitize(functionality_name)}-mean_ns",
                         xlabel=xlabel,
                         ylabel="Mean (ns)",
+                        output_dir=output_dir,
+                        precision=1,
+                        log_scale=True,
+                        scientific_labels=True)
+
+        # Total time (count * mean_ns)
+        series_list = []
+        for ds in datasets:
+            counts = extract_metric_series(ds['ebpf'], function_names, 'count')
+            means = extract_metric_series(ds['ebpf'], function_names, 'mean_ns')
+            total_ns = [c * m for c, m in zip(counts, means)]
+            total_ms = [t / 1e6 for t in total_ns]
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': total_ms,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-total_time",
+                        xlabel=xlabel,
+                        ylabel="Total time (ms)",
                         output_dir=output_dir,
                         precision=1,
                         log_scale=True,
@@ -1379,14 +1412,14 @@ def plot_tx_ebpf_exp():
     
 
     # Get data
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps, collect_ebpf=False)
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps, collect_ebpf=False)
     # optimization_data, optimization_ebpf_data = get_data(x_labels, optimization_exps)
 
     # per_core_queue_data, per_core_queue_ebpf_data = get_data(x_labels, per_core_queue_exps)
     # per_core_queue_pinned_data, per_core_queue_pinned_ebpf_data = get_data(x_labels, per_core_queue_pinned_exps)
 
-    dlf_data, dlf_ebpf_data = get_data(x_labels, dlf_exps)
+    dlf_data, dlf_ebpf_data = get_data(x_labels, dlf_exps,)
     batch_pinned_data, batch_pinned_ebpf_data = get_data(x_labels, pinned_exps)
 
     datasets = [
@@ -2034,8 +2067,8 @@ def siyuan_Evaluation_sensitivity():
 
 if __name__ == "__main__":
     # plot_flows_exp()
-    siyuan_Evaluation_plot_flows_exp()
+    # siyuan_Evaluation_plot_flows_exp()
     # plot_flows_exp_stress()
     # siyuan_Evaluation_ablation()
     # siyuan_Evaluation_sensitivity()
-    # plot_tx_ebpf_exp()  # Uncomment when ready to use
+    plot_tx_ebpf_exp()  # Uncomment when ready to use
