@@ -272,6 +272,7 @@ post_exp_cleanup() {
 
     log_info "Resetting HOST..."
     cd "$HOST_SETUP_DIR"; sudo bash reset-host.sh
+    cd -
     
     log_info "--- Post-experiment Cleanup Phase Finished ---"
 }
@@ -298,7 +299,7 @@ cleanup() {
         make clean
         make
         cd -
-	      sudo pkill -SIGINT -f "$host_loader_basename" 2>/dev/null || true
+	    sudo pkill -SIGINT -f "$host_loader_basename" 2>/dev/null || true
         sudo pkill -9 -f "$host_loader_basename" 2>/dev/null || true
     fi
 
@@ -424,11 +425,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; exit 1; }
     sudo bash setup-envir.sh --dep "$HOST_RESULTS_DIR" --intf "$HOST_INTF" --ip "$HOST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
         --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$HOST_NIC_BUS"
-    sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1
+    sudo bash setup-host.sh -m "$MTU" --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --ecn 1
     cd - > /dev/null # Go back to previous directory silently
-
-
-    cd "$HOST_SETUP_DIR";
 
     # --- Start HOST (Server) Application ---
     log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
@@ -550,6 +548,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "############################################################"
     echo # Blank line
 done
+
 
 cleanup
 post_exp_cleanup
