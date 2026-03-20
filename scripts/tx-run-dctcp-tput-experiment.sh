@@ -271,7 +271,7 @@ post_exp_cleanup() {
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
     log_info "Resetting HOST..."
-    cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh
+    cd "$HOST_SETUP_DIR"; sudo bash reset-host.sh
     
     log_info "--- Post-experiment Cleanup Phase Finished ---"
 }
@@ -321,8 +321,8 @@ save_config_to_report_json() {
     local report_dir="${1:-$current_host_reports_dir}"
     local config_file="$report_dir/config.json"
 
-    local host_cmdline=$($SSH_HOST_CMD 'cat /proc/cmdline')
-    local host_kernel=$($SSH_HOST_CMD 'uname -r')
+    local host_cmdline=$(cat /proc/cmdline)
+    local host_kernel=$(uname -r)
     local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
     local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
 
@@ -354,7 +354,7 @@ save_config_to_report_json() {
     "bandwidth": "$CLIENT_BANDWIDTH",
     "kernel": "$client_kernel",
     "cmdline": "$client_cmdline"
-  },
+  }
 }
 EOF
 }
@@ -422,9 +422,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup HOST (Server) Environment ---
     log_info "Setting up HOST server environment..."
     cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; exit 1; }
-    sudo bash setup-envir.sh --dep "$HOST_HOME" --intf "$HOST_INTF" --ip "$HOST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
+    sudo bash setup-envir.sh --dep "$HOST_RESULTS_DIR" --intf "$HOST_INTF" --ip "$HOST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
         --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$HOST_NIC_BUS"
+    sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1
     cd - > /dev/null # Go back to previous directory silently
+
+
+    cd "$HOST_SETUP_DIR";
 
     # --- Start HOST (Server) Application ---
     log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
@@ -469,7 +473,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     sudo echo "$FTRACE_OVERWRITE_ON_FULL" > /sys/kernel/debug/tracing/options/overwrite
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer
     sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
-    log_info "HOSF IOVA ftrace is ON."
+    log_info "HOST IOVA ftrace is ON."
     
     # --- Start Main Profiling & Logging Phase ---
     if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
