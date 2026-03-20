@@ -122,7 +122,7 @@ for socket_buf in 1; do
                 # echo $n_val
                 format_i=$(printf "%02d\n" $n_val)
 
-                exp_name="${timestamp}-$(uname -r)-TX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
+                exp_name="${timestamp}-$(uname -r)-BM-TX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
                 echo $exp_name
                 echo "Running $exp_name" "N_RUN=$N_RUNS"
 
