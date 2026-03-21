@@ -2,7 +2,6 @@
 
 # Treat unset variables as an error when substituting.
 set -uo pipefail
-source "helper.sh"
 
 #-------------------------------------------------------------------------------
 # CONFIGURATION AND PATHS
@@ -14,10 +13,10 @@ SERVER_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=1
+PERF_TRACING_ENABLED=0
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-SERVER_FandS_REL="viommu/Fast-and-Safe-IO-Memory-Protection"
+SERVER_FandS_REL="viommu/BareMetal-FandS"
 SERVER_DEP_REL="viommu/"
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
 SERVER_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
@@ -27,6 +26,7 @@ SERVER_SETUP_DIR_REL="utils"
 SERVER_EXP_DIR_REL="utils/tcp"
 CLIENT_SETUP_DIR_REL="utils"
 CLIENT_EXP_DIR_REL="utils/tcp"
+
 EBPF_SERVER_LOADER_REL="tracing/server_loader" # does not exist make it if needed for bare-metal cases
 
 #-------------------------------------------------------------------------------
@@ -70,6 +70,9 @@ CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cor
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+
+CLIENT_EXPECTED_KERNEL="6.12.9"
+CLIENT_EXPECTED_IOMMU="intel_iommu=off"
 
 #-------------------------------------------------------------------------------
 # Help/usage
@@ -181,6 +184,99 @@ else
 	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
 
+log_info() {
+    echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - $1"
+}
+
+log_error() {
+    echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
+}
+
+progress_bar() {
+    local duration_secs=$1
+    local interval_secs=$2
+    local elapsed_time_secs=0
+
+    if [ "$duration_secs" -eq 0 ]; then
+        printf "[==================================================] 100%% (0/0s)\n"
+        return
+    fi
+
+    local progress_bar_width=50
+    while [ "$elapsed_time_secs" -lt "$duration_secs" ]; do
+        elapsed_time_secs=$((elapsed_time_secs + interval_secs))
+        if [ "$elapsed_time_secs" -gt "$duration_secs" ]; then
+            elapsed_time_secs=$duration_secs
+        fi
+        
+        local progress_percent=$((elapsed_time_secs * 100 / duration_secs))
+        local bar_filled_length=$((progress_percent * progress_bar_width / 100))
+        
+        local bar_visual=""
+        for ((k=0; k<bar_filled_length; k++)); do bar_visual+="="; done
+        
+        printf "[%-*s] %3d%% (%*ds/%ds)\r" "$progress_bar_width" "$bar_visual" "$progress_percent" \
+               "${#duration_secs}" "$elapsed_time_secs" "$duration_secs"
+        sleep "$interval_secs"
+    done
+    
+    local full_bar_visual=""
+    for ((k=0; k<progress_bar_width; k++)); do full_bar_visual+="="; done
+    printf "[%-*s] 100%% (%ds/%ds)\n" "$progress_bar_width" "$full_bar_visual" "$duration_secs" "$duration_secs"
+}
+
+check_client_kernel() {
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_KERNEL"* ]]; then
+        log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    if [[ "$client_cmdline" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client IOMMU is not expected. Expected: $CLIENT_EXPECTED_IOMMU, Actual: $client_cmdline"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    log_info "Client kernel check PASSED!"
+}
+
+pre_exp_setup() {
+    log_info "--- Starting Pre-experiment Cleanup Phase ---"
+
+    check_client_kernel
+    
+    log_info "Disabling TX/RX on HOST and CLIENT"
+    sudo ethtool --pause $SERVER_INTF tx off rx off
+    $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
+    
+    log_info "Disabling SMT on Client"
+    $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
+
+    # Host's smt, cpu power, numa balance will be setup in setup-host.sh
+    log_info "--- Pre-experiment Cleanup Phase Finished ---"
+}
+
+post_exp_cleanup() {
+    log_info "--- Starting Post-experiment Cleanup Phase ---"
+    
+    log_info "Resetting HOST ftrace..."
+    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
+    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+    log_info "Resetting HOST..."
+    cd "$SERVER_SETUP_DIR"; sudo bash reset-host.sh
+    cd -
+    
+    log_info "--- Post-experiment Cleanup Phase Finished ---"
+}
+
+
 # --- Cleanup Function ---
 cleanup() {
     log_info "--- Starting Cleanup Phase ---"
@@ -199,6 +295,10 @@ cleanup() {
         log_info "Stopping eBPF tracers..."
 	    local server_loader_basename
         server_loader_basename=$(basename "$EBPF_SERVER_LOADER")
+        cd $(dirname "$EBPF_SERVER_LOADER") || { log_error "Failed to cd to $(dirname "$EBPF_SERVER_LOADER")"; exit 1; }
+        make clean
+        make
+        cd -
 	    sudo pkill -SIGINT -f "$server_loader_basename" 2>/dev/null || true
         sudo pkill -9 -f "$server_loader_basename" 2>/dev/null || true
         sleep 1
@@ -210,11 +310,6 @@ cleanup() {
     $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
 
-    log_info "Resetting SERVER ftrace..."
-    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
-
     log_info "Resetting SERVER network interface $SERVER_INTF..."
     sudo ip link set "$SERVER_INTF" down
     sleep 2
@@ -223,8 +318,52 @@ cleanup() {
     log_info "--- Cleanup Phase Finished ---"
 }
 
+save_config_to_report_json() {
+    local report_dir="${1:-$current_server_reports_dir}"
+    local config_file="$report_dir/config.json"
+
+    local host_cmdline=$(cat /proc/cmdline)
+    local host_kernel=$(uname -r)
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+
+    cat > "$config_file" << EOF
+{
+  "timestamp": "$(date -Iseconds)",
+  "test_params": {
+    "core_duration_s": "$CORE_DURATION_S",
+    "mtu": "$MTU",
+    "ddio_enabled": "$DDIO_ENABLED",
+    "ring_buffer_size": "$RING_BUFFER_SIZE",
+    "tcp_socket_buf_mb": "$TCP_SOCKET_BUF_MB",
+    "mlc_cores": "$MLC_CORES"
+  },
+  "host": {
+    "ip": "$SERVER_IP",
+    "interface": "$SERVER_INTF",
+    "num_servers": "$SERVER_NUM_SERVERS",
+    "cpu_mask": "$SERVER_CPU_MASK",
+    "nic_bus": "$SERVER_NIC_BUS",
+    "kernel": "$host_kernel",
+    "cmdline": "$host_cmdline"
+  },
+  "client": {
+    "ip": "$CLIENT_IP",
+    "interface": "$CLIENT_INTF",
+    "num_clients": "$CLIENT_NUM_CLIENTS",
+    "cpu_mask": "$CLIENT_CPU_MASK",
+    "bandwidth": "$CLIENT_BANDWIDTH",
+    "kernel": "$client_kernel",
+    "cmdline": "$client_cmdline"
+  }
+}
+EOF
+}
+
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
+
+pre_exp_setup
 
 for ((j = 0; j < NUM_RUNS; j += 1)); do
     echo
@@ -236,15 +375,22 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # Server side paths for reports and data
     current_server_reports_dir="${SERVER_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
     client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
+    
     iova_ftrace_server_output_file="${current_server_reports_dir}/iova_ftrace_server.txt"
     ebpf_server_stats="${current_server_reports_dir}/ebpf_server_stats.csv"
     server_app_log_file="${current_server_reports_dir}/server_app.log"
     server_mlc_log_file="${current_server_reports_dir}/mlc.log"
     server_perf_data_file="${current_server_reports_dir}/perf_cpu.data"
+    
     sudo mkdir -p "$current_server_reports_dir"
+    $SSH_CLIENT_CMD "sudo mkdir -p '$client_reports_dir_remote'"
+
 
     # --- Pre-run cleanup ---
     cleanup
+
+    # --- Add config to reports ---
+    save_config_to_report_json "$current_server_reports_dir"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
@@ -261,6 +407,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cd "$SERVER_SETUP_DIR" || { log_error "Failed to cd to $SERVER_SETUP_DIR"; exit 1; }
     sudo bash setup-envir.sh --dep "$SERVER_DEP_DIR" --intf "$SERVER_INTF" --ip "$SERVER_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
       --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$SERVER_NIC_BUS"
+    sudo bash setup-host.sh -m "$MTU" --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --ecn 1
     cd - > /dev/null # Go back to previous directory silently
 
     # --- Start Server Application ---
@@ -273,14 +420,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     ps -o pid,cmd,psr,pcpu --pid $SERVER_PID >> "$server_app_log_file"
     sleep 2 # Allow server app to initialize
     cd - > /dev/null
-   
-    # --- Ftrace Setup (Guest & Host) ---
-    log_info "Configuring server ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
-    sudo echo "$FTRACE_BUFFER_SIZE_KB" > /sys/kernel/debug/tracing/buffer_size_kb
-    sudo echo "$FTRACE_OVERWRITE_ON_FULL" > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer
-    sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
-    log_info "server IOVA ftrace is ON."
 
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
@@ -289,15 +428,24 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
-    log_info "Warming up experiment (10 seconds)..."
-    progress_bar 10 1
+    log_info "Warming up experiment (60 seconds)..."
+    progress_bar 60 1
 
+    
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting server eBPF tracer..."
         sudo taskset -c 13 "$EBPF_SERVER_LOADER" -o "$ebpf_server_stats" &
         sleep 2 # Allow eBPF loaders to initialize
     fi
+   
+    # --- Ftrace Setup (Guest & Host) ---
+    log_info "Configuring server ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
+    sudo echo "$FTRACE_BUFFER_SIZE_KB" > /sys/kernel/debug/tracing/buffer_size_kb
+    sudo echo "$FTRACE_OVERWRITE_ON_FULL" > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer
+    sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
+    log_info "server IOVA ftrace is ON."
 
     # --- Start Main Profiling & Logging Phase ---
      if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
@@ -329,6 +477,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer after saving
     log_info "server IOVA ftrace data saved to $iova_ftrace_server_output_file"
 
+    sudo bash -c "dmesg > ${current_server_reports_dir}/dmesg.txt"
 
     # --- Stop eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -359,6 +508,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "############################################################"
     echo # Blank line
 done
+
+cleanup
+post_exp_cleanup
 
 if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."
