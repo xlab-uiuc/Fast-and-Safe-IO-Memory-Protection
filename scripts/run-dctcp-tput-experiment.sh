@@ -463,8 +463,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting server logging..."
     cd "$SERVER_SETUP_DIR" || { log_error "Failed to cd to $SERVER_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$SERVER_DEP_DIR" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$SERVER_CPU_MASK" --retx 1 --tcplog 1 --bw 1 --flame 0 \
-    --pcie 1 --membw 1 --iio 1 --pfc 0 --intf "$SERVER_INTF" --type 0
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$SERVER_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+    --pcie 1 --membw 0 --iio 0 --pfc 0 --intf "$SERVER_INTF" --type 0
     cd - > /dev/null
 
     log_info "Logging done."
