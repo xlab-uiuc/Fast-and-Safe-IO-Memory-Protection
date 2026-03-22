@@ -43,9 +43,16 @@ pwt_occupancy = []
 for i in range(NUM_RUNS):
     with open(FILE_NAME + '-RUN-' + str(i) + '/iperf.bw.rpt') as f1:
         for line in f1:
-            tput = float(line.split()[-1])
-            if (tput > 0):
-                net_tputs.append(tput)
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    tput = float(parts[-1])
+                    if (tput > 0):
+                        net_tputs.append(tput)
+                except ValueError:
+                    print(f"[WARN] Could not parse iperf throughput from: {line.strip()}")
+            else:
+                print(f"[WARN] iperf.bw.rpt has no throughput value: {line.strip()}")
             break
 
     try:
