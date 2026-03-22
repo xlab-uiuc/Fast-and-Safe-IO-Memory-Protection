@@ -112,7 +112,7 @@ for socket_buf in 1; do
     for ring_buffer in 512; do
         for i in 1; do
             # for num_cores in 12; do
-            for num_cores in 4 8 12 16 20 24 28; do
+            for num_cores in 1 4 8 12 16 20 24 28; do
                 client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 

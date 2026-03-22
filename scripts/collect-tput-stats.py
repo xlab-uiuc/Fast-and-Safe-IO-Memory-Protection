@@ -73,8 +73,8 @@ for i in range(NUM_RUNS):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
 
-    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/membw.rpt'
-    if os.path.exists(host_membw_file):
+    membw_file = FILE_NAME + '-RUN-' + str(i) + '/membw.rpt'
+    if os.path.exists(membw_file):
         with open(FILE_NAME + '-RUN-' + str(i) + '/membw.rpt') as f1:
             try:
                 for line in f1:
@@ -90,7 +90,7 @@ for i in range(NUM_RUNS):
                 mem_bws.append(0)
     else:
         mem_bws.append(0)
-        print(f"[WARN] Host membw file not found: {host_membw_file}")
+        print(f"[WARN] Membw file not found: {membw_file}")
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/cpu_util.rpt') as f1:
         for line in f1:
