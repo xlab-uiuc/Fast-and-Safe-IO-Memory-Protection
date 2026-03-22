@@ -90,7 +90,7 @@ fi
 server_cmdline=$(cat /proc/cmdline)
 server_iommu_config=$(parse_iommu_mode "$server_cmdline")
 
-iommu_config="baremetal-${host_iommu_config}"
+iommu_config="baremetal-${server_iommu_config}"
 echo "iommu_config: $iommu_config"
 
 # pause the frame
@@ -106,13 +106,13 @@ server_cores="64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 
-N_RUNS=1
+N_RUNS=3
 
 for socket_buf in 1; do
     for ring_buffer in 512; do
         for i in 1; do
-            for num_cores in 12; do
-            # for num_cores in 1 4 8 12 16 20 24 28; do
+            # for num_cores in 12; do
+            for num_cores in 1 4 8 12 16 20 24 28; do
                 client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
 
