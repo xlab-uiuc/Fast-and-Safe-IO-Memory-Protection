@@ -201,3 +201,5 @@ for socket_buf in 1; do
     done
 done
 
+sync
+sleep 1

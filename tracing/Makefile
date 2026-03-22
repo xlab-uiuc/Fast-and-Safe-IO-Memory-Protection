@@ -23,6 +23,10 @@ HOST_BPF_SRC = host_qemu_tracer.bpf.c
 HOST_BPF_OBJ = $(HOST_BPF_SRC:.bpf.c=.bpf.o)
 HOST_BPF_SKEL = $(HOST_BPF_SRC:.bpf.c=.skel.h)
 
+SERVER_BPF_SRC = server_tracer.bpf.c
+SERVER_BPF_OBJ = $(SERVER_BPF_SRC:.bpf.c=.bpf.o)
+SERVER_BPF_SKEL = $(SERVER_BPF_SRC:.bpf.c=.skel.h)
+
 GUEST_BPF_SRC = guest_tracer.bpf.c
 GUEST_BPF_OBJ = $(GUEST_BPF_SRC:.bpf.c=.bpf.o)
 GUEST_BPF_SKEL = $(GUEST_BPF_SRC:.bpf.c=.skel.h)
@@ -31,6 +35,8 @@ READER_SRC = reader.c
 READER_APP = reader
 HOST_LOADER_SRC = host_qemu_loader.c
 HOST_LOADER_APP = host_loader
+SERVER_LOADER_SRC = server_loader.c
+SERVER_LOADER_APP = server_loader
 GUEST_LOADER_SRC = guest_loader.c
 GUEST_LOADER_APP = guest_loader
 
@@ -38,14 +44,13 @@ GUEST_LOADER_APP = guest_loader
 LDFLAGS_COMMON = -lelf -lz
 LDFLAGS_LOADER = $(LIBBPF_LIBS) $(LDFLAGS_COMMON)
 
-.PHONY: all clean host guest reader
-all: host guest reader
+.PHONY: all clean host guest reader server
+all: host guest reader server
 
 vmlinux.h:
 	@echo "Generating vmlinux.h via bpftool..."
 	@$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $@ \
 		|| (echo "Failed to generate vmlinux.h. Is /sys/kernel/btf/vmlinux available and bpftool installed?" && false)
-
 
 $(HOST_BPF_OBJ): $(HOST_BPF_SRC) $(COMMON_BPF_DEPS)
 	@echo "Compiling $< → $@"
@@ -60,6 +65,20 @@ $(HOST_LOADER_APP): $(HOST_LOADER_SRC) $(HOST_BPF_SKEL) tracing_utils.h Makefile
 	@$(CC) $(CFLAGS_USER) $(HOST_LOADER_SRC) $(HOST_BPF_SKEL) $(LDFLAGS_USER) -o $@
 
 host: $(HOST_LOADER_APP)
+
+$(SERVER_BPF_OBJ): $(SERVER_BPF_SRC) $(COMMON_BPF_DEPS)
+	@echo "Compiling $< → $@"
+	@$(CLANG) $(CFLAGS_BPF) -c $(SERVER_BPF_SRC) -o $@
+
+$(SERVER_BPF_SKEL): $(SERVER_BPF_OBJ)
+	@echo "Generating skeleton for $< → $@"
+	@$(BPFTOOL) gen skeleton $(SERVER_BPF_OBJ) > $@
+
+$(SERVER_LOADER_APP): $(SERVER_LOADER_SRC) $(SERVER_BPF_SKEL) tracing_utils.h Makefile
+	@echo "Linking server loader: $@"
+	@$(CC) $(CFLAGS_USER) $(SERVER_LOADER_SRC) $(SERVER_BPF_SKEL) $(LDFLAGS_USER) -o $@
+
+server: $(SERVER_LOADER_APP)
 
 $(GUEST_BPF_OBJ): $(GUEST_BPF_SRC) $(COMMON_BPF_DEPS)
 	@echo "Compiling $< → $@"
@@ -85,6 +104,7 @@ reader: $(READER_APP)
 clean:
 	@echo "Cleaning up generated files..."
 	@rm -f $(HOST_BPF_OBJ) $(HOST_BPF_SKEL) \
+				 $(SERVER_BPF_OBJ) $(SERVER_BPF_SKEL) \
 	       $(GUEST_BPF_OBJ) $(GUEST_BPF_SKEL) \
 	       $(HOST_LOADER_APP) $(GUEST_LOADER_APP) \
 	       $(READER_APP) \

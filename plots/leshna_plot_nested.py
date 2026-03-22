@@ -5,18 +5,23 @@ import glob
 import os
 import pandas as pd
 
-color_off = '#0072B2'
-color_nested = '#009E73'
-color_shadow = '#CC79A7'
-color_optimization ='#F0E442'
+default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
+                     '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+                     '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
 
-def calculate_plot_params(num_x_labels, num_series):
+color_off = default_colors[0]
+color_nested = default_colors[1]
+color_shadow = default_colors[2]    
+color_optimization = default_colors[3]
+
+def calculate_plot_params(num_x_labels, num_series, max_width=None):
     """
     Dynamically calculate plot parameters based on data dimensions.
     
     Args:
         num_x_labels: Number of x-axis categories
         num_series: Number of data series being plotted
+        max_width: Optional maximum width for the figure
     
     Returns:
         dict with keys: 'figsize', 'font_size', 'bar_width', 'gap_factor', 
@@ -32,7 +37,7 @@ def calculate_plot_params(num_x_labels, num_series):
     # Base values — ACM two-column text width is 7", keep height compact for papers
     base_width = 7.0   # full ACM text width
     base_height = 3.2  # compact height; tall figures waste column space
-    base_font = 8   # 8pt matches ACM 9pt body text when figure is scaled
+    base_font = 14   # Match siyuan's changes
     base_bar_width = 0.38
     base_gap = 1.5
     
@@ -48,7 +53,11 @@ def calculate_plot_params(num_x_labels, num_series):
     height_scale = min(height_scale, 2.0)
     
     # Adjusted figure size
-    figsize = (base_width * width_scale, base_height * height_scale)
+    final_width = base_width * width_scale
+    if max_width:
+        final_width = min(final_width, max_width)
+        
+    figsize = (final_width, base_height * height_scale)
     
     # Font size adjustments
     # Reduce font size for many labels or series
@@ -87,7 +96,10 @@ def calculate_plot_params(num_x_labels, num_series):
     
     # Always show value labels, but adjust size
     show_value_labels = True
+
+    font_size = font_size - 2
     
+    print('font_size: ', font_size)
     return {
         'figsize': figsize,
         'font_size': font_size,
@@ -100,7 +112,8 @@ def calculate_plot_params(num_x_labels, num_series):
     }
 
 def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel, 
-                     output_dir=None, precision=1, show_value_labels=None):
+                     output_dir=None, precision=1, show_value_labels=None,
+                     log_scale=False, scientific_labels=False, max_width=None):
     """
     Plot N-series grouped bar chart with dynamically adjusted layout.
     
@@ -114,6 +127,9 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         output_dir: optional directory to save plot
         precision: decimal precision for value labels
         show_value_labels: whether to show values on top of bars (None=auto-detect)
+        log_scale: if True, use log scale for y-axis
+        scientific_labels: if True, format value labels in scientific notation
+        max_width: optional maximum width for the figure
     """
     if series_list is None or len(series_list) == 0 or x_labels is None:
         return
@@ -122,7 +138,7 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     num_x_labels = len(x_labels)
     
     # Get dynamic parameters
-    params = calculate_plot_params(num_x_labels, num_series)
+    params = calculate_plot_params(num_x_labels, num_series, max_width=max_width)
     
     # Use dynamically determined value labels if not explicitly set
     if show_value_labels is None:
@@ -216,13 +232,16 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     
     # Grid
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+    if log_scale:
+        plt.yscale('log')
     
     # Legend with dynamic positioning
     # plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), 
     #           ncol=params['legend_ncol'], fontsize=params['legend_fontsize'],
     #           frameon=True, shadow=True)
-    plt.legend(loc='upper left',
-              ncol=1,
+    plt.legend(loc='upper center',
+              bbox_to_anchor=(0.5, 1.18),
+              ncol=min(num_series, 3),
               fontsize=params['legend_fontsize'],
               frameon=True,
               framealpha=0.85,
@@ -230,14 +249,16 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
               borderpad=0.4,
               labelspacing=0.25,
               handlelength=1.4,
-              handletextpad=0.4)
+              handletextpad=0.4,
+              columnspacing=1.0)
 
 
     # Add value labels on bars if requested
     if show_value_labels:
         ymax = max(series_max_values) if len(series_max_values) > 0 else 1
         ymax = max(ymax, 1e-6)
-        plt.ylim(0, ymax * 1.10)
+        if not log_scale:
+            plt.ylim(0, ymax * 1.10)
         
         # Adjust label font size and rotation for crowded plots
         if num_x_labels > 25:
@@ -260,10 +281,20 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
             for bar in bars:
                 height = bar.get_height()
                 if height > 0:  # Only label non-zero bars
+                    if scientific_labels:
+                        label_text = f"{height:.1e}"
+                    else:
+                        label_text = f"{height:.{precision}f}"
+                    
+                    if log_scale:
+                        y_pos = height * 1.15
+                    else:
+                        y_pos = height + y_offset
+
                     plt.text(
                         bar.get_x() + bar.get_width() / 2,
-                        height + y_offset,
-                        f"{height:.{precision}f}",
+                        y_pos,
+                        label_text,
                         ha='center', va=va_align, fontsize=label_font,
                     )
     
@@ -286,18 +317,31 @@ def parse_results(path):
     results = np.genfromtxt(path, dtype=float, delimiter=',', names=True)
     return results
 
-def get_data(x_labels, exps):
+def get_data(x_labels, exps, collect_ebpf=True):
     files = [
-        exp + "/tput_metrics.dat" for exp in exps
+        os.path.join(exp, "tput_metrics.dat") for exp in exps
     ]
 
     data = [
         parse_results(f) for f in files
     ]
 
-    tput = [d['net_tput_mean'] for d in data]
-    ebpf_data = get_ebpf_stats(exps, tput)
+    # for i, exp in enumerate(exps):
+    #     mean_tput, std_tput = get_tput_from_iperf_logs(exp)
+    #     if mean_tput is not None:
+    #         data[i]['net_tput_mean'] = mean_tput
+    #         data[i]['net_tput_stddev'] = std_tput
+    #         print(f"  iperf logs found for {os.path.basename(exp.rstrip('/'))}")
+    #         print(f"  Recalculated net_tput from iperf logs: {mean_tput:.3f} Gbps (stddev {std_tput:.3f})")
+    #     else:
+    #         print(f"No iperf logs found for {os.path.basename(exp.rstrip('/'))}, using tput_metrics.dat value")
 
+    # tput = [d['net_tput_mean'] for d in data]
+    if collect_ebpf:
+        ebpf_data = get_ebpf_stats(exps)
+    else:
+        ebpf_data = None     
+    # ebpf_data = None
     return data, ebpf_data
 
 def __get_ebpf_stats_from_csv(ebpf_path):
@@ -348,27 +392,120 @@ def get_ebpf_stats_from_csv(path, tput, profile_duration=20):
     
     return run_stats
 
-def get_ebpf_single_run(exp_name, run_id, tput):
-    """Get eBPF stats for a single run."""
-    file = exp_name + "-RUN-" + str(run_id) + "/ebpf_guest_stats.csv"
+# def get_ebpf_single_run(exp_name, run_id, tput):
+#     """Get eBPF stats for a single run."""
+#     file = exp_name + "-RUN-" + str(run_id) + "/ebpf_guest_stats.csv"
+#     if not os.path.exists(file):
+#         print(f"File {file} does not exist")
+#         return None
+#     return get_ebpf_stats_from_csv(file, tput)
+
+# def get_ebpf_stats(exps, tput):
+#     """Get eBPF stats averaged across multiple runs for each experiment."""
+#     n_runs = 1
+#     ebpf_aggregated_data = []
+    
+#     for idx, exp in enumerate(exps):
+#         ebpf_data_per_exp = []
+        
+#         # Collect data from all runs
+#         for run_id in range(n_runs):
+#             ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+#             if ebpf_data is None:
+#                 print(f"Failed to get eBPF data for {exp} run {run_id}")
+#                 continue
+#             ebpf_data_per_exp.append(ebpf_data)
+        
+#         if len(ebpf_data_per_exp) == 0:
+#             print(f"No eBPF data found for experiment {exp}")
+#             ebpf_aggregated_data.append(None)
+#             continue
+        
+#         # Calculate mean and stddev across runs for each function
+#         # Group by function name and calculate statistics
+#         all_functions = ebpf_data_per_exp[0]['function'].unique()
+        
+#         aggregated_df = pd.DataFrame()
+#         for func_name in all_functions:
+#             func_data_across_runs = []
+#             for run_df in ebpf_data_per_exp:
+#                 func_row = run_df[run_df['function'] == func_name]
+#                 if not func_row.empty:
+#                     func_data_across_runs.append(func_row.iloc[0])
+            
+#             if len(func_data_across_runs) > 0:
+#                 # Convert to DataFrame for easier computation
+#                 func_df = pd.DataFrame(func_data_across_runs)
+                
+#                 # Create aggregated row with mean values
+#                 agg_row = {}
+#                 agg_row['function'] = func_name
+                
+#                 # For numeric columns, calculate mean
+#                 numeric_cols = func_df.select_dtypes(include=[np.number]).columns
+#                 for col in numeric_cols:
+#                     agg_row[col] = func_df[col].mean()
+#                     # Also store stddev with _stddev suffix for future use
+#                     agg_row[f'{col}_stddev'] = func_df[col].std()
+                
+#                 aggregated_df = pd.concat([aggregated_df, pd.DataFrame([agg_row])], ignore_index=True)
+        
+#         # Save for debugging/inspection
+#         output_file = f"ebpf_aggregated_{exp.split('/')[-1]}.csv"
+#         aggregated_df.to_csv(output_file, index=False)
+#         print(f"Saved aggregated eBPF data to {output_file}")
+        
+#         ebpf_aggregated_data.append(aggregated_df)
+    
+#     return ebpf_aggregated_data
+
+def get_tput_from_dat(exp_name, run_id):
+    exp_name = exp_name.rstrip('/')
+    file = os.path.join(exp_name + "-RUN-" + str(run_id), "iperf.bw.rpt")
     if not os.path.exists(file):
-        print(f"File {file} does not exist")
         return None
+    
+    tput = 0
+    with open(file, 'r') as f1:
+        for line in f1:
+            if line.startswith('Avg_iperf_tput:'):
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        tput = float(parts[-1])
+                    except ValueError:
+                        pass
+                break
+    if tput == 0:
+        print(f"WARNING: Tput is 0 for experiment {exp_name} run {run_id}")
+    return tput
+
+def get_ebpf_single_run(exp_name, run_id):
+    """Get eBPF stats for a single run."""
+    exp_name = exp_name.rstrip('/')
+    file = os.path.join(exp_name + "-RUN-" + str(run_id), "ebpf_guest_stats.csv")
+    if not os.path.exists(file):
+        # print(f"File {file} does not exist")
+        return None
+    tput = get_tput_from_dat(exp_name, run_id)
+    if tput is None:
+        return None
+    print(f"Reading eBPF stats from {file} tput: {tput}")
     return get_ebpf_stats_from_csv(file, tput)
 
-def get_ebpf_stats(exps, tput):
+def get_ebpf_stats(exps):
     """Get eBPF stats averaged across multiple runs for each experiment."""
-    n_runs = 1
+    MAX_RUN = 20
     ebpf_aggregated_data = []
     
     for idx, exp in enumerate(exps):
         ebpf_data_per_exp = []
         
         # Collect data from all runs
-        for run_id in range(n_runs):
-            ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+        for run_id in range(MAX_RUN):
+            # ebpf_data = get_ebpf_single_run(exp, run_id, tput[idx])
+            ebpf_data = get_ebpf_single_run(exp, run_id)
             if ebpf_data is None:
-                print(f"Failed to get eBPF data for {exp} run {run_id}")
                 continue
             ebpf_data_per_exp.append(ebpf_data)
         
@@ -379,7 +516,9 @@ def get_ebpf_stats(exps, tput):
         
         # Calculate mean and stddev across runs for each function
         # Group by function name and calculate statistics
-        all_functions = ebpf_data_per_exp[0]['function'].unique()
+        all_functions = pd.unique(
+            pd.concat([df['function'] for df in ebpf_data_per_exp if df is not None], ignore_index=True)
+        )
         
         aggregated_df = pd.DataFrame()
         for func_name in all_functions:
@@ -407,7 +546,8 @@ def get_ebpf_stats(exps, tput):
                 aggregated_df = pd.concat([aggregated_df, pd.DataFrame([agg_row])], ignore_index=True)
         
         # Save for debugging/inspection
-        output_file = f"ebpf_aggregated_{exp.split('/')[-1]}.csv"
+        exp = exp.rstrip('/')
+        output_file = f"csvs/ebpf_aggregated_{exp.split('/')[-1]}.csv"
         aggregated_df.to_csv(output_file, index=False)
         print(f"Saved aggregated eBPF data to {output_file}")
         
@@ -441,12 +581,19 @@ def misses_per_page(misses, tput_mean):
     misses_per_page = misses_per_page / 64
     return misses_per_page
 
-def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_key, output_dir=None):
+def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_key, xlabel="Experiments", output_dir=None):
     """Plot selected eBPF functions' metrics across experiments for multiple setups.
 
     datasets: list of dicts with keys: 'setup_name' (str), 'ebpf' (list[pd.DataFrame]), 'color' (str)
+    selected_functions: dict mapping functionality name to list of function names, or list for backward compatibility
+                       e.g., {"cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"]}
+    xlabel: x-axis label for the plots
     """
     if datasets is None or len(datasets) == 0:
+        return
+
+    datasets = [ds for ds in datasets if ds.get('ebpf') is not None]
+    if len(datasets) == 0:
         return
 
     num_experiments = len(x_labels) if x_labels is not None else 0
@@ -456,39 +603,51 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
             print(f"eBPF data length mismatch for {ds.get('setup_name', 'unknown')}; skipping eBPF plots")
             return
 
-    def extract_metric_series(ebpf_data_list, function_name, column_name):
-        """Extract values for a specific metric column."""
+    # Convert list format to dict format for backward compatibility
+    if isinstance(selected_functions, list):
+        selected_functions = {func: [func] for func in selected_functions}
+
+    def extract_metric_series(ebpf_data_list, function_names, column_name):
+        """Extract values for a specific metric column, trying multiple function names."""
         series_values = []
         for df in ebpf_data_list:
             if df is None or 'function' not in df.columns:
                 series_values.append(0)
                 continue
-            row = df[df['function'] == function_name]
-            if row.empty or column_name not in row.columns:
+            
+            # Try each function name in the list
+            value_found = False
+            for function_name in function_names:
+                row = df[df['function'] == function_name]
+                if not row.empty and column_name in row.columns:
+                    value = row.iloc[0][column_name]
+                    try:
+                        series_values.append(float(value))
+                        value_found = True
+                        break
+                    except Exception:
+                        continue
+            
+            if not value_found:
                 series_values.append(0)
-                continue
-            value = row.iloc[0][column_name]
-            try:
-                series_values.append(float(value))
-            except Exception:
-                series_values.append(0)
+        
         return series_values
     
-    def extract_metric_with_stddev(ebpf_data_list, function_name, column_name):
+    def extract_metric_with_stddev(ebpf_data_list, function_names, column_name):
         """Extract both values and stddev for a specific metric."""
-        values = extract_metric_series(ebpf_data_list, function_name, column_name)
+        values = extract_metric_series(ebpf_data_list, function_names, column_name)
         stddev_col = f'{column_name}_stddev'
-        errors = extract_metric_series(ebpf_data_list, function_name, stddev_col)
+        errors = extract_metric_series(ebpf_data_list, function_names, stddev_col)
         return values, errors
 
     def sanitize(name):
         return str(name).replace('/', '_').replace(' ', '_')
 
-    for func in selected_functions:
+    for functionality_name, function_names in selected_functions.items():
         # Count
         series_list = []
         for ds in datasets:
-            values, errors = extract_metric_with_stddev(ds['ebpf'], func, 'count')
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count')
             series_list.append({
                 'label': ds['setup_name'],
                 'values': values,
@@ -496,8 +655,8 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
                 'color': ds.get('color')
             })
         plot_bars_dynamic(series_list, x_labels,
-                        title=f"{title_key}-{sanitize(func)}-count",
-                        xlabel="Experiments",
+                        title=f"{title_key}-{sanitize(functionality_name)}-count",
+                        xlabel=xlabel,
                         ylabel="Count",
                         output_dir=output_dir,
                         precision=1)
@@ -505,7 +664,7 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
         # Mean (ns)
         series_list = []
         for ds in datasets:
-            values, errors = extract_metric_with_stddev(ds['ebpf'], func, 'mean_ns')
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'mean_ns')
             series_list.append({
                 'label': ds['setup_name'],
                 'values': values,
@@ -513,16 +672,39 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
                 'color': ds.get('color')
             })
         plot_bars_dynamic(series_list, x_labels,
-                        title=f"{title_key}-{sanitize(func)}-mean_ns",
-                        xlabel="Experiments",
+                        title=f"{title_key}-{sanitize(functionality_name)}-mean_ns",
+                        xlabel=xlabel,
                         ylabel="Mean (ns)",
                         output_dir=output_dir,
-                        precision=1)
+                        precision=1,
+                        log_scale=True,
+                        scientific_labels=True)
+
+        # Total time (count * mean_ns)
+        series_list = []
+        for ds in datasets:
+            counts = extract_metric_series(ds['ebpf'], function_names, 'count')
+            means = extract_metric_series(ds['ebpf'], function_names, 'mean_ns')
+            total_ns = [c * m for c, m in zip(counts, means)]
+            total_ms = [t / 1e6 for t in total_ns]
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': total_ms,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-total_time",
+                        xlabel=xlabel,
+                        ylabel="Total time (ms)",
+                        output_dir=output_dir,
+                        precision=1,
+                        log_scale=True,
+                        scientific_labels=True)
 
         # Count per page
         series_list = []
         for ds in datasets:
-            values, errors = extract_metric_with_stddev(ds['ebpf'], func, 'count_per_page')
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count_per_page')
             series_list.append({
                 'label': ds['setup_name'],
                 'values': values,
@@ -530,8 +712,8 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
                 'color': ds.get('color')
             })
         plot_bars_dynamic(series_list, x_labels,
-                        title=f"{title_key}-{sanitize(func)}-count_per_page",
-                        xlabel="Experiments",
+                        title=f"{title_key}-{sanitize(functionality_name)}-count_per_page",
+                        xlabel=xlabel,
                         ylabel="Count per page",
                         output_dir=output_dir,
                         precision=4)
@@ -598,6 +780,7 @@ def plot_flows_exp():
     # x_labels = [f"{i:02d}" for i in range(1, 33)]
     x_labels = [f"{i:02d}" for i in target_values]
     print(x_labels)
+
 
     off_exps = [
         f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
@@ -688,4 +871,269 @@ def plot_flows_exp():
     #                              title_key='Emerald-Rapids-CX7-6.12.9-iommufd',
     #                              output_dir="Nested_vs_Off_1_20_cores_no_contention")
 
-plot_flows_exp()
+
+def siyuan_Evaluation_plot_flows_exp():
+    
+    target_values = [4, 8, 12, 16, 20, 24]
+    # x_labels = [f"{i:02d}" for i in range(1, 33)]
+    x_labels = [f"{i:02d}" for i in target_values]
+    print(x_labels)
+
+    off_exps = [
+        f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    ]
+
+
+    nested_exps = [
+        f"/home/schai/viommu/utils/reports/2025-11-15-17-53-09-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    ]
+
+
+    siyuan_no_map_contention = [
+        f"/home/schai/viommu_siyuan/utils/reports/2025-12-05-04-01-47-6.12.9-iommufd-vanilla-based-no-map-contention-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    ]
+
+    
+    siyuan_exp_async_invalid_wait = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-02-03-05-05-6.12.9-iommufd-vanilla-based-no-map-contention-AsyncInvalid-wait-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    ]
+
+    z_val_1 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    z_val_10 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
+    ]
+
+    z_val_100 = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    z_val_1_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
+    ]
+
+    z_val_10_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
+    ]
+
+    z_val_100_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in target_values
+    ]
+
+
+    z_val_3_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [4, 8, 12]
+    ] + ["/home/schai/viommu_siyuan/utils/reports/2026-02-22-16-37-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow16-host-strict-guest-strict-nested-16cores"] + [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [20, 24]
+    ]
+
+
+    
+
+
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    
+    host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
+    host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    
+    # z_val_1_data, z_val_1_ebpf_data = get_data(x_labels, z_val_1)
+    # z_val_10_data, z_val_10_ebpf_data = get_data(x_labels, z_val_10)
+    # z_val_100_data, z_val_100_ebpf_data = get_data(x_labels, z_val_100)
+
+    z_val_1_DFP_data, z_val_1_DFP_ebpf_data = get_data(x_labels, z_val_1_DFP)
+    # z_val_10_DFP_data, z_val_10_DFP_ebpf_data = get_data(x_labels, z_val_10_DFP)
+    # z_val_100_DFP_data, z_val_100_DFP_ebpf_data = get_data(x_labels, z_val_100_DFP)
+
+    # z_val_3_DFP_data, z_val_3_DFP_ebpf_data = get_data(x_labels, z_val_3_DFP)
+    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+
+    # Default color palette if not specified
+    # default_colors = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', 
+    #                  '#F0E442', '#D55E00', '#999999', '#FF6600',
+    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+
+
+    # default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
+    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
+    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+
+    datasets = [
+        { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
+        { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid Wait', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=1', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[1] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[3] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[4] },
+
+        { 'setup_name': 'Host Strict; Guest vF&S', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
+        # { 'setup_name': 'Host Strict; Guest DLF z=10 (DFP)', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
+        # { 'setup_name': 'Host Strict; Guest DLF z=100 (DFP)', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
+
+        # { 'setup_name': 'Host Strict; Guest DLF z=3 (DFP)', 'data': z_val_3_DFP_data, 'ebpf': z_val_3_DFP_ebpf_data, 'color': default_colors[9] },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='eval_core_exp',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="Siyuan_Evaluation_diff_cores")
+
+    plot_ebpf_selected_functions(datasets=datasets,
+                                 x_labels=x_labels,
+                                 selected_functions=["cache_tag_flush_range_np", "cache_tag_flush_range", "qi_submit_sync",],
+                                 xlabel="Number of Cores (1 flow/core)",
+                                 title_key='eval_core_exp',
+                                 output_dir="Siyuan_Evaluation_diff_cores")
+
+def plot_flows_exp_stress():
+    
+    target_values = [1, 2, 4, 8]
+    # x_labels = [f"{i:02d}" for i in range(1, 33)]
+    x_labels = [f"{i:02d}" for i in target_values]
+
+    n_cores = 24
+    print(x_labels)
+
+    off_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-04-03-44-33-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-off-off-{n_cores}cores" for i in target_values
+    ]
+
+    nested_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-04-04-44-58-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores" for i in target_values
+    ]
+
+    siyuan_exp_async_invalid_wait = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-01-02-03-57-04-6.12.9-iommufd-vanilla-based-no-map-contention-AsyncInvalid-wait-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores" for i in target_values
+    ]
+
+
+    z_val_1_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval1" for i in target_values
+    ]
+
+    z_val_10_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval10" for i in target_values
+    ]
+
+    z_val_100_DFP = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-06-22-11-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-zval100" for i in target_values
+    ]
+    
+    # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
+    # host_strict_guest_nested_siyuan_one_core_invalid, extra_hooks_siyuan_one_core_invalid_ebpf = get_data(x_labels, siyuan_exp_one_core_invalid)
+    host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(x_labels, nested_exps)
+    host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    # host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    z_val_1_DFP_data, z_val_1_DFP_ebpf_data = get_data(x_labels, z_val_1_DFP)
+    z_val_10_DFP_data, z_val_10_DFP_ebpf_data = get_data(x_labels, z_val_10_DFP)
+    z_val_100_DFP_data, z_val_100_DFP_ebpf_data = get_data(x_labels, z_val_100_DFP)
+
+    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+
+    datasets = [
+        { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
+        { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': color_nested },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid', 'data': host_strict_guest_nested_siyuan_one_core_invalid, 'ebpf': extra_hooks_siyuan_one_core_invalid_ebpf, 'color': '#CC79A7' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid Wait', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
+    
+        { 'setup_name': 'Host Strict; Guest vF&S', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
+        # { 'setup_name': 'Host Strict; Guest vF&S (z=10)', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
+        # { 'setup_name': 'Host Strict; Guest vF&S (z=100)', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='stress_exp',
+                      xlabel=f"Flows per core ({n_cores} cores)",
+                      output_dir="Siyuan_Evaluation_stress_exp")
+
+    plot_ebpf_selected_functions(datasets=datasets,
+                                 x_labels=x_labels,
+                                 selected_functions=["cache_tag_flush_range_np", "cache_tag_flush_range", "qi_submit_sync",],
+                                 xlabel=f"Flows per core ({n_cores} cores)",
+                                 title_key='stress_exp',
+                                 output_dir="Siyuan_Evaluation_stress_exp")
+
+def plot_baremetal_rx_flows_exp():
+    """Plot BareMetal RX experiment results."""
+
+    # /home/lbalara/viommu/BareMetal-FandS/utils/reports
+    # 2026-03-21-01-28-45-6.12.9-iommufd-BM-flow28-baremetal--28cores-ringbuf512-sokcetbuf1 : OFF
+    # 2026-03-20-20-17-58-6.12.9-iommufd-BM-flow24-baremetal--24cores-ringbuf512-sokcetbuf1 : STRICT
+
+    target_values = [4, 8, 12, 16, 20, 24, 28]
+    x_labels = [f"{i:02d}" for i in target_values]
+    print(x_labels)
+
+    off_exps = [
+        f"/home/lbalara/viommu/BareMetal-FandS/utils/reports/2026-03-21-01-28-45-6.12.9-iommufd-BM-flow{i:02d}-baremetal--{i}cores-ringbuf512-sokcetbuf1" for i in target_values
+    ]
+
+    strict_exps=[
+        f"/home/lbalara/viommu/BareMetal-FandS/utils/reports/2026-03-20-20-17-58-6.12.9-iommufd-BM-flow{i:02d}-baremetal--{i}cores-ringbuf512-sokcetbuf1" for i in target_values
+    ]
+
+    baremetal_rx_off_data, throwaway_off = get_data(x_labels, off_exps, collect_ebpf=False)
+    baremetal_rx_strict_data, throwaway_strict = get_data(x_labels, strict_exps, collect_ebpf=False)
+
+    datasets = [
+        { 'setup_name': 'IOMMU Off', 'data': baremetal_rx_off_data, 'ebpf': throwaway_off, 'color': color_off },
+        { 'setup_name': 'IOMMU Strict', 'data': baremetal_rx_strict_data, 'ebpf': throwaway_strict, 'color': color_nested },
+    ]
+    
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='rx-baremetal',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="RX_Baremetal_Evaluation")
+
+def plot_baremetal_tx_flows_exp():
+    """Plot BareMetal TX experiment results."""
+
+    # /home/lbalara/viommu/BareMetal-FandS/utils/reports
+    # 2026-03-20-23-18-01-6.12.9-iommufd-BM-TX-flow24-baremetal-off-24cores-ringbuf512-sockbuf1
+    # 2026-03-20-17-11-06-6.12.9-iommufd-BM-TX-flow16-baremetal-strict-16cores-ringbuf512-sockbuf1
+    
+    target_values = [4, 8, 12, 16, 20, 24, 28]
+    x_labels = [f"{i:02d}" for i in target_values]
+    print(x_labels)
+
+    off_exps = [
+        f"/home/lbalara/viommu/BareMetal-FandS/utils/reports/2026-03-20-23-18-01-6.12.9-iommufd-BM-TX-flow{i:02d}-baremetal-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+    strict_exps=[
+        f"/home/lbalara/viommu/BareMetal-FandS/utils/reports/2026-03-20-17-11-06-6.12.9-iommufd-BM-TX-flow{i:02d}-baremetal-strict-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+
+    # Get data
+    baremetal_tx_off_data, throwaway_off = get_data(x_labels, off_exps, collect_ebpf=False)
+    baremetal_tx_strict_data, throwaway_strict = get_data(x_labels, strict_exps, collect_ebpf=False)
+
+    datasets = [
+        { 'setup_name': 'IOMMU Off', 'data': baremetal_tx_off_data, 'ebpf': throwaway_off, 'color': color_off },
+        { 'setup_name': 'IOMMU Strict', 'data': baremetal_tx_strict_data, 'ebpf': throwaway_strict, 'color': color_nested },
+    ]
+    
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='tx-baremetal',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="TX_Baremetal_Evaluation")
+
+
+
+if __name__ == "__main__":
+    # plot_flows_exp()
+    # siyuan_Evaluation_plot_flows_exp()
+    # plot_flows_exp_stress()
+    plot_baremetal_tx_flows_exp()
+    plot_baremetal_rx_flows_exp()
