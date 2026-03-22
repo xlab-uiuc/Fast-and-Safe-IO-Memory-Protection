@@ -37,7 +37,7 @@ EXP_NAME="tput-test"
 NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=0 #test
+EBPF_TRACING_ENABLED=1 #test
 
 # --- Guest (Server) Machine Configuration ---
 # GUEST_NIC_BUS="0x08"
@@ -463,7 +463,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting server logging..."
     cd "$SERVER_SETUP_DIR" || { log_error "Failed to cd to $SERVER_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$SERVER_DEP_DIR" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$SERVER_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$SERVER_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
     --pcie 1 --membw 0 --iio 0 --pfc 0 --intf "$SERVER_INTF" --type 0
     cd - > /dev/null
 

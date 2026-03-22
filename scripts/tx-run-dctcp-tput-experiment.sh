@@ -41,7 +41,7 @@ EXP_NAME="tput-test"
 NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_HOST_ENABLED=0
+EBPF_TRACING_HOST_ENABLED=1
 
 # --- Server Machine Configuration ---
 HOST_HOME="/users/Leshna"
@@ -490,7 +490,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting HOST-side logging on $HOST_IP..."
     cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$HOST_RESULTS_DIR" -o "${EXP_NAME}-RUN-${j}" --dur "$CORE_DURATION_S" \
-        --cpu-util 1  -c "$HOST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+        --cpu-util 1  -c "$HOST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
         --pcie 1 --membw 0 --iio 0 --pfc 0 --intf "$HOST_INTF" --type 0
 
     cd - > /dev/null
