@@ -216,6 +216,12 @@ else
         SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE ${HOST_SSH_UNAME}@${HOST_IP}"
 fi
 
+#-------------------------------------------------------------------------------
+# UUID for identifying screen names
+#-------------------------------------------------------------------------------
+uuid=$(uuidgen)
+host_perf_name="perf_host_${uuid}"
+
 log_info() {
     echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
@@ -274,7 +280,7 @@ cleanup() {
     if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
         $SSH_HOST_CMD \
-        "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+        "sudo pkill -SIGINT -f '$host_perf_name'; sleep 1; sudo pkill -9 -f '$host_perf_name'"
     fi
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -291,17 +297,17 @@ cleanup() {
 	    local host_loader_basename
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD \
-        "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
+        "screen -S ebpf_host_tracer_${uuid} -X quit || true"
 	    sleep 5
     fi
 
     log_info "Terminating screen sessions..."
     $SSH_CLIENT_CMD \
-        'screen -ls | grep -E "\.client_session|\.logging_session_client" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
+        'screen -ls | grep -E "\.client_session_${uuid}|\.logging_session_client_${uuid}" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
     $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
     $SSH_HOST_CMD \
-	'screen -ls | grep -E "\.host_session|\.perf_screen|\.perf_kvm_screen|\.perf_sched_screen|\.logging_session_host" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
+	'screen -ls | grep -E "\.host_session_${uuid}|\.perf_screen_${uuid}|\.perf_kvm_screen_${uuid}|\.perf_sched_screen_${uuid}|\.logging_session_host_${uuid}" | cut -d. -f1 | xargs -r -I % screen -S % -X quit'
     $SSH_HOST_CMD \
         'screen -wipe || true'
 
@@ -490,7 +496,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
     client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-tx-netapp-tput.sh --mode server -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' &> '$client_server_app_log_file'; exec bash"
-    $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    $SSH_CLIENT_CMD "screen -dmS client_session_${uuid} sudo bash -c \"$client_cmd\""
     sleep 2
 
     # --- Setup Guest (Server) Environment ---
@@ -503,7 +509,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
      # --- Setup Host Environment ---
     log_info "Setting up HOST environment on $HOST_IP..."
     $SSH_HOST_CMD \
-        "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
+        "screen -dmS host_session_${uuid} sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
     log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
@@ -545,7 +551,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST eBPF tracer on $HOST_IP..."
         host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
-        $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
+        $SSH_HOST_CMD "screen -dmS ebpf_host_tracer_${uuid} sudo bash -c \"$host_loader_cmd\""
         sleep 2 # Allow eBPF loaders to initialize
     fi
 
@@ -573,8 +579,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
-        host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
-        $SSH_HOST_CMD "screen -dmS perf_screen sudo bash -c \"$host_perf_cmd\""
+        host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -u $host_perf_name -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
+        $SSH_HOST_CMD "screen -dmS perf_screen_${uuid} sudo bash -c \"$host_perf_cmd\""
     fi
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
@@ -582,7 +588,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
         --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 0 --bw 1 --flame 0 \
         --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
-    $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
+    $SSH_CLIENT_CMD "screen -dmS logging_session_client_${uuid} sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $HOST_IP..."
     host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
@@ -590,7 +596,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 0 \
         --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
     echo $host_logging_cmd
-    $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
+    $SSH_HOST_CMD "screen -dmS logging_session_host_${uuid} sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
