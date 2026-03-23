@@ -76,9 +76,9 @@ for i in range(NUM_RUNS):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
 
-    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt'
+    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/membw.rpt'
     if os.path.exists(host_membw_file):
-        with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
+        with open(FILE_NAME + '-RUN-' + str(i) + '/membw.rpt') as f1:
             try:
                 for line in f1:
                     line_str = line.split()
@@ -106,7 +106,7 @@ for i in range(NUM_RUNS):
                     cpu_utils.append(cpu_util)
                 break
     try: 
-        with open(FILE_NAME + '-RUN-' + str(i) + '/host-pcie.rpt') as f1:
+        with open(FILE_NAME + '-RUN-' + str(i) + '/pcie.rpt') as f1:
             for line in f1:
                 line_str = line.split()
                 if (line_str[0] == 'PCIe_wr_tput:'):

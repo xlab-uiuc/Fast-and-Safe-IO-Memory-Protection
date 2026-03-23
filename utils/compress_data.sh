@@ -1,11 +1,11 @@
 #!/bin/bash
 
 SUB_DIR="reports"
-DRY_RUN="false"
+DRY_RUN="true"
 
 # Set the year and month threshold (YYYY-MM format)
 # Only directories from this month and earlier will be compressed
-YEAR_MONTH="2025-11"
+YEAR_MONTH="2025-12"
 
 THRESHOLD=$(echo "$YEAR_MONTH" | tr -d '-')
 
