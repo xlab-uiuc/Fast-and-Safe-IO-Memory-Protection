@@ -372,7 +372,7 @@ cleanup() {
     $SSH_CLIENT_CMD \
         "screen -ls | grep -E '\.client_session_${uuid}|\.logging_session_client_${uuid}' | cut -d. -f1 | xargs -r -I % screen -S % -X quit"
     $SSH_CLIENT_CMD \
-        'sudo pkill -9 -f iperf_${out_dir}; screen -wipe || true'
+        "sudo pkill -9 -f iperf_${out_dir}; screen -wipe || true"
     $SSH_HOST_CMD \
 	"screen -ls | grep -E '\.host_session_${uuid}|\.perf_screen_${uuid}|\.perf_kvm_screen_${uuid}|\.perf_sched_screen_${uuid}|\.logging_session_host_${uuid}' | cut -d. -f1 | xargs -r -I % screen -S % -X quit"
     $SSH_HOST_CMD \
