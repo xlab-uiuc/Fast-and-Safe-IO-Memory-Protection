@@ -220,6 +220,7 @@ fi
 # UUID for identifying screen names
 #-------------------------------------------------------------------------------
 uuid=$(uuidgen)
+host_perf_name="perf_host_${uuid}"
 
 mem_pid=""
 cleanup_mem_stats() {
@@ -346,7 +347,7 @@ cleanup() {
     if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Killing remote 'perf record' on HOST ($HOST_IP)..."
         $SSH_HOST_CMD \
-        "sudo pkill -SIGINT -f '$HOST_PERF record'; sleep 1; sudo pkill -9 -f '$HOST_PERF record'"
+        "sudo pkill -SIGINT -f '$host_perf_name'; sleep 1; sudo pkill -9 -f '$host_perf_name'"
     fi
 
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -363,7 +364,7 @@ cleanup() {
 	    local host_loader_basename
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
         $SSH_HOST_CMD \
-        "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer_${uuid} -X quit || true"
+        "screen -S ebpf_host_tracer_${uuid} -X quit || true"
 	    sleep 5
     fi
 
@@ -590,7 +591,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Starting HOST perf record (CPU profiling) on $HOST_IP..."
-        host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
+        host_perf_cmd="cd '$HOST_SETUP_DIR'; sudo bash perf-record-host.sh -u $host_perf_name -d '$PROFILING_LOGGING_DUR_S' -e '${EXP_NAME}-RUN-${j}'; exec bash"
         $SSH_HOST_CMD "screen -dmS perf_screen_${uuid} sudo bash -c \"$host_perf_cmd\""
     fi
 
@@ -649,7 +650,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     fi
     if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         host_loader_basename=$(basename "$EBPF_HOST_LOADER")
-        $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
+        # $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
     fi
  
     # --- Transfer Report Files from Remote Machines ---
