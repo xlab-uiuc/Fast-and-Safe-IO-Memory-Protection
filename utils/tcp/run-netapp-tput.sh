@@ -63,7 +63,13 @@ rm -f ../logs/$OUT_DIR/iperf.bw.log
 
 function collect_stats() {
   echo "Collecting app throughput for TCP server..."
-  echo "Avg_iperf_tput: " $(cat ../logs/$OUT_DIR/iperf.bw.log | grep "30.*-60.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > ../reports/$OUT_DIR/iperf.bw.rpt
+  # Find the last complete iperf reporting interval and sum throughput across all server instances.
+  last_range=$(grep -oP '\d+\.\d+-\d+\.\d+' ../logs/$OUT_DIR/iperf.bw.log 2>/dev/null | sort -t'-' -k2 -rn | head -1)
+  if [ -n "$last_range" ]; then
+    echo "Avg_iperf_tput: " $(grep "$last_range" ../logs/$OUT_DIR/iperf.bw.log | awk '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > ../reports/$OUT_DIR/iperf.bw.rpt
+  else
+    echo "Avg_iperf_tput: 0" > ../reports/$OUT_DIR/iperf.bw.rpt
+  fi
 }
 
 counter=0

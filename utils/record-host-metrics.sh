@@ -259,7 +259,15 @@ if [ "$TYPE" -eq 0 ]; then
 
     if [ "$BANDWIDTH_REPORTING" -eq 1 ]; then
       echo "Collecting app bandwidth..."
-      echo "Avg_iperf_tput: " $(cat logs/$OUT_DIR/iperf.bw.log | grep "60.*-90.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
+      # Find the last complete iperf reporting interval and sum throughput across all server instances.
+      # Previous grep "60.*-90.*" assumed 90+ seconds of iperf data, but the experiment
+      # typically only has ~30s of data when this runs.
+      last_range=$(grep -oP '\d+\.\d+-\d+\.\d+' logs/$OUT_DIR/iperf.bw.log 2>/dev/null | sort -t'-' -k2 -rn | head -1)
+      if [ -n "$last_range" ]; then
+        echo "Avg_iperf_tput: " $(grep "$last_range" logs/$OUT_DIR/iperf.bw.log | awk '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
+      else
+        echo "Avg_iperf_tput: 0" > reports/$OUT_DIR/iperf.bw.rpt
+      fi
     fi
 
     if [ "$RETX_REPORTING" -eq 1 ]; then
