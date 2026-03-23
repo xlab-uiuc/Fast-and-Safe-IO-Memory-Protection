@@ -5,6 +5,7 @@ DURATION=20
 PERF=/home/lbalara/viommu/linux-6.12.9/tools/perf/perf
 GUEST_SRC=/home/lbalara/viommu/modified-linux-6.12.9 #TODO
 EXP_NAME=unknown
+UUID=unset
 
 
 # string literals
@@ -40,6 +41,7 @@ while :;do
     -d | --dur) DURATION="$2"; shift 2 ;;
     -e | --exp) EXP_NAME="$2"; shift 2 ;;
     -h | --help) help ;;
+    -u | --uuid) UUID="$2"; shift 2 ;;
     --) shift; break ;;
     *) echo "Unexpected option: $1"; help ;;
   esac
@@ -55,5 +57,5 @@ mkdir -p reports/${EXP_NAME}
 
 # $PERF record -F 99 -a -g --call-graph dwarf -o reports/${EXP_NAME}/${CPU_DATA} -- sleep $DURATION &
 # $PERF kvm --guest --host --guestkallsyms=${VM_COPY_DIR}/kallsyms --guestmodules=${VM_COPY_DIR}/modules --guestvmlinux=$GUEST_SRC/vmlinux record -p $QPID -F 99 -o reports/${EXP_NAME}/${KVM_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
-$PERF kvm stat record -p $QPID -o reports/${EXP_NAME}/${KVM_STAT_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
+(exec -a ${UUID} $PERF kvm stat record -p $QPID -o reports/${EXP_NAME}/${KVM_STAT_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1) &
 # $PERF sched record -p $QPID -o reports/${EXP_NAME}/${SCHED_DATA} -- sleep $DURATION > reports/${EXP_NAME}/${LOGS} 2>&1 &
