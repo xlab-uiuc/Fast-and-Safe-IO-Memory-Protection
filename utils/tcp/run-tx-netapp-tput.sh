@@ -82,6 +82,7 @@ elif [ "$MODE" = "client" ]; then
         taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -i 30 -f m -t 10000 -C dctcp -b $BANDWIDTH --logfile ../logs/$OUT_DIR/iperf.bw.log &
         ((counter++))
     done
+
     echo "waiting for few minutes before collecting stats..."
     sleep 120
     echo "collecting stats..."

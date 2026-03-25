@@ -30,6 +30,7 @@ def __get_ebpf_stats(exp_name, run_id):
     if not os.path.exists(ebpf_path):
         return None
     print(f"Reading eBPF stats from {ebpf_path}")
+    
 
 #     # Per-Function Latency Statistics
 # function,type,count,total_duration_ns,mean_ns,variance_us
@@ -83,11 +84,23 @@ def __get_ebpf_stats(exp_name, run_id):
     # return {key: ebpf_results[key] for key in ebpf_results.dtype.names}
     return ebpf_results
 
-def get_ebpf_stats(exp_name, tput, profile_duration=20):
+def get_tput_per_run(exp_name, run_id):
+    tput_path = os.path.join("../utils/reports/", exp_name + f'-RUN-{run_id}', "iperf.bw.rpt")
+    if not os.path.exists(tput_path):
+        return None
+    # print(f"Reading tput from {tput_path}")
+    with open(tput_path, 'r') as f:
+        lines = f.readlines()
+    tput = float(lines[-1].split()[-1])
+    print(f"Tput: {tput}")
+    return tput
+
+def get_ebpf_stats(exp_name, profile_duration=20):
     MAX_RUNS = 20
     ebpf_stats = {}
     for run_id in range(0, MAX_RUNS):
         run_stats = __get_ebpf_stats(exp_name, run_id)
+        tput = get_tput_per_run(exp_name, run_id)
         if run_stats is None:
             continue
         total_data = tput * 1e9 / 8 * profile_duration  # bytes
@@ -111,7 +124,6 @@ iotlb_alllkp_page = per_page(results['iotlb_all_lookup_mean'], tput)
 iommu_mem_access_page = per_page(results['iommu_mem_access_mean'], tput)
 iotlb_inv_page = per_page(results['iotlb_inv_mean'], tput)
 
-
 print(f"------- {exp_name} Run Metrics -------")
 
 if "tput" in metrics or "all" in metrics:
@@ -122,6 +134,12 @@ if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {drop_rate}")
 if "acks" in metrics or "all" in metrics:
     print(f"Acks per page: {acks_page}")
+try:
+    # Some runs won't have memory stats
+    print(f"Mean Memory: {results['mem_mean']}")
+    print(f"Max Memory: {results['mem_max']}")
+except:
+    pass
 if "iommu" in metrics or "all" in metrics:
     print("Per page stats:")
     print(f"\tIOTLB Miss: {iotlb_miss_page}")
@@ -133,7 +151,7 @@ if "iommu" in metrics or "all" in metrics:
     # Also print the raw IOMMU/IOTLB counters you now export
     print(f"\tPWT Occupancy: {pwt}")
 
-get_ebpf_stats(exp_name, tput)
+get_ebpf_stats(exp_name)
 # If no stddevs (single run), stop here
 if not results['net_tput_stddev']:
     print("")
@@ -147,5 +165,5 @@ if "cpu" in metrics or "all" in metrics:
 if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {results['retx_rate_stddev']}")
 if "acks" in metrics or "all" in metrics:
-    print(f"Acks per page: {misses_per_page(results['sent_packets_stddev'], tput)}")
+    print(f"Acks per page: {per_page(results['sent_packets_stddev'], tput)}")
 print("")

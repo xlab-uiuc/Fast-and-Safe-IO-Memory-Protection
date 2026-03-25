@@ -124,8 +124,7 @@ host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 virt_tech=$(detect_virt_tech)
 if [ $? -ne 0 ]; then
     echo "Failed to detect virtualization technology"
-    echo "Running in baremetal, so probably not a problem"
-    #exit 1
+    exit 1
 fi
 
 iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"
@@ -146,7 +145,7 @@ for socket_buf in 1; do
             for num_cores in 1 4 8 12 16 20 24 28 32; do
                 client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
-                
+
                 n_val=$(( i * num_cores ))
                 # echo $n_val
                 format_i=$(printf "%02d\n" $n_val)
@@ -166,12 +165,12 @@ for socket_buf in 1; do
                 for z in $run_list; do
                     if [ "$z" != "default" ]; then
                         # DLF Setup
-                        exp_name="${timestamp}-$(uname -r)-RX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}-zval${z}"
+                        exp_name="${timestamp}-$(uname -r)-TX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}-zval${z}"
                         echo $z | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
                         echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
                     else
                         # Standard Setup
-                        exp_name="${timestamp}-$(uname -r)-RX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
+                        exp_name="${timestamp}-$(uname -r)-TX-flow${format_i}-${iommu_config}-${num_cores}cores-ringbuf${ring_buffer}-sockbuf${socket_buf}"
                     fi
 
                     echo $exp_name
@@ -182,7 +181,7 @@ for socket_buf in 1; do
                     fi
 
                     sudo mkdir -p ../utils/reports/$exp_name
-                    sudo bash vm-run-dctcp-tput-experiment.sh \
+                    sudo bash vm-tx-run-dctcp-tput-experiment.sh \
                         --guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" -n "$n_val" -c $server_cores_mask \
                         --client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" -N "$n_val" -C $client_cores_mask \
                         --host-home "$HOST_HOME" --host-ip "$HOST_IP" \
@@ -202,3 +201,5 @@ for socket_buf in 1; do
     done
 done
 
+sync
+sleep 1

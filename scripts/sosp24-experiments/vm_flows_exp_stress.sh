@@ -124,8 +124,7 @@ host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 virt_tech=$(detect_virt_tech)
 if [ $? -ne 0 ]; then
     echo "Failed to detect virtualization technology"
-    echo "Running in baremetal, so probably not a problem"
-    #exit 1
+    exit 1
 fi
 
 iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"
@@ -134,6 +133,7 @@ echo "iommu_config: $iommu_config"
 client_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 server_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
 
+
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
 
 N_RUNS=5
@@ -141,9 +141,9 @@ Z_LIST_DLF="1"
 
 for socket_buf in 1; do
     for ring_buffer in 512; do
-        for i in 1; do
+        for i in 1 2 4 8; do
             # for num_cores in 1 4 8 12 16 20 24; do
-            for num_cores in 1 4 8 12 16 20 24 28 32; do
+            for num_cores in 24; do
                 client_cores_mask=($(echo $client_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 server_cores_mask=($(echo $server_cores | tr ',' '\n' | head -n $num_cores | tr '\n' ','))
                 

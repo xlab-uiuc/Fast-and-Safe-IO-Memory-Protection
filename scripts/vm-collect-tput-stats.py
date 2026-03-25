@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import statistics
 import subprocess
+import os
+import csv
 
 # TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
 
@@ -27,6 +29,8 @@ iotlb_miss = []
 iommu_mem_access = []
 iotlb_inv = []
 pwt_occupancy = []
+mem_used = []
+
 
 # iotlb_hits = []
 # ctx_lookup = []
@@ -47,6 +51,18 @@ for i in range(NUM_RUNS):
                 net_tputs.append(tput)
             break
 
+    try:
+
+        with open(FILE_NAME + '-RUN-' + str(i) + '/memory_stats.csv') as f1:
+            # Read in CSV data
+            reader = csv.DictReader(f1)
+            for row in reader:
+                mem_used.append(int(row['mem_used']))
+
+    except FileNotFoundError:
+        # No memory stats, do nothing
+        print("No memory stats recorded!")
+
     with open(FILE_NAME + '-RUN-' + str(i) + '/client-retx.rpt') as f1:
         for line in f1:
             line_str = line.split()
@@ -59,19 +75,24 @@ for i in range(NUM_RUNS):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
 
-    with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
-        try:
-            for line in f1:
-                line_str = line.split()
-                if (line_str[0] != 'Node0_total_bw:'):
-                    continue
-                else:
-                    membw = float(line_str[-1])
-                    if (membw >= 0):
-                        mem_bws.append(membw)
-                    break
-        except Exception as e:
-            mem_bws.append(0)
+    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt'
+    if os.path.exists(host_membw_file):
+        with open(FILE_NAME + '-RUN-' + str(i) + '/host-membw.rpt') as f1:
+            try:
+                for line in f1:
+                    line_str = line.split()
+                    if (line_str[0] != 'Node0_total_bw:'):
+                        continue
+                    else:
+                        membw = float(line_str[-1])
+                        if (membw >= 0):
+                            mem_bws.append(membw)
+                        break
+            except Exception as e:
+                mem_bws.append(0)
+    else:
+        mem_bws.append(0)
+        print(f"[WARN] Host membw file not found: {host_membw_file}")
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/cpu_util.rpt') as f1:
         for line in f1:
@@ -130,6 +151,7 @@ for i in range(NUM_RUNS):
 
 def mean_or_zero(arr): return statistics.mean(arr) if arr else 0
 def stdev_or_zero(arr): return statistics.stdev(arr) if len(arr) > 1 else 0
+def max_or_zero(arr): return max(arr) if len(arr) > 1 else 0
 
 
 cpu_utils_mean = mean_or_zero(cpu_utils);               cpu_utils_stddev = stdev_or_zero(cpu_utils)
@@ -145,6 +167,8 @@ iotlb_miss_mean        = mean_or_zero(iotlb_miss);           iotlb_miss_stddev  
 iommu_mem_access_mean  = mean_or_zero(iommu_mem_access);     iommu_mem_access_stddev  = stdev_or_zero(iommu_mem_access)
 iotlb_inv_mean         = mean_or_zero(iotlb_inv);            iotlb_inv_stddev         = stdev_or_zero(iotlb_inv)
 pwt_occupancy_mean     = mean_or_zero(pwt_occupancy);        pwt_occupancy_stddev     = stdev_or_zero(pwt_occupancy)
+mem_stats_mean = mean_or_zero(mem_used)
+mem_stats_max = max_or_zero(mem_used)
 
 mlc_tput_mean = 0
 mlc_tput_stddev = 0
@@ -173,6 +197,7 @@ output_list = [
     ("mlc_tput_mean", 0 if not mlc_tputs else mean_or_zero(mlc_tputs)),
     ("mlc_tput_stddev", 0 if len(mlc_tputs) < 2 else stdev_or_zero(mlc_tputs)),
     ("sent_packets_mean", sent_packets_mean), ("sent_packets_stddev", sent_packets_stddev),
+    ("mem_mean", mem_stats_mean), ("mem_max", mem_stats_max)
 ]
 
 headers, outputs = zip(*output_list)
