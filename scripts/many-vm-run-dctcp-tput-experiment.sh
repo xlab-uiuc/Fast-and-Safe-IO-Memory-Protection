@@ -463,7 +463,7 @@ cd - > /dev/null
 # --- Start Clients (traffic generation only, no client setup-envir.sh) ---
 # Uses VM-specific screen session name and port offset.
 log_info "Starting CLIENT traffic on $CLIENT_SSH_HOST (screen: $SCREEN_CLIENT_SESSION, port: $INIT_PORT)..."
-client_cmd="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+client_cmd="cd '$CLIENT_EXP_DIR'; sudo bash many-run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
 $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\""
 
 # --- Warmup Phase ---
