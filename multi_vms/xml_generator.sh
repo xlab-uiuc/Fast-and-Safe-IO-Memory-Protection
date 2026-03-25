@@ -31,7 +31,7 @@ BIOS="/home/lbalara/viommu/qemu-nested/pc-bios/bios-256k.bin"
 # --- Mostly static configs ---
 CPU_START=64
 NUMA_NODE=2
-MEMORY_KIB=33554432  # 32 GiB
+MEMORY_KIB=14680064  # 32 GiB
 
 MAX_VMS=16
 
@@ -145,12 +145,14 @@ gen_pcie_root_ports() {
 # --- Generate VM XMLs ---
 for ((vm = 0; vm < NUM_VMS; vm++)); do
 	vm_name="${TAG}-generated-iommufd-${VIOMMU}-vcpu${VCPUS}-vm${vm}"
-	vf_func=$((vm + 1))
-	vf_pci="0000:98:00.${vf_func}"
+  vf_num=$((vm + 1))
+  vf_dev=$(printf '%02x' $((vf_num / 8)))
+  vf_func=$((vf_num % 8))
+  vf_pci="0000:98:${vf_dev}.${vf_func}"
   if [[ $vm -eq 0 ]]; then
     disk="/data/server_small.qcow2"
   else
-    disk="/data/server_small${vf_func}.qcow2"
+    disk="/data/server_small${vf_num}.qcow2"
   fi
 	cpu_base=$((CPU_START + vm * VCPUS))
 	mac_last=$(printf '%02x' $(( (0xe2 + vm) & 0xff )))

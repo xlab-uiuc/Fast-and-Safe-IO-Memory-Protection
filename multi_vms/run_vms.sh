@@ -5,12 +5,12 @@ set -euo pipefail
 # Configuration
 # ============================================================
 
-GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1"
+GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1 intel_iommu_pinned=on intel_iommu_dfp=on"
 GUEST_CMD_LINE_OFF="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=off"
 
-GUEST_KERNEL="6.12.9-iommufd"
-GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
-GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
+GUEST_KERNEL="6.12.9-iommufd-nested-iova-contig-cb-opt"
+GUEST_KERNEL_PATH="/boot-VM/vmlinuz-$GUEST_KERNEL"
+GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
 GUEST_VIOMMU="nested" # nested/off
 NUM_VMS=12
 NUM_CORES="2"
@@ -406,7 +406,7 @@ if [[ $REUSE -eq 0 ]]; then
 fi
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
-EXP_NAME="${timestamp}-$(uname -r)-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_CORES}cores"
+EXP_NAME="${timestamp}-$GUEST_KERNEL-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_CORES}cores"
 
 echo "============================================================"
 echo "  VM Benchmark Runner"
@@ -511,6 +511,7 @@ console_pids=()
 for ((i = 0; i < NUM_VMS; i++)); do
 	name="${vm_names[$i]}"
 	virsh start "$name"
+	sleep 2
 	script -q -c "virsh console $name" "${name}.log" > /dev/null 2>&1 &
 	console_pids+=($!)
 	echo "  Started: ${name} (console -> ${name}.log)"
