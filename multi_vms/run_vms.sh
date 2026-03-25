@@ -17,9 +17,9 @@ NUM_FLOWS="8"
 REUSE=0
 
 # --- Hardcoded experiment config ---
-GIT_REPO="/home/schai/viommu_leshna"
+GIT_REPO="/home/schai/viommu"
 GIT_BRANCH="many-vm-setup"
-VM_SCRIPT="cd /home/schai/viommu_leshna/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
+VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
 HOST_HOME="/home/lbalara"
@@ -542,8 +542,6 @@ if [[ $failed -gt 0 ]]; then
 	cleanup
 	exit 1
 fi
-
-exit 1
 
 # --- Step 11: Sync git repo on all VMs ---
 echo ""
