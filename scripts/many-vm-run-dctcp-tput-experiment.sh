@@ -467,8 +467,8 @@ client_cmd="cd '$CLIENT_EXP_DIR'; sudo bash many-run-netapp-tput.sh --mode clien
 $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\""
 
 # --- Warmup Phase ---
-log_info "Warming up experiment (10 seconds)..."
-progress_bar 10 2
+log_info "Warming up experiment (120 seconds)..."
+progress_bar 120 2
 
 # --- Start Guest eBPF Tracers (if enabled) ---
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -545,7 +545,7 @@ else
 fi
 
 log_info "Waiting for remote operations to settle ($((CORE_DURATION_S * 2))s)..."
-progress_bar $((CORE_DURATION_S * 2)) 5
+progress_bar $((CORE_DURATION_S * 2)) 2
 
 log_info "############################################################"
 log_info "### Finished Experiment: $EXP_NAME (vm${VM_ID})"
@@ -556,9 +556,8 @@ cleanup
 post_exp_cleanup
 
 cd "$SCRIPT_DIR" || exit 1
-pwd
 
-sync
+sleep 5
 
 if [ "$MLC_CORES" != "none" ]; then
 	log_info "MLC cores were used."

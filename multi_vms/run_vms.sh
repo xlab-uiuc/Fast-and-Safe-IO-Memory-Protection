@@ -12,9 +12,9 @@ GUEST_KERNEL="6.12.9-iommufd"
 GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
 GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
 GUEST_VIOMMU="nested" # nested/off
-NUM_VMS=4
-NUM_CORES="8"
-NUM_FLOWS="8"
+NUM_VMS=12
+NUM_CORES="2"
+NUM_FLOWS="2"
 REUSE=0
 
 # --- Hardcoded experiment config ---
