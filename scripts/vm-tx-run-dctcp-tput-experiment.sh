@@ -126,6 +126,7 @@ help() {
     echo "    [ --dur <seconds> (Core experiment duration in seconds; default: 20) ]"
     echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
     echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
+    echo "    [ --mem-stats <0|1> (Enable collect-mem-stats.sh; default: 1) ]"
     echo
      echo "Client SSH Configuration"
     echo "    [ --client-ssh-name <uname> (SSH username for client) ]"
@@ -146,7 +147,7 @@ SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
 LONG_OPTS="guest-home:,guest-ip:,guest-intf:,guest-bus:,guest-num:,guest-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
 host-home:,host-ip:,\
-exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
+exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,mem-stats:,\
 client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
 
 PARSED_OPTS=$(getopt -a -n "$SCRIPT_NAME" --options "$SHORT_OPTS" --longoptions "$LONG_OPTS" -- "$@")
