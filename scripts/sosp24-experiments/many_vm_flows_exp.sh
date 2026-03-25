@@ -1,0 +1,253 @@
+#!/bin/bash
+set -euo pipefail
+
+# Ensure we are in the scripts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.." || exit 1
+echo "Running multi-VM flow experiment..."
+
+# --- Parse arguments ---
+VM_NAME=""
+NUM_CORES=""
+NUM_FLOWS=""
+DRY_RUN=0
+EXP_NAME=""
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--vm-name)    VM_NAME="$2";    shift 2 ;;
+	--num-cores)  NUM_CORES="$2";  shift 2 ;;
+	--num-flows)  NUM_FLOWS="$2";  shift 2 ;;
+	--exp-name)   EXP_NAME="$2";   shift 2 ;;
+	--dry)        DRY_RUN=1;       shift   ;;
+	*)            shift            ;;
+	esac
+done
+
+if [[ -z "$VM_NAME" || -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$EXP_NAME" ]]; then
+	echo "Usage: $0 --vm-name <n> --num-cores <N> --num-flows <N> --exp-name <name> [--dry]" >&2
+	exit 1
+fi
+
+# --- Derive VM index from name (trailing vmN) ---
+if [[ "$VM_NAME" =~ vm([0-9]+)$ ]]; then
+	VM_INDEX="${BASH_REMATCH[1]}"
+else
+	echo "ERROR: cannot extract VM index from name '$VM_NAME'" >&2
+	exit 1
+fi
+
+echo "VM name:  $VM_NAME"
+echo "VM index: $VM_INDEX"
+echo "Cores:    $NUM_CORES"
+echo "Flows:    $NUM_FLOWS"
+echo "Experiment Name: $EXP_NAME"
+
+# --- Configuration ---
+GUEST_INTF="enp0s1"
+GUEST_IP="192.168.101.$((11 + VM_INDEX))"
+GUEST_NIC_BUS="0x0"
+GUEST_HOME="/home/schai"
+
+HOST_IP="192.17.101.97"
+HOST_UNAME="lbalara"
+HOST_HOME="/home/lbalara"
+HOST_RESULTS_DIR="/home/lbalara/results"
+
+CLIENT_HOME="/home/siyuanc3"
+CLIENT_INTF="ens1006np0"
+CLIENT_IP="192.168.101.3"
+CLIENT_SSH_UNAME="siyuanc3"
+CLIENT_SSH_HOST="nexus03.csl.illinois.edu"
+CLIENT_SSH_PASSWORD="saksham"
+CLIENT_USE_PASS_AUTH=0
+CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
+
+HOST_SSH_UNAME="lbalara"
+HOST_SSH_PASSWORD=""
+HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
+HOST_USE_PASS_AUTH=0
+
+Z_LIST_DLF="1"
+
+echo "Guest IP: $GUEST_IP"
+
+# --- Helper functions ---
+
+function detect_virt_tech() {
+	running_vm=$VM_NAME
+	local detected_tech=""
+	if [[ "$running_vm" == *"nested"* ]]; then
+		detected_tech="nested"
+	elif [[ "$running_vm" == *"shadow"* ]]; then
+		detected_tech="shadow"
+	elif [[ "$running_vm" == *"off"* ]]; then
+		detected_tech="off"
+	else
+		echo "ERROR: Could not detect virt tech from VM name: $running_vm" >&2
+		echo "Expected 'nested', 'shadow', or 'off'" >&2
+		return 1
+	fi
+
+	echo "$detected_tech"
+	return 0
+}
+
+parse_iommu_mode() {
+	local cmdline="${1:-$(</proc/cmdline)}"
+	local cl
+	cl="$(printf '%s' "$cmdline" | tr '[:upper:]' '[:lower:]')"
+
+	# Passthrough (separate case)
+	if [[ "$cl" =~ (^|[[:space:]])(iommu=pt|iommu\.passthrough=(1|on|y|yes|true))($|[[:space:]]) ]]; then
+		echo passthrough
+		return
+	fi
+
+	# Off
+	if [[ "$cl" =~ (^|[[:space:]])(noiommu|iommu=off|intel_iommu=off|amd_iommu=off)($|[[:space:]]) ]]; then
+		echo off
+		return
+	fi
+
+	# Strict
+	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(1|on|y|yes|true)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]]; then
+		echo strict
+		return
+	fi
+
+	# Lazy (non-strict)
+	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(0|off|n|no|false)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]] || \
+	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]]; then
+		echo lazy
+		return
+	fi
+
+	# Explicitly enabled but no strictness specified → assume strict
+	if [[ "$cl" =~ (^|[[:space:]])(iommu=on|intel_iommu=on|amd_iommu=on)($|[[:space:]]) ]]; then
+		echo strict
+		return
+	fi
+
+	# Default if unspecified
+	echo strict
+}
+
+if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
+	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
+else
+	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
+fi
+
+if [ "$HOST_USE_PASS_AUTH" -eq 1 ]; then
+	SSH_HOST_CMD="sshpass -p $HOST_SSH_PASSWORD ssh ${HOST_SSH_UNAME}@${HOST_IP}"
+	SCP_HOST_CMD="sshpass -p $HOST_SSH_PASSWORD scp"
+else
+	SSH_HOST_CMD="ssh -i $HOST_SSH_IDENTITY_FILE ${HOST_SSH_UNAME}@${HOST_IP}"
+	SCP_HOST_CMD="scp -i $HOST_SSH_IDENTITY_FILE"
+fi
+
+guest_cmdline=$(cat /proc/cmdline)
+guest_iommu_config=$(parse_iommu_mode "$guest_cmdline")
+
+virt_tech=$(detect_virt_tech) || true
+if [ -z "$virt_tech" ]; then
+	echo "Failed to detect virt tech, assuming baremetal"
+	virt_tech="baremetal"
+fi
+
+iommu_config="guest-${guest_iommu_config}-$virt_tech"
+echo "iommu_config: $iommu_config"
+
+if [[ "$EXP_NAME" == *"$iommu_config"* ]]; then
+	echo "EXP_NAME matches guest cmd line"
+else
+	echo "ERROR: Could not match EXP_NAME from VM command line" >&2
+	echo "Expected EXP_NAME to contain: $iommu_config" >&2
+	echo "Got EXP_NAME: $EXP_NAME" >&2
+	exit 1
+fi
+
+# --- Build core masks ---
+# Each VM uses a different slice of client cores based on VM_INDEX.
+# VM0 uses cores 0..NUM_CORES-1, VM1 uses NUM_CORES..2*NUM_CORES-1, etc.
+# Server cores always start at 0 within each VM (guest-local).
+all_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
+
+client_core_offset=$((VM_INDEX * NUM_CORES))
+client_cores_mask=$(echo "$all_cores" | tr ',' '\n' | tail -n +$((client_core_offset + 1)) | head -n "$NUM_CORES" | tr '\n' ',' | sed 's/,$//')
+server_cores_mask=$(echo "$all_cores" | tr ',' '\n' | head -n "$NUM_CORES" | tr '\n' ',' | sed 's/,$//')
+
+echo "Client cores (offset by VM index $VM_INDEX): $client_cores_mask"
+echo "Server cores: $server_cores_mask"
+
+# --- Run experiment ---
+socket_buf=1
+ring_buffer=512
+
+# Always one run as we need to sync for multi-vm
+N_RUNS=1
+
+format_flows=$(printf "%02d" "$NUM_FLOWS")
+
+# Check for DLF mode
+if sudo test -f "/sys/kernel/debug/iommu/leader_max_flushes"; then
+	z_list="$Z_LIST_DLF"
+else
+	z_list=""
+fi
+
+run_list="${z_list:-default}"
+
+for z in $run_list; do
+	if [ "$z" != "default" ]; then
+		echo "$z" | sudo tee /sys/kernel/debug/iommu/leader_max_flushes
+		echo "Leader Max Flushes: $(sudo cat /sys/kernel/debug/iommu/leader_max_flushes)"
+	fi
+
+	echo "Running $EXP_NAME (N_RUNS=$N_RUNS)"
+
+	if [ "$DRY_RUN" -eq 1 ]; then
+		echo "[DRY RUN] Skipping actual experiment"
+		continue
+	fi
+
+	sudo mkdir -p ../utils/reports/"$EXP_NAME"
+
+	sudo bash many-vm-run-dctcp-tput-experiment.sh \
+		--vm-id "$VM_INDEX" \
+		--guest-home "$GUEST_HOME" --guest-ip "$GUEST_IP" --guest-intf "$GUEST_INTF" --guest-bus "$GUEST_NIC_BUS" \
+		-n "$NUM_FLOWS" -c "$server_cores_mask" \
+		--client-home "$CLIENT_HOME" --client-ip "$CLIENT_IP" --client-intf "$CLIENT_INTF" \
+		-N "$NUM_FLOWS" -C "$client_cores_mask" \
+		--host-home "$HOST_HOME" --host-ip "$HOST_IP" \
+		--client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" \
+		--client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" \
+		--client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
+		-e "$EXP_NAME" -m 4000 -r "$ring_buffer" -b "400g" -d 1 \
+		--socket-buf "$socket_buf" --mlc-cores 'none' --runs "$N_RUNS" \
+		2>&1 | sudo tee ../utils/reports/"$EXP_NAME"/experiment.log
+
+	python3 report-tput-metrics.py "$EXP_NAME" tput,cpu \
+		| sudo tee ../utils/reports/"$EXP_NAME"/summary.txt
+
+	sudo chmod -R a+rw ../utils/reports/"$EXP_NAME"
+
+	# --- SCP results back to host ---
+	echo "Copying results to host..."
+	local_report_dir="../utils/reports/$EXP_NAME"
+
+	$SSH_HOST_CMD "mkdir -p ${HOST_RESULTS_DIR}/${EXP_NAME}"
+
+	$SCP_HOST_CMD -r \
+		"$local_report_dir"/* \
+		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
+
+	echo "Results copied to ${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
+done
+
+echo ""
+echo "=== Experiment complete on ${VM_NAME} ==="
