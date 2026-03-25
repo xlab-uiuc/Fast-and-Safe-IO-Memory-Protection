@@ -261,11 +261,12 @@ wait_for_nic() {
 sync_git_repo() {
 	local ip=$1
 	local name=$2
-
+	
 	echo "  ${name} (${ip}): git checkout ${GIT_BRANCH} + pull..."
 	ssh $SSH_OPTS "$SSH_USER@$ip" "
 		cd ${GIT_REPO} && \
 		git fetch --all && \
+		git reset --hard HEAD && \
 		git checkout ${GIT_BRANCH} && \
 		git reset --hard origin/${GIT_BRANCH}
 	"
