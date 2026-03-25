@@ -149,8 +149,8 @@ for z in $run_list; do
 		--socket-buf "$socket_buf" --mlc-cores 'none' --runs "$N_RUNS" \
 		2>&1 | sudo tee ../utils/reports/"$EXP_NAME"/experiment.log
 
-	python3 report-tput-metrics.py "$EXP_NAME" tput,cpu \
-		| sudo tee ../utils/reports/"$EXP_NAME"/summary.txt
+	# python3 report-tput-metrics.py "$EXP_NAME" tput,cpu \
+	# 	| sudo tee ../utils/reports/"$EXP_NAME"/summary.txt
 
 	sudo chmod -R a+rw ../utils/reports/"$EXP_NAME"
 
