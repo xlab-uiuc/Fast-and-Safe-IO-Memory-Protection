@@ -440,7 +440,7 @@ if [ "$MLC_CORES" != "none" ]; then
 	log_info "Starting MLC on cores: $MLC_CORES; logs at $guest_mlc_log_file..."
 	"$GUEST_MLC_DIR/mlc" --loaded_latency -T -d0 -e -k"$MLC_CORES" -j0 -b1g -t10000 -W2 &>"$guest_mlc_log_file" &
 	log_info "Waiting for MLC to ramp up (30 seconds)..."
-	progress_bar 30 1
+	progress_bar 30 5
 else
 	log_info "MLC not configured for this run."
 fi
@@ -468,7 +468,7 @@ $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\"
 
 # --- Warmup Phase ---
 log_info "Warming up experiment (10 seconds)..."
-progress_bar 10 1
+progress_bar 10 2
 
 # --- Start Guest eBPF Tracers (if enabled) ---
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -511,8 +511,6 @@ cd - > /dev/null
 log_info "Logging done."
 log_info "Primary data collection phase on GUEST complete."
 
-cleanup_mem_stats
-
 # --- Save Guest Ftrace Data ---
 log_info "Stopping and saving GUEST ftrace data..."
 sudo sh -c 'echo 0 > /sys/kernel/debug/tracing/tracing_on'
@@ -547,7 +545,7 @@ else
 fi
 
 log_info "Waiting for remote operations to settle ($((CORE_DURATION_S * 2))s)..."
-progress_bar $((CORE_DURATION_S * 2)) 2
+progress_bar $((CORE_DURATION_S * 2)) 5
 
 log_info "############################################################"
 log_info "### Finished Experiment: $EXP_NAME (vm${VM_ID})"

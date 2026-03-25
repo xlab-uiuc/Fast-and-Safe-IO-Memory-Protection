@@ -241,6 +241,7 @@ wait_for_nic() {
 		sudo cp /tmp/mlxfw.ko /lib/modules/\$(uname -r)/kernel/drivers/net/ethernet/mellanox/mlxfw/
 		sudo depmod -a 2>/dev/null
 		sudo modprobe mlx5_core 2>/dev/null
+		sudo modprobe msr 2>/dev/null
 	" &>/dev/null
 
 	local elapsed=0
@@ -261,7 +262,7 @@ wait_for_nic() {
 sync_git_repo() {
 	local ip=$1
 	local name=$2
-	
+
 	echo "  ${name} (${ip}): git checkout ${GIT_BRANCH} + pull..."
 	ssh $SSH_OPTS "$SSH_USER@$ip" "
 		cd ${GIT_REPO} && \
