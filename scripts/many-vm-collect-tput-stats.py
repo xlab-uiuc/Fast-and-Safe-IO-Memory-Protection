@@ -44,7 +44,33 @@ mem_used = []
 # cache_fills    = []
 
 for i in range(NUM_RUNS):
-    with open(FILE_NAME + '-RUN-' + str(i) + '/iperf.bw.rpt') as f1:
+    target_dir = FILE_NAME + '-RUN-' + str(i)
+    target_file = target_dir + '/iperf.bw.rpt'
+
+    print("\n=== DEBUGGING INFO ===")
+    print(f"1. Current Working Directory (pwd): {os.getcwd()}")
+    print(f"2. Target Directory: {target_dir}")
+    print(f"3. Target File: {target_file}")
+
+    # Check if the directory even exists
+    if os.path.exists(target_dir):
+        print(f"4. Directory EXISTS. Contents (ls):")
+        try:
+            files_in_dir = os.listdir(target_dir)
+            if not files_in_dir:
+                print("   [Directory is completely empty!]")
+            else:
+                for f in files_in_dir:
+                    print(f"   - {f}")
+        except Exception as e:
+            print(f"   [Error trying to list directory contents: {e}]")
+    else:
+        print(f"4. CRITICAL: The directory {target_dir} DOES NOT EXIST at this exact moment!")
+
+    print("======================\n")
+
+
+    with open(target_file) as f1:
         for line in f1:
             tput = float(line.split()[-1])
             if (tput > 0):
