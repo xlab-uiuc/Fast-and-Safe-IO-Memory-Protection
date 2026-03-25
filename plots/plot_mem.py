@@ -222,8 +222,8 @@ def plot_fig(fig, output_dir=None):
 
 # TODO: Rerun with 24 cores in vanilla case 
 plot_data = [
-    {"name": "Deligated+DFP", "color": "#F0E442", "tag": "2026-03-12-15-17-07-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
-    {"name": "Deligated", "color": "#56B4E9", "tag": "2026-03-12-15-12-02-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    {"name": "Delegated+DFP", "color": "#F0E442", "tag": "2026-03-12-15-17-07-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
+    {"name": "Delegated", "color": "#56B4E9", "tag": "2026-03-12-15-12-02-6.12.9-iommufd-vanilla-nested-conf-call-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-zval1-RUN-0"},
     #{"name": "Off", "color": "#0072B2", "tag": "2026-03-12-15-22-13-6.12.9-iommufd-RX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-0"},
     #{"name": "Nested", "color": "#009E73", "tag": "2026-03-12-15-27-19-6.12.9-iommufd-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-RUN-0"}
 ]
