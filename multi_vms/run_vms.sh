@@ -8,8 +8,9 @@ set -euo pipefail
 GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1"
 GUEST_CMD_LINE_OFF="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=off"
 
-GUEST_KERNEL_PATH="/boot/vmlinuz-6.12.9-iommufd"
-GUEST_INITRD_PATH="/boot/initrd.img-6.12.9-iommufd"
+GUEST_KERNEL="6.12.9-iommufd"
+GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
+GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
 GUEST_VIOMMU="nested" # nested/off
 NUM_VMS=4
 NUM_CORES="8"
@@ -72,8 +73,8 @@ NIC_WAIT=120      # seconds to wait for guest NIC
 GUEST_NIC="enp0s1"
 
 # --- Host-side in-tree modules to push into guests ---
-HOST_MLX5_CORE="/lib/modules/$(uname -r)/kernel/drivers/net/ethernet/mellanox/mlx5/core/mlx5_core.ko"
-HOST_MLXFW="/lib/modules/$(uname -r)/kernel/drivers/net/ethernet/mellanox/mlxfw/mlxfw.ko"
+HOST_MLX5_CORE="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlx5/core/mlx5_core.ko"
+HOST_MLXFW="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlxfw/mlxfw.ko"
 
 # Save original directory
 ORIG_DIR="$(pwd)"
@@ -228,8 +229,10 @@ wait_for_nic() {
 
 	echo "  ${name} (${ip}): $GUEST_NIC not found, pushing in-tree mlx5 modules..."
 	scp $SSH_OPTS "$HOST_MLX5_CORE" "$HOST_MLXFW" "$SSH_USER@$ip:/tmp/" &>/dev/null
+	scp $SSH_OPTS /tmp/modules.tar.gz "$SSH_USER@$ip:/tmp/" &>/dev/null
 
 	ssh $SSH_OPTS "$SSH_USER@$ip" "
+		sudo tar xzf /tmp/modules.tar.gz -C /lib/modules/$(uname -r)/
 		sudo rm -f /lib/modules/\$(uname -r)/updates/dkms/mlx5_core.ko \
 		           /lib/modules/\$(uname -r)/updates/dkms/mlx5-vfio-pci.ko \
 		           /lib/modules/\$(uname -r)/updates/dkms/mlxfw.ko \
@@ -324,6 +327,8 @@ setup_client() {
 			-r '$RING_BUFFER_SIZE' \
 			--socket-buf '$TCP_SOCKET_BUF_MB' \
 			--hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1"
+
+	$SSH_CLIENT_CMD "sudo pkill -9 -f iperf"
 
 	log_info "Client setup complete"
 }
@@ -532,6 +537,7 @@ fi
 echo ""
 log_info "Step 10: Waiting for guest NIC ($GUEST_NIC)..."
 failed=0
+tar czf /tmp/modules.tar.gz -C /lib/modules/$GUEST_KERNEL .
 for ((i = 0; i < NUM_VMS; i++)); do
 	ip=$(vm_ip "$i")
 	if ! wait_for_nic "$ip" "${vm_names[$i]}"; then
