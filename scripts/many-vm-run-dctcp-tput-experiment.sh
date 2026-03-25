@@ -556,6 +556,7 @@ cleanup
 post_exp_cleanup
 
 cd "$SCRIPT_DIR" || exit 1
+pwd
 
 if [ "$MLC_CORES" != "none" ]; then
 	log_info "MLC cores were used."
