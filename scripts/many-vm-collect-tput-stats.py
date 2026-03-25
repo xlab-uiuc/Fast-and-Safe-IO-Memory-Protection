@@ -11,7 +11,7 @@ EXP_NAME = sys.argv[1]
 NUM_RUNS = int(sys.argv[2])
 COLLECT_MLC_TPUT = int(sys.argv[3])
 
-FILE_NAME = "../utils/reports/" + EXP_NAME
+FILE_NAME = "/home/schai/viommu/utils/reports/" + EXP_NAME
 command = 'mkdir -p ' + FILE_NAME
 result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
