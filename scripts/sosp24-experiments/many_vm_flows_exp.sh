@@ -74,68 +74,6 @@ echo "Guest IP: $GUEST_IP"
 
 # --- Helper functions ---
 
-function detect_virt_tech() {
-	running_vm=$VM_NAME
-	local detected_tech=""
-	if [[ "$running_vm" == *"nested"* ]]; then
-		detected_tech="nested"
-	elif [[ "$running_vm" == *"shadow"* ]]; then
-		detected_tech="shadow"
-	elif [[ "$running_vm" == *"off"* ]]; then
-		detected_tech="off"
-	else
-		echo "ERROR: Could not detect virt tech from VM name: $running_vm" >&2
-		echo "Expected 'nested', 'shadow', or 'off'" >&2
-		return 1
-	fi
-
-	echo "$detected_tech"
-	return 0
-}
-
-parse_iommu_mode() {
-	local cmdline="${1:-$(</proc/cmdline)}"
-	local cl
-	cl="$(printf '%s' "$cmdline" | tr '[:upper:]' '[:lower:]')"
-
-	# Passthrough (separate case)
-	if [[ "$cl" =~ (^|[[:space:]])(iommu=pt|iommu\.passthrough=(1|on|y|yes|true))($|[[:space:]]) ]]; then
-		echo passthrough
-		return
-	fi
-
-	# Off
-	if [[ "$cl" =~ (^|[[:space:]])(noiommu|iommu=off|intel_iommu=off|amd_iommu=off)($|[[:space:]]) ]]; then
-		echo off
-		return
-	fi
-
-	# Strict
-	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(1|on|y|yes|true)($|[[:space:]]) ]] || \
-	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]] || \
-	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?strict([^[:space:]]*)($|[[:space:]]) ]]; then
-		echo strict
-		return
-	fi
-
-	# Lazy (non-strict)
-	if [[ "$cl" =~ (^|[[:space:]])iommu\.strict=(0|off|n|no|false)($|[[:space:]]) ]] || \
-	   [[ "$cl" =~ (^|[[:space:]])intel_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]] || \
-	   [[ "$cl" =~ (^|[[:space:]])amd_iommu=([^[:space:]]*,)?nonstrict([^[:space:]]*)($|[[:space:]]) ]]; then
-		echo lazy
-		return
-	fi
-
-	# Explicitly enabled but no strictness specified → assume strict
-	if [[ "$cl" =~ (^|[[:space:]])(iommu=on|intel_iommu=on|amd_iommu=on)($|[[:space:]]) ]]; then
-		echo strict
-		return
-	fi
-
-	# Default if unspecified
-	echo strict
-}
-
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	SSH_CLIENT_CMD="sshpass -p $CLIENT_SSH_PASSWORD ssh ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 else
@@ -150,26 +88,6 @@ else
 	SCP_HOST_CMD="scp -i $HOST_SSH_IDENTITY_FILE"
 fi
 
-guest_cmdline=$(cat /proc/cmdline)
-guest_iommu_config=$(parse_iommu_mode "$guest_cmdline")
-
-virt_tech=$(detect_virt_tech) || true
-if [ -z "$virt_tech" ]; then
-	echo "Failed to detect virt tech, assuming baremetal"
-	virt_tech="baremetal"
-fi
-
-iommu_config="guest-${guest_iommu_config}-$virt_tech"
-echo "iommu_config: $iommu_config"
-
-if [[ "$EXP_NAME" == *"$iommu_config"* ]]; then
-	echo "EXP_NAME matches guest cmd line"
-else
-	echo "ERROR: Could not match EXP_NAME from VM command line" >&2
-	echo "Expected EXP_NAME to contain: $iommu_config" >&2
-	echo "Got EXP_NAME: $EXP_NAME" >&2
-	exit 1
-fi
 
 # --- Build core masks ---
 # Each VM uses a different slice of client cores based on VM_INDEX.
