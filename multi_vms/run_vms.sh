@@ -5,13 +5,17 @@ set -euo pipefail
 # Configuration
 # ============================================================
 
-GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1 intel_iommu_pinned=on intel_iommu_dfp=on"
+# GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1 intel_iommu_pinned=on intel_iommu_dfp=on"
+GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1"
 GUEST_CMD_LINE_OFF="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=off"
 
-GUEST_KERNEL="6.12.9-iommufd-nested-iova-contig-cb-opt"
-GUEST_KERNEL_PATH="/boot-VM/vmlinuz-$GUEST_KERNEL"
-GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
-GUEST_VIOMMU="nested" # nested/off
+# GUEST_KERNEL="6.12.9-iommufd-nested-iova-contig-cb-opt"
+# GUEST_KERNEL_PATH="/boot-VM/vmlinuz-$GUEST_KERNEL"
+# GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
+GUEST_KERNEL="6.12.9-iommufd"
+GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
+GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
+GUEST_VIOMMU="off" # nested/off
 NUM_VMS=12
 NUM_CORES="2"
 NUM_IPRF="1"

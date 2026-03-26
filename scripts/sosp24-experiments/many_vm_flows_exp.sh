@@ -52,7 +52,7 @@ GUEST_HOME="/home/schai"
 HOST_IP="192.17.101.97"
 HOST_UNAME="lbalara"
 HOST_HOME="/home/lbalara"
-HOST_RESULTS_DIR="lbalara/viommu/ManyVM-FandS/utils/reports/"
+HOST_RESULTS_DIR="/home/lbalara/viommu/ManyVM-FandS/utils/reports/"
 
 CLIENT_HOME="/home/siyuanc3"
 CLIENT_INTF="ens1006np0"
