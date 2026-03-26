@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" || -z "$NUM_IPERF" ]]; then
+if [[ -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" || -z "$NUM_IPRF" ]]; then
 	echo "Error: --num-cores, --num-flows, --num-iperf, and --num-vms are required" >&2
 	usage >&2
 	exit 1
