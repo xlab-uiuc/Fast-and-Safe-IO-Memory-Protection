@@ -14,6 +14,7 @@ GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
 GUEST_VIOMMU="nested" # nested/off
 NUM_VMS=12
 NUM_CORES="2"
+NUM_IPERF="2"
 NUM_FLOWS="2"
 REUSE=0
 
@@ -107,8 +108,8 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" ]]; then
-	echo "Error: --num-cores, --num-flows, and --num-vms are required" >&2
+if [[ -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" || -z "$NUM_IPERF" ]]; then
+	echo "Error: --num-cores, --num-flows, --num-iperf, and --num-vms are required" >&2
 	usage >&2
 	exit 1
 fi
@@ -406,7 +407,7 @@ if [[ $REUSE -eq 0 ]]; then
 fi
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
-EXP_NAME="${timestamp}-$GUEST_KERNEL-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_CORES}cores"
+EXP_NAME="${timestamp}-$GUEST_KERNEL-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_CORES}cores-${NUM_IPERF}iperf"
 
 echo "============================================================"
 echo "  VM Benchmark Runner"
@@ -416,6 +417,7 @@ echo "  XML dir:   ${XML_DIR}"
 echo "  Reuse:     ${REUSE}"
 echo "  Branch:    ${GIT_BRANCH}"
 echo "  Cores:     ${NUM_CORES}"
+echo "  Iperf:     ${NUM_IPERF}"
 echo "  Flows:     ${NUM_FLOWS}"
 echo "  Exp name:  ${EXP_NAME}"
 echo "  MTU:       ${MTU}"
@@ -584,6 +586,7 @@ echo ""
 log_info "Step 13: Launching experiments on all VMs..."
 echo "  Script:    ${VM_SCRIPT}"
 echo "  Cores:     ${NUM_CORES}"
+echo "  Iperf:     ${NUM_IPERF}"
 echo "  Flows:     ${NUM_FLOWS}"
 echo "  Exp name:  ${EXP_NAME}"
 echo ""
@@ -593,7 +596,7 @@ for ((i = 0; i < NUM_VMS; i++)); do
 	ip=$(vm_ip "$i")
 	name="${vm_names[$i]}"
 
-	vm_cmd="${VM_SCRIPT} --vm-name ${name} --num-cores ${NUM_CORES} --num-flows ${NUM_FLOWS} --exp-name ${EXP_NAME}-${name}"
+	vm_cmd="${VM_SCRIPT} --vm-name ${name} --num-cores ${NUM_IPERF} --num-flows ${NUM_FLOWS} --exp-name ${EXP_NAME}-${name}"
 	ssh $SSH_OPTS "$SSH_USER@$ip" "$vm_cmd" &>"${name}_experiment.log" &
 	ssh_pids+=($!)
 	echo "  Launched on ${name} (${ip}), log -> ${name}_experiment.log"
