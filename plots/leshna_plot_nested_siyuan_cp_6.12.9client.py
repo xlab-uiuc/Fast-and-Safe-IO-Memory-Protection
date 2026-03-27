@@ -1090,6 +1090,90 @@ def plot_flows_exp():
     #                              title_key='Emerald-Rapids-CX7-6.12.9-iommufd',
     #                              output_dir="Nested_vs_Off_1_20_cores_no_contention")
 
+def siyuan_flows_exp_motivation():
+    
+    target_values = [1, 4, 8, 12, 16, 20, 24]
+    # x_labels = [f"{i:02d}" for i in range(1, 33)]
+    x_labels = [f"{i:02d}" for i in target_values]
+    print(x_labels)
+
+
+    off_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-02-10-38-6.12.9-iommufd-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+    nested_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-04-24-41-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1"  for i in target_values
+    ]
+
+    # shadow_exps = [
+    #     f"../utils/reports/2025-11-16-16-40-49-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-shadow-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    # ]
+    
+    # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
+    # host_strict_guest_nested_siyuan_one_core_invalid, extra_hooks_siyuan_one_core_invalid_ebpf = get_data(x_labels, siyuan_exp_one_core_invalid)
+    host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(x_labels, nested_exps)
+    # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+
+    # datasets = [
+    #     { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
+    #     { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': '#009E73' },
+    #     { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
+    #     # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Async Invalid', 'data': host_strict_guest_nested_siyuan_one_core_invalid, 'ebpf': extra_hooks_siyuan_one_core_invalid_ebpf, 'color': '#CC79A7' },
+    #     { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Combining', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
+    # ]
+
+    datasets = [
+        { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
+        # { 'setup_name': 'Host Strict; Guest Shadow', 'data': host_strict_guest_shadow_data, 'ebpf': host_strict_guest_shadow_ebpf_data, 'color': '#CC79A7' },
+        { 'setup_name': 'vIOMMU on (nested)', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': '#009E73' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Combining', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='motivation_Rx',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="Motivation_Rx")
+                    
+    tx_target_values = [4, 8, 12, 16, 20, 24]
+    tx_off_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-01-16-54-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in tx_target_values
+    ]
+
+    tx_nested_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-03-13-17-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in tx_target_values
+    ]
+
+    tx_host_strict_guest_nested_exta_hooks_data, tx_extra_hooks_ebpf = get_data(x_labels, tx_nested_exps)
+    # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
+    tx_host_strict_guest_off_data, tx_host_strict_guest_off_ebpf_data = get_data(x_labels, tx_off_exps)
+
+
+    datasets = [
+        { 'setup_name': 'vIOMMU Off', 'data': tx_host_strict_guest_off_data, 'ebpf': tx_host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
+        { 'setup_name': 'vIOMMU on (nested)', 'data': tx_host_strict_guest_nested_exta_hooks_data, 'ebpf': tx_extra_hooks_ebpf, 'color': '#009E73' },
+    ]
+
+    plot_all_subplots(datasets=datasets,
+                      x_labels=x_labels,
+                      title_key='motivation_Tx_varying_cores',
+                      xlabel="Number of Cores (1 flow/core)",
+                      output_dir="Motivation_Tx")
+
+    # plot_ebpf_selected_functions(datasets=datasets,
+    #                              x_labels=x_labels,
+    #                              selected_functions={
+    #                                  "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
+    #                                  "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
+    #                                  "qi_submit_sync": ["qi_submit_sync"],
+    #                              },
+    #                              title_key='Emerald-Rapids-CX7-6.12.9-iommufd',
+    #                              xlabel="Number of Cores (1 flow/core)",
+    #                              output_dir="Off_vs_Shadow_leshna")
 
 def siyuan_Evaluation_plot_flows_exp():
     
@@ -1368,12 +1452,20 @@ def plot_tx_ebpf_exp():
     # /home/schai/viommu_siyuan/utils/reports/2026-03-17-02-10-47-server-iommufd-off-6.12.9-iommufd-TX-flow24-host-strict-guest-off-off-24cores-ringbuf512-sockbuf1-RUN-3
 
 
-    nested_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-04-12-01-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
-    ]
+    # nested_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-04-12-01-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
+
+    # off_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-02-10-47-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
 
     off_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-02-10-47-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-01-16-54-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+    nested_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-03-13-17-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
     ]
 
 
@@ -1401,36 +1493,51 @@ def plot_tx_ebpf_exp():
     # ]
 
     # 2026-03-17-07-03-51-server-iommufd-vanilla-nested-conf-dlf-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow04-host-strict-guest-strict-nested-4cores-ringbuf512-sockbuf1-zval1
+    # dlf_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-07-03-51-server-iommufd-vanilla-nested-conf-dlf-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1-zval1" for i in target_values
+    # ]
+
     dlf_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-07-03-51-server-iommufd-vanilla-nested-conf-dlf-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1-zval1" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-08-00-05-server-iommufd-nested-iova-contig-dlf-6.12.9-iommufd-nested-iova-contig-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1-zval100" for i in target_values
     ]
 
+    # DATA without pushed skip-map-inval and contiguous IOVA.
     # 2026-03-17-09-06-58-server-iommufd-vanilla-nested-conf-pinned-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow28-host-strict-guest-strict-nested-28cores-ringbuf512-sockbuf1
-    pinned_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-09-06-58-server-iommufd-vanilla-nested-conf-pinned-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # pinned_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-17-09-06-58-server-iommufd-vanilla-nested-conf-pinned-call-debug-batch-fix-iova-6.12.9-iommufd-batched-debug-lb-nested-fix-iova-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
+
+    # pinned_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-05-44-58-server-iommufd-nested-iova-contig-6.12.9-iommufd-nested-iova-contig-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
+
+    # 2026-03-25-02-04-07-server-iommufd-nested-iova-contig-cb-opt-6.12.9-iommufd-nested-iova-contig-cb-opt-TX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1-
+
+    pinned_cb_opt_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-25-02-04-07-server-iommufd-nested-iova-contig-cb-opt-6.12.9-iommufd-nested-iova-contig-cb-opt-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1-" for i in target_values
     ]
-    
 
     # Get data
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps, collect_ebpf=False)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps, collect_ebpf=False)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
     # optimization_data, optimization_ebpf_data = get_data(x_labels, optimization_exps)
 
     # per_core_queue_data, per_core_queue_ebpf_data = get_data(x_labels, per_core_queue_exps)
     # per_core_queue_pinned_data, per_core_queue_pinned_ebpf_data = get_data(x_labels, per_core_queue_pinned_exps)
 
     dlf_data, dlf_ebpf_data = get_data(x_labels, dlf_exps,)
-    batch_pinned_data, batch_pinned_ebpf_data = get_data(x_labels, pinned_exps)
+    pinned_cb_opt_data, pinned_cb_opt_ebpf_data = get_data(x_labels, pinned_cb_opt_exps)
+    # batch_pinned_data, batch_pinned_ebpf_data = get_data(x_labels, pinned_exps)
 
     datasets = [
         { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
         { 'setup_name': 'vIOMMU Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
-        # { 'setup_name': 'vIOMMU Nested + vF&S', 'data': optimization_data, 'ebpf': optimization_ebpf_data, 'color': color_optimization },
+        { 'setup_name': 'vIOMMU Nested + vFree', 'data': pinned_cb_opt_data, 'ebpf': pinned_cb_opt_ebpf_data, 'color': color_optimization },
         # { 'setup_name': 'vIOMMU Nested + Per Core Queue (DLF) ', 'data': per_core_queue_data, 'ebpf': per_core_queue_ebpf_data, 'color': default_colors[4] },
         # { 'setup_name': 'vIOMMU Nested + Per Core Queue Pinned', 'data': per_core_queue_pinned_data, 'ebpf': per_core_queue_pinned_ebpf_data, 'color': default_colors[5] },
 
-        { 'setup_name': '+ Per Core Queue + Batch (DLF)', 'data': dlf_data, 'ebpf': dlf_ebpf_data, 'color': default_colors[6] },
-        { 'setup_name': '+ Per Core Queue + Batch (Pinned)', 'data': batch_pinned_data, 'ebpf': batch_pinned_ebpf_data, 'color': default_colors[7] },
+        # { 'setup_name': '+ Per Core Queue + Batch (DLF)', 'data': dlf_data, 'ebpf': dlf_ebpf_data, 'color': default_colors[6] },
+        # { 'setup_name': '+ Per Core Queue + Batch (Pinned)', 'data': batch_pinned_data, 'ebpf': batch_pinned_ebpf_data, 'color': default_colors[7] },
     ]
     
     plot_all_subplots(datasets=datasets,
@@ -1444,6 +1551,7 @@ def plot_tx_ebpf_exp():
                                  selected_functions={
                                      "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
                                      "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
+                                     "intel_iommu_tlb_sync": ["intel_iommu_tlb_sync"],
                                      "qi_submit_sync": ["qi_submit_sync"],
                                      "trace_qi_submit_sync_cs": ["trace_qi_submit_sync_cs"],
                                  },
@@ -2072,3 +2180,4 @@ if __name__ == "__main__":
     # siyuan_Evaluation_ablation()
     # siyuan_Evaluation_sensitivity()
     plot_tx_ebpf_exp()  # Uncomment when ready to use
+    # siyuan_flows_exp_motivation()
