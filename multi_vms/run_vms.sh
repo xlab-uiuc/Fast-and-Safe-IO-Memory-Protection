@@ -28,9 +28,10 @@ GIT_BRANCH="many-vm-setup"
 VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
-HOST_HOME="/home/lbalara"
-HOST_FandS_REL="viommu/ManyVM-FandS"
-HOST_SETUP_DIR="${HOST_HOME}/${HOST_FandS_REL}/utils"
+HOST_FandS_ABS=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")
+HOST_SETUP_DIR="${HOST_FandS_ABS}/utils"
+echo "Host F&S dir: ${HOST_FandS_ABS}"
+
 
 # --- Client machine config ---
 CLIENT_HOME="/home/siyuanc3"
@@ -196,9 +197,24 @@ vm_ip() {
 	echo "${prefix}.$((base_last_octet + idx))"
 }
 
+VM_DESTROY_WHITELIST=(
+	"server-mini-off"
+)
+
 destroy_all_running_vms() {
 	log_info "Shutting down any running VMs..."
 	for vm in $(virsh list --name 2>/dev/null | grep -v '^$'); do
+		local skip=false
+		for wl in "${VM_DESTROY_WHITELIST[@]}"; do
+			if [[ "$vm" == "$wl" ]]; then
+				skip=true
+				break
+			fi
+		done
+		if $skip; then
+			echo "  Skipping (whitelisted): $vm"
+			continue
+		fi
 		echo "  Destroying: $vm"
 		virsh destroy "$vm" 2>/dev/null || true
 	done
@@ -400,10 +416,15 @@ host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 iommu_config="host-${host_iommu_config}-guest-${GUEST_VIOMMU}"
 echo "iommu_config: $iommu_config"
 
+# --- Step 1: Destroy any running VMs ---
+echo ""
+log_info "Step 1: Destroying any running VMs..."
+destroy_all_running_vms
+
 log_info "Doing sriov undo"
 sudo ./sriov_undo.sh
 
-# --- Step 1: Generate XML files ---
+# --- Step 2: Generate XML files ---
 if [[ $REUSE -eq 0 ]]; then
 	rm -rf ./generated
 	./xml_generator.sh --kernel "$GUEST_KERNEL_PATH" --initrd "$GUEST_INITRD_PATH" --cmdline "$GUEST_CMD_LINE" \
@@ -430,8 +451,8 @@ echo "  Socket buf: ${TCP_SOCKET_BUF_MB} MB"
 echo "============================================================"
 echo ""
 
-# --- Step 2: Discover XML files and VM names ---
-log_info "Step 1: Discovering VM XML files..."
+# --- Step 3: Discover XML files and VM names ---
+log_info "Step 3: Discovering VM XML files..."
 xml_files=()
 for f in "${XML_DIR}"/*.xml; do
 	[[ -f "$f" ]] || continue
@@ -544,6 +565,8 @@ fi
 echo ""
 log_info "Step 10: Waiting for guest NIC ($GUEST_NIC)..."
 failed=0
+# Add sudo so that over users can overwrite
+sudo rm -f /tmp/modules.tar.gz
 tar czf /tmp/modules.tar.gz -C /lib/modules/$GUEST_KERNEL .
 for ((i = 0; i < NUM_VMS; i++)); do
 	ip=$(vm_ip "$i")
