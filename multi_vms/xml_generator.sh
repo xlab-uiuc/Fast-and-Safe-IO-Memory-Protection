@@ -87,10 +87,10 @@ for var in KERNEL INITRD CMDLINE; do
 done
 [[ $err -ne 0 ]] && exit 1
 
-if [[ "$VIOMMU" != "nested" && "$VIOMMU" != "off" ]]; then
-	echo "Error: --viommu must be 'nested' or 'off'" >&2
-	exit 1
-fi
+# if [[ "$VIOMMU" != "nested" && "$VIOMMU" != "off" ]]; then
+# 	echo "Error: --viommu must be 'nested' or 'off'" >&2
+# 	exit 1
+# fi
 
 if [[ "$NUM_VMS" -lt 1 || "$NUM_VMS" -gt "$MAX_VMS" ]]; then
 	echo "Error: --num-vms must be between 1 and $MAX_VMS" >&2
