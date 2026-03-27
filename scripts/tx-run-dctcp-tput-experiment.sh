@@ -1,33 +1,37 @@
 #!/bin/bash
 
 # Treat unset variables as an error when substituting.
-set -uo pipefail
+set -u
 
 #-------------------------------------------------------------------------------
 # CONFIGURATION AND PATHS
 #-------------------------------------------------------------------------------
-SCRIPT_NAME="run-rdma-tput-experiment"
+SCRIPT_NAME="tx-run-rdma-tput-experiment"
 INIT_PORT=3000
 MLC_DURATION_S=100
-SERVER_MLC_DIR_REL="mlc/Linux"
+HOST_MLC_DIR_REL="mlc/Linux"
 
 FTRACE_BUFFER_SIZE_KB=20000
 FTRACE_OVERWRITE_ON_FULL=0 # 0=no overwrite (tracing stops when full), 1=overwrite
-PERF_TRACING_ENABLED=0
+PERF_TRACING_HOST_ENABLED=0
 
 # --- Base Directory Paths (Relative to respective home directories) ---
-SERVER_FandS_REL="viommu/BareMetal-FandS"
-SERVER_DEP_REL="viommu/"
+SCRIPT_DIR=$(dirname "$0")
 CLIENT_FandS_REL="Fast-and-Safe-IO-Memory-Protection"
-SERVER_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
+HOST_FandS_REL="viommu/BareMetal-FandS"
+HOST_VIOMMU_REL="viommu/BareMetal-FandS"
+HOST_RESULTS_REL="viommu"
+HOST_PERF_REL="viommu/linux-6.12.9/tools/perf/perf" # TODO: Siyuan change for your directory
 
 # --- F and S Directory Paths (Relative to respective F and S directories) ---
-SERVER_SETUP_DIR_REL="utils"
-SERVER_EXP_DIR_REL="utils/tcp"
+HOST_SETUP_DIR_REL="utils"
+HOST_EXP_DIR_REL="utils/tcp"
 CLIENT_SETUP_DIR_REL="utils"
 CLIENT_EXP_DIR_REL="utils/tcp"
 
-EBPF_SERVER_LOADER_REL="tracing/server_loader" # does not exist make it if needed for bare-metal cases
+EBPF_HOST_LOADER_REL="$HOST_VIOMMU_REL/tracing/server_loader" # does not exist make it if needed for bare-metal cases
+HOST_EBPF_TRACING_CORE=33
+
 
 #-------------------------------------------------------------------------------
 # DEFAULT CONFIGURATION AND PATHS EDITABLE BY COMMAND LINE
@@ -37,10 +41,15 @@ EXP_NAME="tput-test"
 NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=1 #test
+EBPF_TRACING_HOST_ENABLED=1
 
-# --- Guest (Server) Machine Configuration ---
-# GUEST_NIC_BUS="0x08"
+# --- Server Machine Configuration ---
+HOST_HOME="/users/Leshna"
+HOST_IP="10.10.1.3"
+HOST_INTF="enp23s0f0np0"
+HOST_NUM_SERVERS=5
+HOST_CPU_MASK="0,1,2,3,4"
+HOST_NIC_BUS="0x08"
 
 # --- Client Machine Configuration ---
 CLIENT_HOME="/users/Leshna/"
@@ -50,14 +59,6 @@ CLIENT_NUM_CLIENTS=5
 CLIENT_CPU_MASK="0,4,8,12,16"
 CLIENT_BANDWIDTH="100g"
 
-# --- Server Machine Configuration ---
-SERVER_HOME="/users/Leshna"
-SERVER_IP="10.10.1.3"
-SERVER_INTF="enp23s0f0np0"
-SERVER_NUM_SERVERS=5
-SERVER_CPU_MASK="0,1,2,3,4"
-SERVER_NIC_BUS="0x08"
-
 # --- Network & System Parameters ---
 MTU=4000
 DDIO_ENABLED=1
@@ -66,9 +67,9 @@ TCP_SOCKET_BUF_MB=1
 
 # --- Remote Access (SSH) Configuration ---
 CLIENT_SSH_UNAME="saksham"
-CLIENT_SSH_HOST="128.110.220.29" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
+CLIENT_SSH_HOST="genie12.cs.cornell.edu" # Public IP or hostname for SSH "genie12.cs.cornell.edu"
 CLIENT_SSH_PASSWORD="saksham"
-CLIENT_USE_PASS_AUTH=0 # 1 to use password, 0 to use identity file
+CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
 
 CLIENT_EXPECTED_KERNEL="6.12.9"
@@ -79,14 +80,13 @@ CLIENT_EXPECTED_IOMMU="intel_iommu=off"
 #-------------------------------------------------------------------------------
 help() {
     echo "Usage: $SCRIPT_NAME"
-    echo
-    echo "Server Configuration:"
-    echo "    [ --server-home <path> (Host home directory) ]"
-    echo "    [ --server-ip <ip> (IP address of the host) ]"
-    echo "    [ --server-intf <name> (Interface name for the host) ]"
-    echo "    [ -n | --server-num <count> (Number of server instances; default: 5) ]"
-    echo "    [ -c | --server-cpu-mask <csv> (Server CPU mask, comma-separated; default: 0,1,2,3,4) ]"
-    echo "    [ --server-bus <bus> (NIC’s PCI bus number) ]"
+    echo "Server/Host Configuration:"
+    echo "    [ --host-home <path> (Host home directory) ]"
+    echo "    [ --host-ip <ip> (IP address of the host) ]"
+    echo "    [ --host-intf <name> (Network interface for the server/host) ]"
+    echo "    [ --host-bus <bus> (NIC’s PCI bus number) ]"
+    echo "    [ -n | --host-num <count> (Number of server instances; default: 5) ]"
+    echo "    [ -c | --host-cpu-mask <csv> (HOST CPU mask, comma-separated; default: 0,1,2,3,4) ]"
     echo
     echo "Client Configuration:"
     echo "    [ --client-home <path> (Client home directory) ]"
@@ -107,7 +107,7 @@ help() {
     echo "    [ --runs <count> (Number of experiment repetitions; default: 1) ]"
     echo "    [ --ebpf-tracing <0|1> (Enable eBPF tracing; default: 0) ]"
     echo
-    echo "Client SSH Configuration"
+     echo "Client SSH Configuration"
     echo "    [ --client-ssh-name <uname> (SSH username for client) ]"
     echo "    [ --client-ssh-host <ip> (Public IP or hostname for client) ]"
     echo "    [ --client-ssh-use-pass <0|1> (Use password for SSH instead of identity file) ]"
@@ -118,11 +118,12 @@ help() {
     exit 2
 }
 
+
 #-------------------------------------------------------------------------------
 # COMMAND-LINE ARGUMENT PARSING
 #-------------------------------------------------------------------------------
 SHORT_OPTS="n:c:N:C:e:m:d:b:r:h"
-LONG_OPTS="server-home:,server-ip:,server-intf:,server-num:,server-cpu-mask:,server-bus:,\
+LONG_OPTS="host-home:,host-ip:,host-intf:,host-bus:,host-num:,host-cpu-mask:,\
 client-home:,client-ip:,client-intf:,client-num:,client-cpu-mask:,\
 exp-name:,mtu:,ddio:,bandwidth:,ring-buffer:,mlc-cores:,socket-buf:,dur:,runs:,ebpf-tracing:,\
 client-ssh-name:,client-ssh-host:,client-ssh-use-pass:,client-ssh-pass:,client-ssh-ifile:,help"
@@ -136,12 +137,12 @@ eval set -- "$PARSED_OPTS"
 
 while :; do
     case "$1" in
-        --server-home) SERVER_HOME="$2"; shift 2 ;;
-        --server-ip) SERVER_IP="$2"; shift 2 ;;
-        --server-intf) SERVER_INTF="$2"; shift 2 ;;
-        -n | --server-num) SERVER_NUM_SERVERS="$2"; shift 2 ;;
-        -c | --server-cpu-mask) SERVER_CPU_MASK="$2"; shift 2 ;;
-        --server-bus) SERVER_NIC_BUS="$2"; shift 2 ;;
+        --host-home) HOST_HOME="$2"; shift 2 ;;
+        --host-ip) HOST_IP="$2"; shift 2 ;;
+        --host-intf) HOST_INTF="$2"; shift 2 ;;
+	      --host-bus) HOST_NIC_BUS="$2"; shift 2 ;;
+        -n | --host-num) HOST_NUM_SERVERS="$2"; shift 2 ;;
+        -c | --host-cpu-mask) HOST_CPU_MASK="$2"; shift 2 ;;
         --client-home) CLIENT_HOME="$2"; shift 2 ;;
         --client-ip) CLIENT_IP="$2"; shift 2 ;;
         --client-intf) CLIENT_INTF="$2"; shift 2 ;;
@@ -156,8 +157,8 @@ while :; do
         --socket-buf) TCP_SOCKET_BUF_MB="$2"; shift 2 ;;
         --dur) CORE_DURATION_S="$2"; shift 2 ;;
         --runs) NUM_RUNS="$2"; shift 2 ;;
-        --ebpf-tracing) EBPF_TRACING_ENABLED="$2"; shift 2 ;;
-        --client-ssh-name) CLIENT_SSH_UNAME="$2"; shift 2 ;;
+        --ebpf-tracing) EBPF_TRACING_HOST_ENABLED="$2"; shift 2 ;;
+	      --client-ssh-name) CLIENT_SSH_UNAME="$2"; shift 2 ;;
         --client-ssh-host) CLIENT_SSH_HOST="$2"; shift 2 ;;
         --client-ssh-use-pass) CLIENT_USE_PASS_AUTH="$2"; shift 2 ;;
         --client-ssh-pass) CLIENT_SSH_PASSWORD="$2"; shift 2 ;;
@@ -168,14 +169,14 @@ while :; do
     esac
 done
 
-SERVER_SETUP_DIR="${SERVER_HOME}/${SERVER_FandS_REL}/${SERVER_SETUP_DIR_REL}"
-EBPF_SERVER_LOADER="${SERVER_HOME}/${SERVER_FandS_REL}/${EBPF_SERVER_LOADER_REL}"
-SERVER_EXP_DIR="${SERVER_HOME}/${SERVER_FandS_REL}/${SERVER_EXP_DIR_REL}"
-SERVER_MLC_DIR="${SERVER_HOME}/${SERVER_MLC_DIR_REL}"
-SERVER_DEP_DIR="${SERVER_HOME}/${SERVER_DEP_REL}"
+HOST_SETUP_DIR="${HOST_HOME}/${HOST_FandS_REL}/${HOST_SETUP_DIR_REL}"
+HOST_EXP_DIR="${HOST_HOME}/${HOST_FandS_REL}/${HOST_EXP_DIR_REL}"
+HOST_MLC_DIR="${HOST_HOME}/${HOST_MLC_DIR_REL}"
+HOST_PERF="${HOST_HOME}/${HOST_PERF_REL}"
 CLIENT_SETUP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_SETUP_DIR_REL}"
 CLIENT_EXP_DIR="${CLIENT_HOME}/${CLIENT_FandS_REL}/${CLIENT_EXP_DIR_REL}"
-SERVER_PERF="${SERVER_HOME}/${SERVER_PERF_REL}"
+HOST_RESULTS_DIR="${HOST_HOME}/${HOST_RESULTS_REL}" # TODO: Siyuan (Better name suggestion)
+EBPF_HOST_LOADER="${HOST_HOME}/${EBPF_HOST_LOADER_REL}"
 PROFILING_LOGGING_DUR_S=$((CORE_DURATION_S))
 
 if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
@@ -251,7 +252,7 @@ pre_exp_setup() {
     check_client_kernel
     
     log_info "Disabling TX/RX on HOST and CLIENT"
-    sudo ethtool --pause $SERVER_INTF tx off rx off
+    sudo ethtool --pause $HOST_INTF tx off rx off
     $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
     
     log_info "Disabling SMT on Client"
@@ -270,7 +271,7 @@ post_exp_cleanup() {
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
     log_info "Resetting HOST..."
-    cd "$SERVER_SETUP_DIR"; sudo bash reset-host.sh
+    cd "$HOST_SETUP_DIR"; sudo bash reset-host.sh
     cd -
     
     log_info "--- Post-experiment Cleanup Phase Finished ---"
@@ -285,23 +286,21 @@ cleanup() {
     sudo pkill -9 -f loaded_latency
     sudo pkill -9 -f iperf 
 
-    if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
-        sudo pkill -SIGINT -f "$SERVER_PERF record"
+    if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
+        sudo pkill -SIGINT -f "$HOST_PERF record"
         sleep 1
-        sudo pkill -9 -f "$SERVER_PERF record"
+        sudo pkill -9 -f "$HOST_PERF record"
     fi
 
-    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-	    local server_loader_basename
-        server_loader_basename=$(basename "$EBPF_SERVER_LOADER")
-        cd $(dirname "$EBPF_SERVER_LOADER") || { log_error "Failed to cd to $(dirname "$EBPF_SERVER_LOADER")"; exit 1; }
+        host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+        cd $(dirname "$EBPF_HOST_LOADER") || { log_error "Failed to cd to $(dirname "$EBPF_HOST_LOADER")"; exit 1; }
         make clean
         make
         cd -
-	    sudo pkill -SIGINT -f "$server_loader_basename" 2>/dev/null || true
-        sudo pkill -9 -f "$server_loader_basename" 2>/dev/null || true
-        sleep 1
+	    sudo pkill -SIGINT -f "$host_loader_basename" 2>/dev/null || true
+        sudo pkill -9 -f "$host_loader_basename" 2>/dev/null || true
     fi
 
     log_info "Terminating screen sessions..."
@@ -310,16 +309,17 @@ cleanup() {
     $SSH_CLIENT_CMD \
         'sudo pkill -9 -f iperf; screen -wipe || true'
 
-    log_info "Resetting SERVER network interface $SERVER_INTF..."
-    sudo ip link set "$SERVER_INTF" down
+
+    log_info "Resetting HOST network interface $HOST_INTF..."
+    sudo ip link set "$HOST_INTF" down
     sleep 2
-    sudo ip link set "$SERVER_INTF" up
+    sudo ip link set "$HOST_INTF" up
     sleep 2
     log_info "--- Cleanup Phase Finished ---"
 }
 
 save_config_to_report_json() {
-    local report_dir="${1:-$current_server_reports_dir}"
+    local report_dir="${1:-$current_host_reports_dir}"
     local config_file="$report_dir/config.json"
 
     local host_cmdline=$(cat /proc/cmdline)
@@ -339,11 +339,11 @@ save_config_to_report_json() {
     "mlc_cores": "$MLC_CORES"
   },
   "host": {
-    "ip": "$SERVER_IP",
-    "interface": "$SERVER_INTF",
-    "num_servers": "$SERVER_NUM_SERVERS",
-    "cpu_mask": "$SERVER_CPU_MASK",
-    "nic_bus": "$SERVER_NIC_BUS",
+    "ip": "$HOST_IP",
+    "interface": "$HOST_INTF",
+    "num_servers": "$HOST_NUM_SERVERS",
+    "cpu_mask": "$HOST_CPU_MASK",
+    "nic_bus": "$HOST_NIC_BUS",
     "kernel": "$host_kernel",
     "cmdline": "$host_cmdline"
   },
@@ -363,6 +363,13 @@ EOF
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 
+# save_pcpu_queue_stats() {
+#     local pcpu_queue_stats_file="$1"
+#     local header="$2"
+#     echo "$header" >> "$pcpu_queue_stats_file"
+#     sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
+# }
+
 pre_exp_setup
 
 for ((j = 0; j < NUM_RUNS; j += 1)); do
@@ -372,86 +379,106 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "############################################################"
 
     # --- Per-Run Directory and File Definitions ---
-    # Server side paths for reports and data
-    current_server_reports_dir="${SERVER_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
+    # HOST (Server) side paths for reports and data
+    current_host_reports_dir="${HOST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
     client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
-    
-    iova_ftrace_server_output_file="${current_server_reports_dir}/iova_ftrace_server.txt"
-    ebpf_server_stats="${current_server_reports_dir}/ebpf_server_stats.csv"
-    server_app_log_file="${current_server_reports_dir}/server_app.log"
-    server_mlc_log_file="${current_server_reports_dir}/mlc.log"
-    server_perf_data_file="${current_server_reports_dir}/perf_cpu.data"
-    
-    sudo mkdir -p "$current_server_reports_dir"
-    $SSH_CLIENT_CMD "sudo mkdir -p '$client_reports_dir_remote'"
 
+    perf_host_data_file="${current_host_reports_dir}/perf_host_cpu.data"
+    iova_ftrace_host_output_file="${current_host_reports_dir}/iova_ftrace_host.txt"
+    ebpf_host_stats="${current_host_reports_dir}/ebpf_host_stats.csv"
+    host_server_app_log_file="${current_host_reports_dir}/server_app.log"
+    client_server_app_log_file="${client_reports_dir_remote}/client_server_app.log"
+    host_mlc_log_file="${current_host_reports_dir}/mlc.log"
+    perf_kvm_data_file="${current_host_reports_dir}/perf_host_kvm.data"
+    perf_sched_data_file="${current_host_reports_dir}/perf_host_sched.data"
+
+    sudo mkdir -p "$current_host_reports_dir"
+    $SSH_CLIENT_CMD "sudo mkdir -p '$client_reports_dir_remote'"
 
     # --- Pre-run cleanup ---
     cleanup
 
     # --- Add config to reports ---
-    save_config_to_report_json "$current_server_reports_dir"
+    save_config_to_report_json "$current_host_reports_dir"
+
+    # save_pcpu_queue_stats "$current_host_reports_dir/pcpu_queue_stats.txt" "after_cleanup"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
-        log_info "Starting MLC on cores: $MLC_CORES; logs at $server_mlc_log_file..."
-        "$SERVER_MLC_DIR/mlc" --loaded_latency -T -d0 -e -k"$MLC_CORES" -j0 -b1g -t10000 -W2 &> "$server_mlc_log_file" &
+        log_info "Starting MLC on cores: $MLC_CORES; logs at $host_mlc_log_file..."
+        "$HOST_MLC_DIR/mlc" --loaded_latency -T -d0 -e -k"$MLC_CORES" -j0 -b1g -t10000 -W2 &> "$host_mlc_log_file" &
         log_info "Waiting for MLC to ramp up (30 seconds)..."
         progress_bar 30 1
     else
         log_info "MLC not configured for this run."
     fi
-
-    # --- Setup Server Environment ---
-    log_info "Setting up server environment..."
-    cd "$SERVER_SETUP_DIR" || { log_error "Failed to cd to $SERVER_SETUP_DIR"; exit 1; }
-    sudo bash setup-envir.sh --dep "$SERVER_DEP_DIR" --intf "$SERVER_INTF" --ip "$SERVER_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
-      --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$SERVER_NIC_BUS"
-    sudo bash setup-host.sh -m "$MTU" --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --ecn 1
-    cd - > /dev/null # Go back to previous directory silently
-
-    # --- Start Server Application ---
-    log_info "Starting server application; logs at $server_app_log_file"
-    cd "$SERVER_EXP_DIR" || { log_error "Failed to cd to $SERVER_EXP_DIR"; exit 1; }
-    sudo bash run-netapp-tput.sh --mode server -n "$SERVER_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
-        -p "$INIT_PORT" -c "$SERVER_CPU_MASK" &> "$server_app_log_file" &
-    SERVER_PID=$!
-    echo "SERVER_PID=$SERVER_PID" >> "$server_app_log_file"
-    ps -o pid,cmd,psr,pcpu --pid $SERVER_PID >> "$server_app_log_file"
-    sleep 2 # Allow server app to initialize
-    cd - > /dev/null
-
+   
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$SERVER_IP' -n '$SERVER_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-tx-netapp-tput.sh --mode server -n '$HOST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' &> '$client_server_app_log_file'; exec bash"
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    sleep 2
+
+    # --- Setup HOST (Server) Environment ---
+    log_info "Setting up HOST server environment..."
+    cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; exit 1; }
+    sudo bash setup-envir.sh --dep "$HOST_RESULTS_DIR" --intf "$HOST_INTF" --ip "$HOST_IP" -m "$MTU" -d "$DDIO_ENABLED" -r "$RING_BUFFER_SIZE" \
+        --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1 --nic-bus "$HOST_NIC_BUS"
+    sudo bash setup-host.sh -m "$MTU" --socket-buf "$TCP_SOCKET_BUF_MB" --hwpref 1 --rdma 0 --ecn 1
+    cd - > /dev/null # Go back to previous directory silently
+
+    # --- Start HOST (Server) Application ---
+    log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
+    for i in {1..30}; do
+        if $SSH_CLIENT_CMD "ss -tln | grep -q :$INIT_PORT || netstat -tln | grep -q :$INIT_PORT" 2>/dev/null; then
+            log_info "Remote servers are up and listening!"
+            sleep 2 # Small buffer to ensure all subsequent ports (if NUM_SERVERS > 1) are also bound
+            break
+        fi
+        sleep 1
+        if [ "$i" -eq 30 ]; then
+            log_error "Timeout waiting for remote servers to start!"
+        fi
+    done
+
+    log_info "Starting HOST server application; logs at $host_server_app_log_file"
+    cd "$HOST_EXP_DIR" || { log_error "Failed to cd to $HOST_EXP_DIR"; exit 1; }
+    sudo bash run-tx-netapp-tput.sh --mode client --server-ip "$CLIENT_IP" -n "$HOST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
+        -p "$INIT_PORT" -c "$HOST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$host_server_app_log_file" & 
+    sleep 2 # Allow server app to initialize
+    cd - > /dev/null   
 
     # --- Warmup Phase ---
+    # log_info "Warming up experiment (10 seconds)..."
+    # progress_bar 10 1
     log_info "Warming up experiment (60 seconds)..."
     progress_bar 60 1
 
-    
+    # save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_warmup"
+
     # --- Start eBPF Tracers (if enabled) ---
-    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
-        log_info "Starting server eBPF tracer..."
-        sudo taskset -c 13 "$EBPF_SERVER_LOADER" -o "$ebpf_server_stats" &
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
+        log_info "Starting HOST eBPF tracer..."
+        echo "current_time: $(date) $(date +%s)"
+        sudo taskset -c $HOST_EBPF_TRACING_CORE "$EBPF_HOST_LOADER" -d $CORE_DURATION_S -o "$ebpf_host_stats" &
         sleep 2 # Allow eBPF loaders to initialize
     fi
-   
-    # --- Ftrace Setup (Guest & Host) ---
-    log_info "Configuring server ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
+
+    # --- Ftrace Setup (Host) ---
+    log_info "Configuring HOST ftrace for IOVA logging (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
     sudo echo "$FTRACE_BUFFER_SIZE_KB" > /sys/kernel/debug/tracing/buffer_size_kb
     sudo echo "$FTRACE_OVERWRITE_ON_FULL" > /sys/kernel/debug/tracing/options/overwrite
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer
     sudo echo 1 > /sys/kernel/debug/tracing/tracing_on
-    log_info "server IOVA ftrace is ON."
-
+    log_info "HOST IOVA ftrace is ON."
+    
     # --- Start Main Profiling & Logging Phase ---
-     if [ "$PERF_TRACING_ENABLED" -eq 1 ]; then
-        log_info "Starting perf record (CPU profiling)..."
-        sudo "$SERVER_PERF" record -F 99 -a -g --call-graph dwarf -o "$server_perf_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
+    if [ "$PERF_TRACING_HOST_ENABLED" -eq 1 ]; then
+        log_info "Starting HOST perf record (CPU profiling)..."
+        sudo "$HOST_PERF" record -F 99 -a -g --call-graph dwarf -o "$perf_host_data_file" -- sleep "$PROFILING_LOGGING_DUR_S" &
     fi
+
 
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
@@ -460,54 +487,68 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
     $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
-    log_info "Starting server logging..."
-    cd "$SERVER_SETUP_DIR" || { log_error "Failed to cd to $SERVER_SETUP_DIR"; exit 1; }
-    sudo bash record-host-metrics.sh --dep "$SERVER_DEP_DIR" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$SERVER_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
-    --pcie 1 --membw 0 --iio 0 --pfc 0 --intf "$SERVER_INTF" --type 0
+    log_info "Starting HOST-side logging on $HOST_IP..."
+    cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; exit 1; }
+    sudo bash record-host-metrics.sh --dep "$HOST_RESULTS_DIR" -o "${EXP_NAME}-RUN-${j}" --dur "$CORE_DURATION_S" \
+        --cpu-util 1  -c "$HOST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
+        --pcie 1 --membw 0 --iio 0 --pfc 0 --intf "$HOST_INTF" --type 0
+
     cd - > /dev/null
 
     log_info "Logging done."
-    log_info "Primary data collection phase on SERVER complete."
+    log_info "Primary data collection phase on HOST complete."
 
-    # --- Save Ftrace Data (Guest & Host) ---
-    log_info "Stopping and saving server IOVA ftrace data..."
+    # --- Save Ftrace Data (Host) ---
+    log_info "Stopping and saving HOST IOVA ftrace data..."
     sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo cat /sys/kernel/debug/tracing/trace > "$iova_ftrace_server_output_file"
+    sudo cat /sys/kernel/debug/tracing/trace > "$iova_ftrace_host_output_file"
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer after saving
-    log_info "server IOVA ftrace data saved to $iova_ftrace_server_output_file"
+    
+    head -n 10000 $iova_ftrace_host_output_file > $iova_ftrace_host_output_file.head10000
+    tail -n 10000 $iova_ftrace_host_output_file > $iova_ftrace_host_output_file.tail10000
+    log_info "HOST IOVA ftrace data saved to $iova_ftrace_host_output_file"
 
-    sudo bash -c "dmesg > ${current_server_reports_dir}/dmesg.txt"
+    sudo bash -c "dmesg > ${current_host_reports_dir}/dmesg.txt"
+    
 
     # --- Stop eBPF Tracers (if enabled) ---
-    if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
+    if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
         log_info "Stopping eBPF tracers..."
-        local server_loader_basename # Ensure local scope if not already
-        server_loader_basename=$(basename "$EBPF_SERVER_LOADER")
-        sudo pkill -SIGINT -f "$server_loader_basename" 2>/dev/null && log_info "SIGINT sent to SERVER eBPF loader." || log_info "WARN: SERVER eBPF loader process not found or SIGINT failed."
+        echo "current_time: $(date) $(date +%s)"
+        host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+        sudo pkill -SIGINT -f "$host_loader_basename" 2>/dev/null && log_info "SIGINT sent to HOST eBPF loader." || log_info "WARN: HOST eBPF loader process not found or SIGINT failed."
     fi
-
  
-    # --- Transfer Report Files from Remote Machines --- TODO: FIX THESE
-    log_info "Transferring report files from CLIENT"
+    # --- Transfer Report Files from Remote Machines ---
+    log_info "Transferring report files from CLIENT..."
+    # Client files
     if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
-	    sshpass -p $CLIENT_SSH_PASSWORD \
-        scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$client_reports_dir_remote/retx.rpt $current_server_reports_dir/retx.rpt
+	sshpass -p $CLIENT_SSH_PASSWORD \
+	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt ${current_host_reports_dir}/client-retx.rpt
+	sshpass -p $CLIENT_SSH_PASSWORD \
+	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file} ${current_host_reports_dir}/client_server_app.log
     else
-	    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
-        "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:$client_reports_dir_remote/retx.rpt" "$current_server_reports_dir/retx.rpt"
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
+        "${current_host_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file}" \
+        "${current_host_reports_dir}/client_server_app.log"
     fi
 
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
     progress_bar $((CORE_DURATION_S * 2)) 2
 
+    sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
     # --- Post-run cleanup ---
-    cleanup
+    # cleanup
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
 done
+
 
 cleanup
 post_exp_cleanup
@@ -521,9 +562,11 @@ fi
 log_info "Collecting and processing statistics from all runs..."
 # The '0' or '1' at the end of collect-tput-stats.py might indicate whether MLC was run. Adjust as needed.
 if [ "$MLC_CORES" = "none" ]; then
-    sudo python3 collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
+    sudo python3 tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
 else
-    sudo python3 collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
+    sudo python3 tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
+sync
+sleep 1
 log_info "Experiment $EXP_NAME finished."

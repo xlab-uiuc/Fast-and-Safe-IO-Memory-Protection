@@ -2,8 +2,11 @@ import sys
 import numpy as np
 import statistics
 import subprocess
-import csv
 import os
+import csv
+
+
+# TODO: Leshna, Combine both vm and baremetal stat collector with file names as parameters.
 
 EXP_NAME = sys.argv[1]
 NUM_RUNS = int(sys.argv[2])
@@ -12,7 +15,6 @@ COLLECT_MLC_TPUT = int(sys.argv[3])
 FILE_NAME = "../utils/reports/" + EXP_NAME
 command = 'mkdir -p ' + FILE_NAME
 result = subprocess.run(command, shell=True, capture_output=True, text=True)
-
 
 net_tputs = []
 retx_rates = []
@@ -44,10 +46,11 @@ pwt_occupancy = []
 for i in range(NUM_RUNS):
     with open(FILE_NAME + '-RUN-' + str(i) + '/iperf.bw.rpt') as f1:
         for line in f1:
-            tput = float(line.split()[-1])
-            if (tput > 0):
-                net_tputs.append(tput)
-            break
+            if line.startswith('Avg_iperf_tput:'):
+                tput = float(line.split()[-1])
+                if tput > 0:
+                    net_tputs.append(tput)
+                break
 
     try:
 
@@ -73,8 +76,8 @@ for i in range(NUM_RUNS):
                 sent = float(line_str[-1])
                 sent_packets.append(sent)
 
-    membw_file = FILE_NAME + '-RUN-' + str(i) + '/membw.rpt'
-    if os.path.exists(membw_file):
+    host_membw_file = FILE_NAME + '-RUN-' + str(i) + '/membw.rpt'
+    if os.path.exists(host_membw_file):
         with open(FILE_NAME + '-RUN-' + str(i) + '/membw.rpt') as f1:
             try:
                 for line in f1:
@@ -90,7 +93,7 @@ for i in range(NUM_RUNS):
                 mem_bws.append(0)
     else:
         mem_bws.append(0)
-        print(f"[WARN] Membw file not found: {membw_file}")
+        print(f"[WARN] Host membw file not found: {host_membw_file}")
 
     with open(FILE_NAME + '-RUN-' + str(i) + '/cpu_util.rpt') as f1:
         for line in f1:
@@ -146,9 +149,11 @@ for i in range(NUM_RUNS):
                         mlc_tputs.append(tput)
                     break
 
+
 def mean_or_zero(arr): return statistics.mean(arr) if arr else 0
 def stdev_or_zero(arr): return statistics.stdev(arr) if len(arr) > 1 else 0
 def max_or_zero(arr): return max(arr) if len(arr) > 1 else 0
+
 
 cpu_utils_mean = mean_or_zero(cpu_utils);               cpu_utils_stddev = stdev_or_zero(cpu_utils)
 net_tput_mean = mean_or_zero(net_tputs);                net_tput_stddev = stdev_or_zero(net_tputs)
@@ -156,8 +161,6 @@ retx_rate_mean = mean_or_zero(retx_rates);              retx_rate_stddev = stdev
 sent_packets_mean = mean_or_zero(sent_packets);         sent_packets_stddev = stdev_or_zero(sent_packets)
 mem_bw_mean = mean_or_zero(mem_bws);                    mem_bw_stddev = stdev_or_zero(mem_bws)
 pcie_wr_tput_mean = mean_or_zero(pcie_wr_tput);         pcie_wr_tput_stddev = stdev_or_zero(pcie_wr_tput)
-mem_stats_mean = mean_or_zero(mem_used)
-mem_stats_max = max_or_zero(mem_used)
 
 iotlb_first_lookup_mean = mean_or_zero(iotlb_first_lookup);  iotlb_first_lookup_stddev = stdev_or_zero(iotlb_first_lookup)
 iotlb_all_lookup_mean  = mean_or_zero(iotlb_all_lookup);     iotlb_all_lookup_stddev  = stdev_or_zero(iotlb_all_lookup)
@@ -165,6 +168,8 @@ iotlb_miss_mean        = mean_or_zero(iotlb_miss);           iotlb_miss_stddev  
 iommu_mem_access_mean  = mean_or_zero(iommu_mem_access);     iommu_mem_access_stddev  = stdev_or_zero(iommu_mem_access)
 iotlb_inv_mean         = mean_or_zero(iotlb_inv);            iotlb_inv_stddev         = stdev_or_zero(iotlb_inv)
 pwt_occupancy_mean     = mean_or_zero(pwt_occupancy);        pwt_occupancy_stddev     = stdev_or_zero(pwt_occupancy)
+mem_stats_mean = mean_or_zero(mem_used)
+mem_stats_max = max_or_zero(mem_used)
 
 mlc_tput_mean = 0
 mlc_tput_stddev = 0
@@ -176,7 +181,6 @@ if (COLLECT_MLC_TPUT > 0):
     else:
         mlc_tput_stddev = 0
 
-# TODO: convert to tuple list and use zip with unpacking to make it cleaner to read and less error prone
 output_list = [
     ("cpu_utils_mean", cpu_utils_mean), ("cpu_utils_stddev", cpu_utils_stddev),
     ("net_tput_mean", net_tput_mean), ("net_tput_stddev", net_tput_stddev),
@@ -184,7 +188,7 @@ output_list = [
     ("mem_bw_mean", mem_bw_mean), ("mem_bw_stddev", mem_bw_stddev),
     ("pcie_wr_tput_mean", pcie_wr_tput_mean), ("pcie_wr_tput_stddev", pcie_wr_tput_stddev),
 
-        ("iotlb_first_lookup_mean", iotlb_first_lookup_mean), ("iotlb_first_lookup_stddev", iotlb_first_lookup_stddev),
+    ("iotlb_first_lookup_mean", iotlb_first_lookup_mean), ("iotlb_first_lookup_stddev", iotlb_first_lookup_stddev),
     ("iotlb_all_lookup_mean",  iotlb_all_lookup_mean),   ("iotlb_all_lookup_stddev",  iotlb_all_lookup_stddev),
     ("iotlb_miss_mean", iotlb_miss_mean), ("iotlb_miss_stddev", iotlb_miss_stddev),
     ("iommu_mem_access_mean", iommu_mem_access_mean), ("iommu_mem_access_stddev", iommu_mem_access_stddev),
@@ -195,6 +199,7 @@ output_list = [
     ("mlc_tput_stddev", 0 if len(mlc_tputs) < 2 else stdev_or_zero(mlc_tputs)),
     ("sent_packets_mean", sent_packets_mean), ("sent_packets_stddev", sent_packets_stddev),
     ("mem_mean", mem_stats_mean), ("mem_max", mem_stats_max)
+
 ]
 
 headers, outputs = zip(*output_list)

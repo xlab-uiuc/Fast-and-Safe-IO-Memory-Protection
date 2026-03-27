@@ -124,7 +124,8 @@ host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 virt_tech=$(detect_virt_tech)
 if [ $? -ne 0 ]; then
     echo "Failed to detect virtualization technology"
-    exit 1
+    echo "Running in baremetal, so probably not a problem"
+    #exit 1
 fi
 
 iommu_config="host-${host_iommu_config}-guest-${guest_iommu_config}-$virt_tech"

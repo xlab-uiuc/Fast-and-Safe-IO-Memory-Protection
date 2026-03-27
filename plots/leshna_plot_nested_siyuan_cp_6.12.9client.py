@@ -61,7 +61,6 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
     
     # Font size adjustments
     # Reduce font size for many labels or series
-    # print('num_x_labels: ', num_x_labels)
     font_scale = 1.0
     if num_x_labels > 10:
         font_scale *= 0.95

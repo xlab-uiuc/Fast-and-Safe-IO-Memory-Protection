@@ -65,28 +65,25 @@ function collect_stats() {
 
 counter=0
 if [ "$MODE" = "server" ]; then
-    sudo pkill -9 -f iperf #kill existing iperf servers/clients
     while [ $counter -lt $NUM_SERVERS ]; do
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
         echo "Starting server $counter on core $core"
-        sudo taskset -c $core nice -n -20 iperf3 -s --port $(($PORT + $counter)) -i 1 -f m &
+        sudo taskset -c $core nice -n -20 iperf3 -s --port $(($PORT + $counter)) -i 30 -f m --logfile ../logs/$OUT_DIR/iperf.bw.log &
         ((counter++))
     done
-elif [ "$MODE" = "client" ]; then
-    sudo pkill -9 -f iperf #kill existing iperf servers/clients
-    while [ $counter -lt $NUM_CLIENTS ]; do
-        index=$(( counter % ${#core_values[@]} ))
-        core=${core_values[index]}
-        echo "Starting client $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -i 30 -f m -t 10000 -C dctcp -b $BANDWIDTH --logfile ../logs/$OUT_DIR/iperf.bw.log &
-        ((counter++))
-    done
-
     echo "waiting for few minutes before collecting stats..."
     sleep 120
     echo "collecting stats..."
     collect_stats
+elif [ "$MODE" = "client" ]; then
+    while [ $counter -lt $NUM_CLIENTS ]; do
+        index=$(( counter % ${#core_values[@]} ))
+        core=${core_values[index]}
+        echo "Starting client $counter on core $core"
+        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -t 10000 -C dctcp -b $BANDWIDTH &
+        ((counter++))
+    done
 else
     echo "incorrect argument specified"
     help
