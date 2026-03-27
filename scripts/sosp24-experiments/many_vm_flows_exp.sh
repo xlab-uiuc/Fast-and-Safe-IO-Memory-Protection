@@ -12,20 +12,29 @@ NUM_CORES=""
 NUM_FLOWS=""
 DRY_RUN=0
 EXP_NAME=""
+HOST_IP_ARG=""
+HOST_SSH_UNAME_ARG=""
+HOST_HOME_ARG=""
+HOST_RESULTS_DIR_ARG=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-	--vm-name)    VM_NAME="$2";    shift 2 ;;
-	--num-cores)  NUM_CORES="$2";  shift 2 ;;
-	--num-flows)  NUM_FLOWS="$2";  shift 2 ;;
-	--exp-name)   EXP_NAME="$2";   shift 2 ;;
-	--dry)        DRY_RUN=1;       shift   ;;
-	*)            shift            ;;
+	--vm-name)          VM_NAME="$2";              shift 2 ;;
+	--num-cores)        NUM_CORES="$2";            shift 2 ;;
+	--num-flows)        NUM_FLOWS="$2";            shift 2 ;;
+	--exp-name)         EXP_NAME="$2";             shift 2 ;;
+	--host-ip)          HOST_IP_ARG="$2";          shift 2 ;;
+	--host-ssh-uname)   HOST_SSH_UNAME_ARG="$2";   shift 2 ;;
+	--host-home)        HOST_HOME_ARG="$2";        shift 2 ;;
+	--host-results-dir) HOST_RESULTS_DIR_ARG="$2"; shift 2 ;;
+	--dry)              DRY_RUN=1;                 shift   ;;
+	*)                  shift                      ;;
 	esac
 done
 
 if [[ -z "$VM_NAME" || -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$EXP_NAME" ]]; then
 	echo "Usage: $0 --vm-name <n> --num-cores <N> --num-flows <N> --exp-name <name> [--dry]" >&2
+	echo "  Optional: --host-ip <ip> --host-ssh-uname <user> --host-home <path> --host-results-dir <path>" >&2
 	exit 1
 fi
 
@@ -49,10 +58,10 @@ GUEST_IP="192.168.101.$((11 + VM_INDEX))"
 GUEST_NIC_BUS="0x0"
 GUEST_HOME="/home/schai"
 
-HOST_IP="192.17.101.97"
-HOST_UNAME="lbalara"
-HOST_HOME="/home/lbalara"
-HOST_RESULTS_DIR="/home/lbalara/viommu/ManyVM-FandS/utils/reports/"
+HOST_IP="${HOST_IP_ARG:-192.17.101.97}"
+HOST_SSH_UNAME="${HOST_SSH_UNAME_ARG:-lbalara}"
+HOST_HOME="${HOST_HOME_ARG:-/home/lbalara}"
+HOST_RESULTS_DIR="${HOST_RESULTS_DIR_ARG:-/home/lbalara/viommu/ManyVM-FandS/utils/reports/}"
 
 CLIENT_HOME="/home/siyuanc3"
 CLIENT_INTF="ens1006np0"
@@ -63,7 +72,6 @@ CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
-HOST_SSH_UNAME="lbalara"
 HOST_SSH_PASSWORD=""
 HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 HOST_USE_PASS_AUTH=0
