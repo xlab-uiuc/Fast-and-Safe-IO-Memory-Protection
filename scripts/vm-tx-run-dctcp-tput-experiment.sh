@@ -719,6 +719,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
+
+    cleanup_mem_stats
 done
 
 cleanup

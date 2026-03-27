@@ -616,9 +616,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Logging done."
     log_info "Primary data collection phase on GUEST complete."
 
-    cleanup_mem_stats
-
-
     # --- Save Ftrace Data (Guest & Host) ---
     log_info "Stopping and saving GUEST IOVA ftrace data..."
     sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
@@ -692,6 +689,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
+
+    cleanup_mem_stats
 done
 
 # --- Post-run cleanup ---
