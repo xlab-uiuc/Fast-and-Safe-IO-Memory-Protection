@@ -62,6 +62,11 @@ enum FunctionName
     IOMMU_DMA_FREE_IOVA_CALL,
     __IOMMU_DMA_UNMAP_CALL,
     __IOMMU_DMA_UNMAP,
+    DMA_MAP_SG_ATTRS,
+    SK_STREAM_WAIT_MEMORY,
+    IOVA_FREE_FROM_QI_BATCH,
+    UNMAP_CALLBACK_CONSUME,
+    CACHE_TAG_FLUSH_IOTLB,
     TRACE_FUNCS_END, // Marks the end of trace functions
 
     // --- Section for Simple Frequency Counting ---

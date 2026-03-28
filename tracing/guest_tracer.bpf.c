@@ -111,9 +111,9 @@ _bpf_utils_trace_func_exit(struct pt_regs *ctx, enum Domain domain, bool is_upro
 
   // Sanity check: if duration is larger than 1 second, it's likely a stale entry
   // or something went wrong.
-  if (duration_ns > 1000000000ULL) {
-      return 0;
-  }
+  // if (duration_ns > 1000000000ULL) {
+  //     return 0;
+  // }
 
   struct latency_stats_t *stats = bpf_map_lookup_elem(&func_latency_stats, &func_enum_key);
   if (stats) {
@@ -244,7 +244,7 @@ int BPF_KRETPROBE(kretprobe___page_pool_alloc_pages_slow, void *ret)
 }
 
 
-SEC("kretprobe/qi_submit_sync")
+SEC("kprobe/qi_submit_sync")
 int BPF_KRETPROBE(kprobe_qi_submit_sync, void *ret)
 {
   return _bpf_utils_trace_func_entry(ctx);
@@ -601,6 +601,66 @@ int BPF_KPROBE(kprobe___sys_flush_handler, void *ret)
 
 SEC("kretprobe/__sys_flush_handler")
 int BPF_KRETPROBE(kretprobe___sys_flush_handler, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/dma_map_sg_attrs")
+int BPF_KPROBE(kprobe_dma_map_sg_attrs, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/dma_map_sg_attrs")
+int BPF_KRETPROBE(kretprobe_dma_map_sg_attrs, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/sk_stream_wait_memory")
+int BPF_KPROBE(kprobe_sk_stream_wait_memory, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/sk_stream_wait_memory")
+int BPF_KRETPROBE(kretprobe_sk_stream_wait_memory, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/iova_free_from_qi_batch")
+int BPF_KPROBE(kprobe_iova_free_from_qi_batch, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/iova_free_from_qi_batch")
+int BPF_KRETPROBE(kretprobe_iova_free_from_qi_batch, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/unmap_callback_consume")
+int BPF_KPROBE(kprobe_unmap_callback_consume, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/unmap_callback_consume")
+int BPF_KRETPROBE(kretprobe_unmap_callback_consume, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}
+
+SEC("kprobe/cache_tag_flush_iotlb")
+int BPF_KPROBE(kprobe_cache_tag_flush_iotlb, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/cache_tag_flush_iotlb")
+int BPF_KRETPROBE(kretprobe_cache_tag_flush_iotlb, void *ret)
 {
     return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
