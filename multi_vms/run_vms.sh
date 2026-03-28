@@ -5,22 +5,13 @@ set -euo pipefail
 # Configuration
 # ============================================================
 
-# GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1 intel_iommu_pinned=on intel_iommu_dfp=on"
-GUEST_CMD_LINE_NESTED="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=on,sm_on iommu.strict=1"
-GUEST_CMD_LINE_OFF="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200 intel_iommu=off"
-
-# GUEST_KERNEL="6.12.9-iommufd-nested-iova-contig-cb-opt"
-# GUEST_KERNEL_PATH="/boot-VM/vmlinuz-$GUEST_KERNEL"
-# GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
-GUEST_KERNEL="6.12.9-iommufd"
-GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
-GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
-GUEST_VIOMMU="off" # nested/off
-NUM_VMS=12
-NUM_CORES="2"
-NUM_IPRF="1"
-NUM_FLOWS="1"
+GUEST_VIOMMU="nested-vFree" # off/nested/nested-vFree
+NUM_VMS=1
+NUM_TOTAL_CORES="16"
+NUM_ACTIVE_CORES="12"
+NUM_FLOWS="12"
 REUSE=0
+SKIP_RESET_HOST=0
 
 # --- Hardcoded experiment config ---
 GIT_REPO="/home/schai/viommu"
@@ -28,9 +19,15 @@ GIT_BRANCH="many-vm-setup"
 VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
-HOST_HOME="/home/lbalara"
-HOST_FandS_REL="viommu/ManyVM-FandS"
-HOST_SETUP_DIR="${HOST_HOME}/${HOST_FandS_REL}/utils"
+HOST_FandS_ABS=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")
+HOST_SETUP_DIR="${HOST_FandS_ABS}/utils"
+echo "Host F&S dir: ${HOST_FandS_ABS}"
+
+# --- Host config (auto-inferred, passed to VMs so they can SCP results back) ---
+HOST_IP="192.17.101.97"
+HOST_SSH_UNAME="$(whoami)"
+HOST_HOME="$(eval echo ~$(whoami))"
+HOST_RESULTS_DIR="${HOST_FandS_ABS}/utils/reports/"
 
 # --- Client machine config ---
 CLIENT_HOME="/home/siyuanc3"
@@ -77,9 +74,8 @@ NIC_WAIT=120      # seconds to wait for guest NIC
 # --- Guest NIC interface name (SR-IOV VF) ---
 GUEST_NIC="enp0s1"
 
-# --- Host-side in-tree modules to push into guests ---
-HOST_MLX5_CORE="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlx5/core/mlx5_core.ko"
-HOST_MLXFW="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlxfw/mlxfw.ko"
+# --- Host-side in-tree modules (set after GUEST_KERNEL is resolved) ---
+# HOST_MLX5_CORE and HOST_MLXFW are set after --viommu parsing below
 
 # Save original directory
 ORIG_DIR="$(pwd)"
@@ -91,10 +87,13 @@ ORIG_DIR="$(pwd)"
 usage() {
 	cat <<-USAGE
 	Usage: $0 [OPTIONS]
-	  --num-cores N       Number of cores per VM experiment
+	  --viommu MODE       Guest vIOMMU mode: off, nested, nested-vFree (default: $GUEST_VIOMMU)
+	  --num-total-cores N    Total cores per VM
+	  --num-active-cores N   Active cores (iperf instances) per VM
 	  --num-flows N       Number of flows per VM experiment
 	  --num-vms N         Number of VMs (default: $NUM_VMS)
 	  --reuse             Reuse already-defined VMs (skip undefine/define, just start)
+	  --skip-reset-host   Skip host reset (host setup will still run)
 	  --boot-timeout N    Seconds to wait for SSH per VM (default: $BOOT_TIMEOUT)
 	  -h, --help          Show this help
 	USAGE
@@ -102,18 +101,21 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
+	--viommu)        GUEST_VIOMMU="$2"; shift 2 ;;
 	--num-vms)       NUM_VMS="$2";      shift 2 ;;
-	--num-cores)     NUM_CORES="$2";    shift 2 ;;
+	--num-total-cores)  NUM_TOTAL_CORES="$2";  shift 2 ;;
+	--num-active-cores) NUM_ACTIVE_CORES="$2"; shift 2 ;;
 	--num-flows)     NUM_FLOWS="$2";    shift 2 ;;
-	--reuse)         REUSE=1;           shift   ;;
+	--reuse)            REUSE=1;           shift   ;;
+	--skip-reset-host)  SKIP_RESET_HOST=1; shift   ;;
 	--boot-timeout)  BOOT_TIMEOUT="$2"; shift 2 ;;
 	-h|--help)       usage; exit 0      ;;
 	*)               echo "Error: unknown option '$1'" >&2; usage >&2; exit 1 ;;
 	esac
 done
 
-if [[ -z "$NUM_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" || -z "$NUM_IPRF" ]]; then
-	echo "Error: --num-cores, --num-flows, --num-iperf, and --num-vms are required" >&2
+if [[ -z "$NUM_TOTAL_CORES" || -z "$NUM_FLOWS" || -z "$NUM_VMS" || -z "$NUM_ACTIVE_CORES" ]]; then
+	echo "Error: --num-total-cores, --num-active-cores, --num-flows, and --num-vms are required" >&2
 	usage >&2
 	exit 1
 fi
@@ -127,12 +129,37 @@ else
 	SSH_CLIENT_CMD="ssh -i $CLIENT_SSH_IDENTITY_FILE ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}"
 fi
 
-GUEST_CMD_LINE=""
-if [[ "$GUEST_VIOMMU" == "nested" ]]; then
-  GUEST_CMD_LINE="$GUEST_CMD_LINE_NESTED"
-else
-  GUEST_CMD_LINE="$GUEST_CMD_LINE_OFF"
-fi
+# --- Derive guest kernel, initrd, and cmdline from vIOMMU mode ---
+GUEST_CMD_LINE_BASE="root=/dev/vda2 ro console=ttyS0,115200 earlyprintk=serial,ttyS0,115200"
+
+case "$GUEST_VIOMMU" in
+off)
+	GUEST_KERNEL="6.12.9-iommufd"
+	GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
+	GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
+	GUEST_CMD_LINE="$GUEST_CMD_LINE_BASE intel_iommu=off"
+	;;
+nested)
+	GUEST_KERNEL="6.12.9-iommufd"
+	GUEST_KERNEL_PATH="/boot/vmlinuz-$GUEST_KERNEL"
+	GUEST_INITRD_PATH="/boot/initrd.img-$GUEST_KERNEL"
+	GUEST_CMD_LINE="$GUEST_CMD_LINE_BASE intel_iommu=on,sm_on iommu.strict=1"
+	;;
+nested-vFree)
+	GUEST_KERNEL="6.12.9-iommufd-nested-iova-contig-cb-opt"
+	GUEST_KERNEL_PATH="/boot-VM/vmlinuz-$GUEST_KERNEL"
+	GUEST_INITRD_PATH="/boot-VM/initrd.img-$GUEST_KERNEL"
+	GUEST_CMD_LINE="$GUEST_CMD_LINE_BASE intel_iommu=on,sm_on iommu.strict=1 intel_iommu_pinned=on intel_iommu_dfp=on"
+	;;
+*)
+	echo "Error: unknown --viommu mode '$GUEST_VIOMMU' (expected: off, nested, nested-vFree)" >&2
+	exit 1
+	;;
+esac
+
+# --- Host-side in-tree modules to push into guests ---
+HOST_MLX5_CORE="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlx5/core/mlx5_core.ko"
+HOST_MLXFW="/lib/modules/$GUEST_KERNEL/kernel/drivers/net/ethernet/mellanox/mlxfw/mlxfw.ko"
 
 # ============================================================
 # Helper functions
@@ -196,9 +223,24 @@ vm_ip() {
 	echo "${prefix}.$((base_last_octet + idx))"
 }
 
+VM_DESTROY_WHITELIST=(
+	"server-mini-off"
+)
+
 destroy_all_running_vms() {
 	log_info "Shutting down any running VMs..."
 	for vm in $(virsh list --name 2>/dev/null | grep -v '^$'); do
+		local skip=false
+		for wl in "${VM_DESTROY_WHITELIST[@]}"; do
+			if [[ "$vm" == "$wl" ]]; then
+				skip=true
+				break
+			fi
+		done
+		if $skip; then
+			echo "  Skipping (whitelisted): $vm"
+			continue
+		fi
 		echo "  Destroying: $vm"
 		virsh destroy "$vm" 2>/dev/null || true
 	done
@@ -382,10 +424,14 @@ cleanup() {
 	sudo ./sriov_undo.sh
 
 	# Host reset
-	log_info "Running host reset..."
-	cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; return; }
-	sudo ./reset-host.sh
-	cd "$ORIG_DIR"
+	if [[ "$SKIP_RESET_HOST" -eq 1 ]]; then
+		log_info "Skipping host reset (--skip-reset-host)"
+	else
+		log_info "Running host reset..."
+		cd "$HOST_SETUP_DIR" || { log_error "Failed to cd to $HOST_SETUP_DIR"; return; }
+		sudo ./reset-host.sh
+		cd "$ORIG_DIR"
+	fi
 
 	log_info "=== Cleanup complete ==="
 }
@@ -400,18 +446,23 @@ host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 iommu_config="host-${host_iommu_config}-guest-${GUEST_VIOMMU}"
 echo "iommu_config: $iommu_config"
 
+# --- Step 1: Destroy any running VMs ---
+echo ""
+log_info "Step 1: Destroying any running VMs..."
+destroy_all_running_vms
+
 log_info "Doing sriov undo"
 sudo ./sriov_undo.sh
 
-# --- Step 1: Generate XML files ---
+# --- Step 2: Generate XML files ---
 if [[ $REUSE -eq 0 ]]; then
 	rm -rf ./generated
 	./xml_generator.sh --kernel "$GUEST_KERNEL_PATH" --initrd "$GUEST_INITRD_PATH" --cmdline "$GUEST_CMD_LINE" \
-		--vcpus $NUM_CORES --num-vms $NUM_VMS --viommu $GUEST_VIOMMU
+		--vcpus $NUM_TOTAL_CORES --num-vms $NUM_VMS --viommu $GUEST_VIOMMU
 fi
 
 timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
-EXP_NAME="${timestamp}-$GUEST_KERNEL-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_CORES}cores-${NUM_IPRF}iprf"
+EXP_NAME="${timestamp}-$GUEST_KERNEL-MANY-flow${NUM_FLOWS}-${iommu_config}-${NUM_TOTAL_CORES}cores-${NUM_ACTIVE_CORES}active-cores"
 
 echo "============================================================"
 echo "  VM Benchmark Runner"
@@ -420,8 +471,8 @@ echo "  VMs:       ${NUM_VMS}"
 echo "  XML dir:   ${XML_DIR}"
 echo "  Reuse:     ${REUSE}"
 echo "  Branch:    ${GIT_BRANCH}"
-echo "  Cores:     ${NUM_CORES}"
-echo "  Iperf:     ${NUM_IPRF}"
+echo "  Total Cores:  ${NUM_TOTAL_CORES}"
+echo "  Active Cores: ${NUM_ACTIVE_CORES}"
 echo "  Flows:     ${NUM_FLOWS}"
 echo "  Exp name:  ${EXP_NAME}"
 echo "  MTU:       ${MTU}"
@@ -430,8 +481,8 @@ echo "  Socket buf: ${TCP_SOCKET_BUF_MB} MB"
 echo "============================================================"
 echo ""
 
-# --- Step 2: Discover XML files and VM names ---
-log_info "Step 1: Discovering VM XML files..."
+# --- Step 3: Discover XML files and VM names ---
+log_info "Step 3: Discovering VM XML files..."
 xml_files=()
 for f in "${XML_DIR}"/*.xml; do
 	[[ -f "$f" ]] || continue
@@ -452,11 +503,6 @@ for ((i = 0; i < NUM_VMS; i++)); do
 	vm_names+=("$vm_name")
 	echo "  VM${i}: ${vm_name}"
 done
-
-# --- Step 3: Destroy any running VMs ---
-echo ""
-log_info "Step 3: Destroying any running VMs..."
-destroy_all_running_vms
 
 # --- Step 4: Define or reuse VMs ---
 echo ""
@@ -544,6 +590,8 @@ fi
 echo ""
 log_info "Step 10: Waiting for guest NIC ($GUEST_NIC)..."
 failed=0
+# Add sudo so that over users can overwrite
+sudo rm -f /tmp/modules.tar.gz
 tar czf /tmp/modules.tar.gz -C /lib/modules/$GUEST_KERNEL .
 for ((i = 0; i < NUM_VMS; i++)); do
 	ip=$(vm_ip "$i")
@@ -589,8 +637,8 @@ fi
 echo ""
 log_info "Step 13: Launching experiments on all VMs..."
 echo "  Script:    ${VM_SCRIPT}"
-echo "  Cores:     ${NUM_CORES}"
-echo "  Iperf:     ${NUM_IPRF}"
+echo "  Total Cores:  ${NUM_TOTAL_CORES}"
+echo "  Active Cores: ${NUM_ACTIVE_CORES}"
 echo "  Flows:     ${NUM_FLOWS}"
 echo "  Exp name:  ${EXP_NAME}"
 echo ""
@@ -600,7 +648,10 @@ for ((i = 0; i < NUM_VMS; i++)); do
 	ip=$(vm_ip "$i")
 	name="${vm_names[$i]}"
 
-	vm_cmd="${VM_SCRIPT} --vm-name ${name} --num-cores ${NUM_IPRF} --num-flows ${NUM_FLOWS} --exp-name ${EXP_NAME}-${name}"
+	vm_cmd="${VM_SCRIPT} --vm-name ${name} --num-cores ${NUM_ACTIVE_CORES} --num-flows ${NUM_FLOWS} \
+		--exp-name ${EXP_NAME}-${name} \
+		--host-ip ${HOST_IP} --host-ssh-uname ${HOST_SSH_UNAME} \
+		--host-home ${HOST_HOME} --host-results-dir ${HOST_RESULTS_DIR}"
 	ssh $SSH_OPTS "$SSH_USER@$ip" "$vm_cmd" &>"${name}_experiment.log" &
 	ssh_pids+=($!)
 	echo "  Launched on ${name} (${ip}), log -> ${name}_experiment.log"
@@ -631,8 +682,18 @@ if [[ "$any_failed" == true ]]; then
 	echo ""
 	log_info "=== Experiment finished with ERRORS (check *_experiment.log files) ==="
 	exit 1
-else
-	echo ""
-	log_info "=== Experiment finished successfully ==="
-	exit 0
 fi
+
+# --- Step 16: Aggregate results from all VMs ---
+echo ""
+log_info "Step 16: Aggregating results from all VMs..."
+REPORT_SCRIPT="${HOST_FandS_ABS}/scripts/many-vm-report-tput-metrics.py"
+SUMMARY_DIR="${HOST_RESULTS_DIR}/${EXP_NAME}"
+
+mkdir -p "$SUMMARY_DIR"
+cd "${HOST_FandS_ABS}/scripts" || true
+python3 "$REPORT_SCRIPT" "$EXP_NAME" tput,cpu "$NUM_VMS" | tee "$SUMMARY_DIR/summary.txt"
+cd "$ORIG_DIR"
+
+log_info "=== Experiment finished successfully ==="
+exit 0
