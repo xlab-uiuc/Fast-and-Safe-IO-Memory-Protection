@@ -325,9 +325,9 @@ post_exp_cleanup() {
     sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
     sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
 
-    # log_info "Resetting HOST..."
-    # $SSH_HOST_CMD \
-    #     "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+    log_info "Resetting HOST..."
+    $SSH_HOST_CMD \
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
     
     log_info "--- Post-experiment Cleanup Phase Finished ---"
 }
@@ -706,14 +706,15 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
     progress_bar $((CORE_DURATION_S * 2)) 2
 
+    save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_data_collection"
+    sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
     echo # Blank line
 done
 
-save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_data_collection"
-sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
 
 # --- Post-run cleanup ---
 cleanup
