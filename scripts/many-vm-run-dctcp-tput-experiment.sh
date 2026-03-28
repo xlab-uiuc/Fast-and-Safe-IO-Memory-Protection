@@ -413,6 +413,8 @@ iova_ftrace_guest_output_file="${current_guest_reports_dir}/iova_ftrace_guest.tx
 ebpf_guest_stats="${current_guest_reports_dir}/ebpf_guest_stats.csv"
 guest_server_app_log_file="${current_guest_reports_dir}/server_app.log"
 guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
+client_app_log_file="${current_guest_reports_dir}/client_app.log"
+client_app_log_file_remote="${client_reports_dir_remote}/client_app.log"
 
 sudo mkdir -p "$current_guest_reports_dir"
 
@@ -462,8 +464,8 @@ cd - > /dev/null
 
 # --- Start Clients (traffic generation only, no client setup-envir.sh) ---
 # Uses VM-specific screen session name and port offset.
-log_info "Starting CLIENT traffic on $CLIENT_SSH_HOST (screen: $SCREEN_CLIENT_SESSION, port: $INIT_PORT)..."
-client_cmd="cd '$CLIENT_EXP_DIR'; sudo bash many-run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+log_info "Starting CLIENT traffic on $CLIENT_SSH_HOST (screen: $SCREEN_CLIENT_SESSION, port: $INIT_PORT); logs at $client_app_log_file_remote..."
+client_cmd="mkdir -p '$client_reports_dir_remote'; cd '$CLIENT_EXP_DIR'; sudo bash many-run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS' -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH' &>'$client_app_log_file_remote'; exec bash"
 $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\""
 
 # --- Warmup Phase ---
@@ -538,10 +540,16 @@ if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	sshpass -p "$CLIENT_SSH_PASSWORD" \
 		scp "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
 		"${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+	sshpass -p "$CLIENT_SSH_PASSWORD" \
+		scp "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_app_log_file_remote}" \
+		"$client_app_log_file" || log_error "Failed to SCP client_app.log"
 else
 	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 		"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
 		"${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+		"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_app_log_file_remote}" \
+		"$client_app_log_file" || log_error "Failed to SCP client_app.log"
 fi
 
 log_info "Waiting for remote operations to settle ($((CORE_DURATION_S * 2))s)..."
