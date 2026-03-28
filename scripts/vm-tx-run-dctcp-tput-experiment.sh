@@ -451,6 +451,7 @@ save_pcpu_queue_stats() {
     local pcpu_queue_stats_file="$1"
     local header="$2"
     echo "$header" >> "$pcpu_queue_stats_file"
+    echo "current_time: $(date '+%Y-%m-%d %H:%M:%S')" >> "$pcpu_queue_stats_file"
     sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
 }
 
@@ -738,6 +739,11 @@ if [ "$MLC_CORES" = "none" ]; then
 else
     sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
+
+for run in $(seq 0 $((NUM_RUNS - 1))); do
+    run_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${run}"
+    sudo python3 collect-per-core-stats.py "$EXP_NAME-RUN-$run" | sudo tee "${run_reports_dir}/per-core-stats.txt"
+done
 
 sync
 sleep 1
