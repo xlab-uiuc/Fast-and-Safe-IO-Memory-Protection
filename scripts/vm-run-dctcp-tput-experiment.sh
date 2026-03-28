@@ -51,6 +51,7 @@ NUM_RUNS=1
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
 EBPF_TRACING_ENABLED=1 #test
+GUEST_EBPF_TRACING_CORE=30
 EBPF_TRACING_HOST_ENABLED=0
 COLLECT_MEM_STATS=0
 
@@ -293,6 +294,13 @@ check_client_kernel() {
     log_info "Client kernel check PASSED!"
 }
 
+save_pcpu_queue_stats() {
+    local pcpu_queue_stats_file="$1"
+    local header="$2"
+    echo "$header" >> "$pcpu_queue_stats_file"
+    sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
+}
+
 pre_exp_setup() {
     log_info "--- Starting Pre-experiment Cleanup Phase ---"
 
@@ -478,6 +486,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     iova_ftrace_guest_output_file="${current_guest_reports_dir}/iova_ftrace_guest.txt"
     ebpf_guest_stats="${current_guest_reports_dir}/ebpf_guest_stats.csv"
     guest_server_app_log_file="${current_guest_reports_dir}/server_app.log"
+    client_server_app_log_file="${client_reports_dir_remote}/client_server_app.log"
     guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
     perf_host_data_file_remote="${host_reports_dir_remote}/perf_host_cpu.data"
     perf_kvm_data_file_remote="${host_reports_dir_remote}/perf_host_kvm.data"
@@ -487,6 +496,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     sudo mkdir -p "$current_guest_reports_dir"
     $SSH_HOST_CMD "sudo mkdir -p '$host_reports_dir_remote'"
+    $SSH_CLIENT_CMD "sudo mkdir -p '$client_reports_dir_remote'"
 
     # --- Pre-run cleanup ---
     cleanup
@@ -506,6 +516,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         mem_pid=$!
         log_info "Memory collection started with PID $mem_pid"
     fi
+
+    save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_cleanup"
 
     # --- Start MLC (Memory Latency Checker) if configured ---
     if [ "$MLC_CORES" != "none" ]; then
@@ -540,18 +552,18 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     # --- Setup and Start Clients ---
     log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
     client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH'; exec bash"
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH' &> '$client_server_app_log_file'; exec bash"
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
-    log_info "Warming up experiment (10 seconds)..."
-    progress_bar 10 1
+    log_info "Warming up experiment (60 seconds)..."
+    progress_bar 60 1
 
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
         log_info "Starting GUEST eBPF tracer..."
         echo "current_time: $(date) $(date +%s)"
-        sudo taskset -c 13 "$EBPF_GUEST_LOADER" -d $CORE_DURATION_S -o "$ebpf_guest_stats" &
+        sudo taskset -c $GUEST_EBPF_TRACING_CORE "$EBPF_GUEST_LOADER" -d $CORE_DURATION_S -o "$ebpf_guest_stats" &
         sleep 2 # Allow eBPF loaders to initialize
     fi
     if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
@@ -623,6 +635,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer after saving
     log_info "GUEST IOVA ftrace data saved to $iova_ftrace_guest_output_file"
 
+    sudo bash -c "dmesg > ${current_guest_reports_dir}/dmesg.txt"
     head -n 2000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.head2000
     tail -n 2000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.tail2000
 
@@ -650,10 +663,15 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	sshpass -p $CLIENT_SSH_PASSWORD \
 	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt ${current_guest_reports_dir}/client-retx.rpt
+    sshpass -p $CLIENT_SSH_PASSWORD \
+	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file} ${current_guest_reports_dir}/client_server_app.log
     else
 	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file}" \
+        "${current_guest_reports_dir}/client_server_app.log"
     fi
 
     # Host files
@@ -685,6 +703,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
     progress_bar $((CORE_DURATION_S * 2)) 2
 
+    save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_data_collection"
+    sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
@@ -692,6 +713,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 
     cleanup_mem_stats
 done
+
 
 # --- Post-run cleanup ---
 cleanup
