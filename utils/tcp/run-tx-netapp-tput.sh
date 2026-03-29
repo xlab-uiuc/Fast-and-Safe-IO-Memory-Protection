@@ -56,7 +56,7 @@ mkdir -p ../reports #Directory to store collected logs
 mkdir -p ../reports/$OUT_DIR #Directory to store collected logs
 mkdir -p ../logs #Directory to store collected logs
 mkdir -p ../logs/$OUT_DIR #Directory to store collected logs
-rm -f ../logs/$OUT_DIR/iperf.bw.log
+rm -f ../logs/$OUT_DIR/iperf.bw*.log
 
 function collect_stats() {
   echo "Collecting app throughput for TCP server..."
@@ -79,7 +79,10 @@ elif [ "$MODE" = "client" ]; then
         index=$(( counter % ${#core_values[@]} ))
         core=${core_values[index]}
         echo "Starting client $counter on core $core"
-        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -i 30 -f m -t 10000 -C dctcp -b $BANDWIDTH --logfile ../logs/$OUT_DIR/iperf.bw.log &
+        taskset -c $core nice -n -20 iperf3 -c $SERVER_IP --port $(($PORT+$(($counter%$NUM_SERVERS)))) -i 30 -f m -t 10000 -C dctcp -b $BANDWIDTH \
+          --logfile ../logs/$OUT_DIR/iperf.bw.counter${counter}.core${core}.log &
+        
+        
         ((counter++))
     done
 

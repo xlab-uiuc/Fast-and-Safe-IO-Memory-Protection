@@ -175,6 +175,16 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_sys_flush_handler", "sys_flush_handler", PROBE_TYPE_KRETPROBE, SYS_FLUSH_HANDLER, NULL},
     {"kprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KPROBE, __SYS_FLUSH_HANDLER, NULL},
     {"kretprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KRETPROBE, __SYS_FLUSH_HANDLER, NULL},
+    {"kprobe_dma_map_sg_attrs", "dma_map_sg_attrs", PROBE_TYPE_KPROBE, DMA_MAP_SG_ATTRS, NULL},
+    {"kretprobe_dma_map_sg_attrs", "dma_map_sg_attrs", PROBE_TYPE_KRETPROBE, DMA_MAP_SG_ATTRS, NULL},
+    {"kprobe_sk_stream_wait_memory", "sk_stream_wait_memory", PROBE_TYPE_KPROBE, SK_STREAM_WAIT_MEMORY, NULL},
+    {"kretprobe_sk_stream_wait_memory", "sk_stream_wait_memory", PROBE_TYPE_KRETPROBE, SK_STREAM_WAIT_MEMORY, NULL},
+    {"kprobe_iova_free_from_qi_batch", "iova_free_from_qi_batch", PROBE_TYPE_KPROBE, IOVA_FREE_FROM_QI_BATCH, NULL},
+    {"kretprobe_iova_free_from_qi_batch", "iova_free_from_qi_batch", PROBE_TYPE_KRETPROBE, IOVA_FREE_FROM_QI_BATCH, NULL},
+    {"kprobe_unmap_callback_consume", "unmap_callback_consume", PROBE_TYPE_KPROBE, UNMAP_CALLBACK_CONSUME, NULL},
+    {"kretprobe_unmap_callback_consume", "unmap_callback_consume", PROBE_TYPE_KRETPROBE, UNMAP_CALLBACK_CONSUME, NULL},
+    {"kprobe_cache_tag_flush_iotlb", "cache_tag_flush_iotlb", PROBE_TYPE_KPROBE, CACHE_TAG_FLUSH_IOTLB, NULL},
+    {"kretprobe_cache_tag_flush_iotlb", "cache_tag_flush_iotlb", PROBE_TYPE_KRETPROBE, CACHE_TAG_FLUSH_IOTLB, NULL},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];
@@ -266,6 +276,16 @@ const char *func_name_to_string(enum FunctionName fn)
     return "sys_flush_handler";
   case __SYS_FLUSH_HANDLER:
     return "__sys_flush_handler";
+  case DMA_MAP_SG_ATTRS:
+    return "dma_map_sg_attrs";
+  case SK_STREAM_WAIT_MEMORY:
+    return "sk_stream_wait_memory";
+  case IOVA_FREE_FROM_QI_BATCH:
+    return "iova_free_from_qi_batch";
+  case UNMAP_CALLBACK_CONSUME:
+    return "unmap_callback_consume";
+  case CACHE_TAG_FLUSH_IOTLB:
+    return "cache_tag_flush_iotlb";
   default:
     return "UnknownFunction";
   }
