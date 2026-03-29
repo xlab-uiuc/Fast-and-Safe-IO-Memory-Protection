@@ -455,8 +455,49 @@ save_pcpu_queue_stats() {
     sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
 }
 
-check_client_kernel
+wait_for_iface() {
+    local iface="$GUEST_INTF"
+    log_info "Waiting for $iface to appear on GUEST..."
+    while ! ip link show "$iface" &>/dev/null; do
+        sleep 10
+        log_info "Wait for $iface to be up on GUEST..."
+    done
+    log_info "$iface is up on GUEST"
+}
 
+pre_exp_setup() {
+    log_info "--- Starting Pre-experiment Cleanup Phase ---"
+
+    wait_for_iface
+    check_client_kernel
+    
+    log_info "Disabling TX/RX on GUEST and CLIENT"
+    sudo ethtool --pause $GUEST_INTF tx off rx off
+    $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
+    
+    log_info "Disabling SMT on Client"
+    $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
+
+    # Host's smt, cpu power, numa balance will be setup in setup-host.sh
+    log_info "--- Pre-experiment Cleanup Phase Finished ---"
+}
+
+post_exp_cleanup() {
+    log_info "--- Starting Post-experiment Cleanup Phase ---"
+    
+    log_info "Resetting GUEST ftrace..."
+    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
+    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+    log_info "Resetting HOST..."
+    $SSH_HOST_CMD \
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+    
+    log_info "--- Post-experiment Cleanup Phase Finished ---"
+}
+
+pre_exp_setup
 for ((j = 0; j < NUM_RUNS; j += 1)); do
     echo
     log_info "############################################################"
@@ -725,6 +766,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
 done
 
 cleanup
+post_exp_cleanup
 
 if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."

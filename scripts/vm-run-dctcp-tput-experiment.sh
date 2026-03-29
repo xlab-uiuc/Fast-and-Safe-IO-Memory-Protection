@@ -301,9 +301,20 @@ save_pcpu_queue_stats() {
     sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
 }
 
+wait_for_iface() {
+    local iface="$GUEST_INTF"
+    log_info "Waiting for $iface to appear on GUEST..."
+    while ! ip link show "$iface" &>/dev/null; do
+        sleep 10
+        log_info "Wait for $iface to be up on GUEST..."
+    done
+    log_info "$iface is up on GUEST"
+}
+
 pre_exp_setup() {
     log_info "--- Starting Pre-experiment Cleanup Phase ---"
 
+    wait_for_iface
     check_client_kernel
     
     log_info "Disabling TX/RX on GUEST and CLIENT"
