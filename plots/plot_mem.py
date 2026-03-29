@@ -199,6 +199,7 @@ def plot_fig(fig, output_dir=None):
 
     plt.ylabel("TX+RX Active Pages", fontsize=9)
     plt.xlabel("Seconds", fontsize=9)
+    plt.ylim(bottom=0)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
