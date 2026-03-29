@@ -108,6 +108,7 @@ def plot_fig(fig, output_dir=None):
 
     plt.ylabel("Memory Usage (MB)", fontsize=12)
     plt.xlabel("Seconds", fontsize=12)
+    plt.xlim(0, 120)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -136,6 +137,7 @@ def plot_fig(fig, output_dir=None):
 
     plt.ylabel("Buffer Cache Usage (MB)", fontsize=12)
     plt.xlabel("Seconds", fontsize=12)
+    plt.xlim(0, 120)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -164,6 +166,7 @@ def plot_fig(fig, output_dir=None):
 
     plt.ylabel("TX Active Pages", fontsize=12)
     plt.xlabel("Seconds", fontsize=12)
+    plt.xlim(0, 120)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
@@ -200,6 +203,7 @@ def plot_fig(fig, output_dir=None):
     plt.ylabel("TX+RX Active Pages", fontsize=12)
     plt.xlabel("Seconds", fontsize=12)
     plt.ylim(bottom=0)
+    plt.xlim(0, 120)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='lower left',
                ncol=1,
