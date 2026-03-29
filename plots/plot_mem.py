@@ -11,7 +11,7 @@ MEM_FILE = "memory_stats.csv"
 
 # ACM paper-ready style (matches leshna_plot_nested.py)
 plt.rcParams.update({
-    'font.size':        8,
+    'font.size':        11,
     'font.family':      'serif',
     'font.serif':       ['Times New Roman', 'DejaVu Serif', 'serif'],
     'pdf.fonttype':     42,
@@ -106,12 +106,12 @@ def plot_fig(fig, output_dir=None):
     for num, exp in enumerate(USED):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
-    plt.ylabel("Memory Usage (MB)", fontsize=9)
-    plt.xlabel("Seconds", fontsize=9)
+    plt.ylabel("Memory Usage (MB)", fontsize=12)
+    plt.xlabel("Seconds", fontsize=12)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
-               fontsize=7,
+               fontsize=10,
                frameon=True,
                framealpha=0.85,
                edgecolor='#cccccc',
@@ -134,12 +134,12 @@ def plot_fig(fig, output_dir=None):
     for num, exp in enumerate(BUFF):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
-    plt.ylabel("Buffer Cache Usage (MB)", fontsize=9)
-    plt.xlabel("Seconds", fontsize=9)
+    plt.ylabel("Buffer Cache Usage (MB)", fontsize=12)
+    plt.xlabel("Seconds", fontsize=12)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
-               fontsize=7,
+               fontsize=10,
                frameon=True,
                framealpha=0.85,
                edgecolor='#cccccc',
@@ -162,12 +162,12 @@ def plot_fig(fig, output_dir=None):
     for num, exp in enumerate(TX_ACTIVE_PAGES):
         plt.plot(X_DATA[num], exp, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
-    plt.ylabel("TX Active Pages", fontsize=9)
-    plt.xlabel("Seconds", fontsize=9)
+    plt.ylabel("TX Active Pages", fontsize=12)
+    plt.xlabel("Seconds", fontsize=12)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.legend(loc='upper left',
                ncol=1,
-               fontsize=7,
+               fontsize=10,
                frameon=True,
                framealpha=0.85,
                edgecolor='#cccccc',
@@ -197,13 +197,13 @@ def plot_fig(fig, output_dir=None):
 
         plt.plot(X_DATA[num], total_pages, label=fig[num]['name'], color=fig[num]['color'], linewidth=1.2)
 
-    plt.ylabel("TX+RX Active Pages", fontsize=9)
-    plt.xlabel("Seconds", fontsize=9)
+    plt.ylabel("TX+RX Active Pages", fontsize=12)
+    plt.xlabel("Seconds", fontsize=12)
     plt.ylim(bottom=0)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.legend(loc='upper left',
+    plt.legend(loc='lower left',
                ncol=1,
-               fontsize=7,
+               fontsize=10,
                frameon=True,
                framealpha=0.85,
                edgecolor='#cccccc',
