@@ -15,7 +15,7 @@ SKIP_RESET_HOST=0
 
 # --- Hardcoded experiment config ---
 GIT_REPO="/home/schai/viommu"
-GIT_BRANCH="many-vm-setup"
+GIT_BRANCH="many-vm-setup-siyuan"
 VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
