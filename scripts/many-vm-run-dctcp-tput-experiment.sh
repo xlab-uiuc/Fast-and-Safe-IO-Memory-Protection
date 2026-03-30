@@ -332,8 +332,9 @@ cleanup() {
       host_loader_basename=$(basename "$EBPF_HOST_LOADER")
       $SSH_HOST_CMD \
       "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
-	  sleep 5
   fi
+	sleep 5
+
 
 	# Only kill THIS VM's screen sessions on the client (not other VMs')
 	log_info "Terminating client screen sessions: $SCREEN_CLIENT_SESSION, $SCREEN_CLIENT_LOGGING"
@@ -493,8 +494,8 @@ if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
     log_info "Starting HOST eBPF tracer on $HOST_IP..."
     host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
     $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
-		sleep 4 # Allow eBPF loaders to initialize
 fi
+sleep 4 # Allow eBPF loaders to initialize
 
 # --- Start Guest eBPF Tracers (if enabled) ---
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
