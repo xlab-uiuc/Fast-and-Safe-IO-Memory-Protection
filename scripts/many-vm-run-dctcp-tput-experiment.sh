@@ -47,7 +47,7 @@ NUM_RUNS=1 # Always 1 for multi-VM; coordination handled by host
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
 EBPF_TRACING_ENABLED=0
-EBPF_TRACING_HOST_ENABLED=1
+EBPF_TRACING_HOST_ENABLED=0
 COLLECT_MEM_STATS=0
 
 # --- Guest (Server) Machine Configuration ---

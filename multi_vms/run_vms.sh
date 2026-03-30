@@ -68,7 +68,7 @@ IP_BASE="192.168.122.100"
 VF_DRIVER="vfio-pci"
 
 # --- Timeouts ---
-BOOT_TIMEOUT=120  # seconds to poll SSH
+BOOT_TIMEOUT=240  # seconds to poll SSH
 NIC_WAIT=120      # seconds to wait for guest NIC
 
 # --- Guest NIC interface name (SR-IOV VF) ---
