@@ -436,7 +436,7 @@ client_app_log_file_remote="${client_reports_dir_remote}/client_app.log"
 ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
 
 sudo mkdir -p "$current_guest_reports_dir"
-$SSH_HOST_CMD "sudo mkdir -p '$host_reports_dir_remote'"
+$SSH_HOST_CMD "mkdir -p '$host_reports_dir_remote'"
 
 # --- Pre-run cleanup ---
 cleanup
