@@ -28,6 +28,8 @@ CLIENT_SETUP_DIR_REL="utils"
 CLIENT_EXP_DIR_REL="utils/tcp"
 
 EBPF_GUEST_LOADER_REL="$GUEST_FandS_REL/tracing/guest_loader"
+EBPF_HOST_LOADER="/home/lbalara/viommu/ManyVM-FandS/tracing/server_loader" #hardcoded for speed
+HOST_SETUP_DIR="/home/lbalara/viommu/ManyVM-FandS/utils"
 
 # --- Remote Access (SSH) Configuration ---
 HOST_SSH_UNAME="lbalara"
@@ -44,7 +46,8 @@ VM_ID="0"  # Unique per-VM identifier for session names, ports, file prefixes
 NUM_RUNS=1 # Always 1 for multi-VM; coordination handled by host
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=0
+EBPF_TRACING_ENABLED=1
+EBPF_TRACING_HOST_ENABLED=0
 COLLECT_MEM_STATS=0
 
 # --- Guest (Server) Machine Configuration ---
@@ -195,6 +198,12 @@ SCREEN_CLIENT_SESSION="client_session_vm${VM_ID}"
 SCREEN_CLIENT_LOGGING="logging_session_client_vm${VM_ID}"
 INIT_PORT=$((3000 + VM_ID * 100))
 
+# Only trace on vm0
+if [ "$VM_ID" -ne 0 ]; then
+  EBPF_TRACING_HOST_ENABLED=0
+	EBPF_TRACING_ENABLED=0 
+fi
+
 GUEST_SETUP_DIR="${GUEST_HOME}/${GUEST_FandS_REL}/${GUEST_SETUP_DIR_REL}"
 GUEST_EXP_DIR="${GUEST_HOME}/${GUEST_FandS_REL}/${GUEST_EXP_DIR_REL}"
 GUEST_MLC_DIR="${GUEST_HOME}/${GUEST_MLC_DIR_REL}"
@@ -320,6 +329,14 @@ cleanup() {
 		sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null || true
 		sudo pkill -9 -f "$guest_loader_basename" 2>/dev/null || true
 	fi
+	if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
+	    local host_loader_basename
+      host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+      $SSH_HOST_CMD \
+      "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
+  fi
+	sleep 5
+
 
 	# Only kill THIS VM's screen sessions on the client (not other VMs')
 	log_info "Terminating client screen sessions: $SCREEN_CLIENT_SESSION, $SCREEN_CLIENT_LOGGING"
@@ -406,6 +423,7 @@ log_info "############################################################"
 # Files within the client dir also get vm prefix for safety in case the
 # caller passes a shared EXP_NAME.
 current_guest_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
+host_reports_dir_remote="${HOST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 
 perf_guest_data_file="${current_guest_reports_dir}/perf_guest_cpu.data"
@@ -415,8 +433,10 @@ guest_server_app_log_file="${current_guest_reports_dir}/server_app.log"
 guest_mlc_log_file="${current_guest_reports_dir}/mlc.log"
 client_app_log_file="${current_guest_reports_dir}/client_app.log"
 client_app_log_file_remote="${client_reports_dir_remote}/client_app.log"
+ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
 
 sudo mkdir -p "$current_guest_reports_dir"
+$SSH_HOST_CMD "mkdir -p '$host_reports_dir_remote'"
 
 # --- Pre-run cleanup ---
 cleanup
@@ -470,15 +490,24 @@ $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\"
 
 # --- Warmup Phase ---
 log_info "Warming up experiment (120 seconds)..."
-progress_bar 120 2
+progress_bar 116 2
+
+if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
+    log_info "Starting HOST eBPF tracer on $HOST_IP..."
+    host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
+    $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
+fi
+sleep 4 # Allow eBPF loaders to initialize
 
 # --- Start Guest eBPF Tracers (if enabled) ---
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
 	log_info "Starting GUEST eBPF tracer..."
 	echo "current_time: $(date) $(date +%s)"
-	sudo taskset -c 13 "$EBPF_GUEST_LOADER" -d "$CORE_DURATION_S" -o "$ebpf_guest_stats" &
-	sleep 2
+	sudo taskset -c 0 "$EBPF_GUEST_LOADER" -d "$CORE_DURATION_S" -o "$ebpf_guest_stats" &
 fi
+
+# Sleep outside so all VMs nearly in sync
+sleep 2
 
 # --- Guest Ftrace Setup ---
 log_info "Configuring GUEST ftrace (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
@@ -531,6 +560,10 @@ if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
 	sudo pkill -SIGINT -f "$guest_loader_basename" 2>/dev/null && \
 		log_info "SIGINT sent to GUEST eBPF loader." || \
 		log_info "WARN: GUEST eBPF loader process not found or SIGINT failed."
+fi
+if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
+    host_loader_basename=$(basename "$EBPF_HOST_LOADER")
+    $SSH_HOST_CMD "sudo pkill -SIGINT -f '$host_loader_basename'"
 fi
 
 # --- Transfer Report Files from Client ---

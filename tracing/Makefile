@@ -104,9 +104,9 @@ reader: $(READER_APP)
 clean:
 	@echo "Cleaning up generated files..."
 	@rm -f $(HOST_BPF_OBJ) $(HOST_BPF_SKEL) \
-				 $(SERVER_BPF_OBJ) $(SERVER_BPF_SKEL) \
+	       $(SERVER_BPF_OBJ) $(SERVER_BPF_SKEL) \
 	       $(GUEST_BPF_OBJ) $(GUEST_BPF_SKEL) \
-	       $(HOST_LOADER_APP) $(GUEST_LOADER_APP) \
+	       $(HOST_LOADER_APP) $(GUEST_LOADER_APP) $(SERVER_LOADER_APP)\
 	       $(READER_APP) \
 	       vmlinux.h
 

@@ -165,12 +165,19 @@ for z in $run_list; do
 	# --- SCP results back to host ---
 	echo "Copying results to host..."
 	local_report_dir="../utils/reports/$EXP_NAME"
+	local_run_dir="${local_report_dir}-RUN-0"
+
+	sudo chmod -R a+rw $local_run_dir
 
 	$SSH_HOST_CMD "mkdir -p ${HOST_RESULTS_DIR}/${EXP_NAME}"
 
 	$SCP_HOST_CMD -r \
 		"$local_report_dir"/* \
 		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
+
+	$SCP_HOST_CMD -r \
+	 	"$local_run_dir"/* \
+		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}-RUN-0/"
 
 	echo "Results copied to ${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
 done

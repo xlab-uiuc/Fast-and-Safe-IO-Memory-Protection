@@ -15,7 +15,7 @@ SKIP_RESET_HOST=0
 
 # --- Hardcoded experiment config ---
 GIT_REPO="/home/schai/viommu"
-GIT_BRANCH="many-vm-setup"
+GIT_BRANCH="many-investigation"
 VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
@@ -68,7 +68,7 @@ IP_BASE="192.168.122.100"
 VF_DRIVER="vfio-pci"
 
 # --- Timeouts ---
-BOOT_TIMEOUT=120  # seconds to poll SSH
+BOOT_TIMEOUT=240  # seconds to poll SSH
 NIC_WAIT=120      # seconds to wait for guest NIC
 
 # --- Guest NIC interface name (SR-IOV VF) ---

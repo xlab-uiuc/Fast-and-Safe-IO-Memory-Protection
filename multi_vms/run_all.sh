@@ -5,16 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 VIOMMU_MODES=("off" "nested" "nested-vFree")
+# VIOMMU_MODES=("nested-vFree")
 
 # --- Experiment configurations ---
 #   (num_vms, num_total_cores, num_active_cores, num_flows)
 #   num_flows = num_active_cores per VM
 CONFIGS=(
-	"2  16 15 15"
 	"2  16 16 16"
-	"4  8  7  7"
 	"4  8  8  8"
-	"8  4  3  3"
 	"8  4  4  4"
 )
 
