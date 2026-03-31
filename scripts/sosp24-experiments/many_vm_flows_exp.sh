@@ -175,9 +175,9 @@ for z in $run_list; do
 		"$local_report_dir"/* \
 		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
 
-	$SCP_HOST_CMD -r \
-	 	"$local_run_dir"/* \
-		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}-RUN-0/"
+	# $SCP_HOST_CMD -r \
+	#  	"$local_run_dir"/* \
+	# 	"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}-RUN-0/"
 
 	echo "Results copied to ${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"
 done
