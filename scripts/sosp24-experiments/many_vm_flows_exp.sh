@@ -101,7 +101,7 @@ fi
 # Each VM uses a different slice of client cores based on VM_INDEX.
 # VM0 uses cores 0..NUM_CORES-1, VM1 uses NUM_CORES..2*NUM_CORES-1, etc.
 # Server cores always start at 0 within each VM (guest-local).
-all_cores="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
+all_cores=$(echo {0..63} | tr ' ' ',')
 
 client_core_offset=$((VM_INDEX * NUM_CORES))
 client_cores_mask=$(echo "$all_cores" | tr ',' '\n' | tail -n +$((client_core_offset + 1)) | head -n "$NUM_CORES" | tr '\n' ',' | sed 's/,$//')
