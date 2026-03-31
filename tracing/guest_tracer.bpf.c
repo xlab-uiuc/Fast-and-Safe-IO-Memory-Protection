@@ -604,3 +604,15 @@ int BPF_KRETPROBE(kretprobe___sys_flush_handler, void *ret)
 {
     return _bpf_utils_trace_func_exit(ctx, GUEST, false);
 }
+
+SEC("kprobe/sk_stream_wait_memory")
+int BPF_KPROBE(kprobe_sk_stream_wait_memory, void *ret)
+{
+    return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/sk_stream_wait_memory")
+int BPF_KRETPROBE(kretprobe_sk_stream_wait_memory, void *ret)
+{
+    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+}

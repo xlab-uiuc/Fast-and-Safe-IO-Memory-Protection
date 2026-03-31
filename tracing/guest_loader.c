@@ -175,6 +175,8 @@ probe_def_t probes_to_attach[] = {
     {"kretprobe_sys_flush_handler", "sys_flush_handler", PROBE_TYPE_KRETPROBE, SYS_FLUSH_HANDLER, NULL},
     {"kprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KPROBE, __SYS_FLUSH_HANDLER, NULL},
     {"kretprobe___sys_flush_handler", "__sys_flush_handler", PROBE_TYPE_KRETPROBE, __SYS_FLUSH_HANDLER, NULL},
+    {"kprobe_sk_stream_wait_memory", "sk_stream_wait_memory", PROBE_TYPE_KPROBE, SK_STREAM_WAIT_MEMORY, NULL},
+    {"kretprobe_sk_stream_wait_memory", "sk_stream_wait_memory", PROBE_TYPE_KRETPROBE, SK_STREAM_WAIT_MEMORY, NULL},
 };
 const int num_probes_to_attach = sizeof(probes_to_attach) / sizeof(probes_to_attach[0]);
 struct bpf_link *attached_links[MAX_PROBES];
@@ -266,6 +268,8 @@ const char *func_name_to_string(enum FunctionName fn)
     return "sys_flush_handler";
   case __SYS_FLUSH_HANDLER:
     return "__sys_flush_handler";
+  case SK_STREAM_WAIT_MEMORY:
+    return "sk_stream_wait_memory";
   default:
     return "UnknownFunction";
   }
