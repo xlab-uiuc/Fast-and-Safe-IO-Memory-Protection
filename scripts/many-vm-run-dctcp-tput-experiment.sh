@@ -46,8 +46,8 @@ VM_ID="0"  # Unique per-VM identifier for session names, ports, file prefixes
 NUM_RUNS=1 # Always 1 for multi-VM; coordination handled by host
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=0
-EBPF_TRACING_HOST_ENABLED=1
+EBPF_TRACING_ENABLED=1
+EBPF_TRACING_HOST_ENABLED=0
 COLLECT_MEM_STATS=0
 
 # --- Guest (Server) Machine Configuration ---
@@ -198,8 +198,10 @@ SCREEN_CLIENT_SESSION="client_session_vm${VM_ID}"
 SCREEN_CLIENT_LOGGING="logging_session_client_vm${VM_ID}"
 INIT_PORT=$((3000 + VM_ID * 100))
 
+# Only trace on vm0
 if [ "$VM_ID" -ne 0 ]; then
   EBPF_TRACING_HOST_ENABLED=0
+	EBPF_TRACING_ENABLED=0 
 fi
 
 GUEST_SETUP_DIR="${GUEST_HOME}/${GUEST_FandS_REL}/${GUEST_SETUP_DIR_REL}"
@@ -501,9 +503,11 @@ sleep 4 # Allow eBPF loaders to initialize
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
 	log_info "Starting GUEST eBPF tracer..."
 	echo "current_time: $(date) $(date +%s)"
-	sudo taskset -c 13 "$EBPF_GUEST_LOADER" -d "$CORE_DURATION_S" -o "$ebpf_guest_stats" &
-	sleep 2
+	sudo taskset -c 0 "$EBPF_GUEST_LOADER" -d "$CORE_DURATION_S" -o "$ebpf_guest_stats" &
 fi
+
+# Sleep outside so all VMs nearly in sync
+sleep 2
 
 # --- Guest Ftrace Setup ---
 log_info "Configuring GUEST ftrace (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."

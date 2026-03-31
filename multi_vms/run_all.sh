@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 VIOMMU_MODES=("off" "nested" "nested-vFree")
+# VIOMMU_MODES=("nested-vFree")
 
 # --- Experiment configurations ---
 #   (num_vms, num_total_cores, num_active_cores, num_flows)
