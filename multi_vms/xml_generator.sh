@@ -155,6 +155,8 @@ for ((vm = 0; vm < NUM_VMS; vm++)); do
     disk="/data/server_small${vf_num}.qcow2"
   fi
 	cpu_base=$((CPU_START + vm * VCPUS))
+  cpu_base=$(( cpu_base % 128 ))
+  NUMA_NODE=$(( cpu_base / 32 ))
 	mac_last=$(printf '%02x' $(( (0xe2 + vm) & 0xff )))
 	mac="52:54:00:14:26:${mac_last}"
 	outfile="${OUTPUT_DIR}/${TAG}-iommufd-${VIOMMU}-vcpu${VCPUS}-vm${vm}.xml"
@@ -293,7 +295,7 @@ $(gen_pcie_root_ports)
 </domain>
 EOF
 
-	echo "Generated: ${outfile}  (${vm_name}, VF=${vf_pci}, CPUs=${cpu_base}-$((cpu_base + VCPUS - 1)), disk=${disk})"
+	echo "Generated: ${outfile}  (${vm_name}, VF=${vf_pci}, CPUs=${cpu_base}-$((cpu_base + VCPUS - 1)), NUMA=${NUMA_NODE}, disk=${disk})"
 done
 
 echo "Done: ${NUM_VMS} VM config(s) in ${OUTPUT_DIR}/"

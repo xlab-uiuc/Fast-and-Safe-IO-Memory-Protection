@@ -46,7 +46,7 @@ VM_ID="0"  # Unique per-VM identifier for session names, ports, file prefixes
 NUM_RUNS=1 # Always 1 for multi-VM; coordination handled by host
 CORE_DURATION_S=20 # Duration for the main workload
 MLC_CORES="none"
-EBPF_TRACING_ENABLED=1
+EBPF_TRACING_ENABLED=0
 EBPF_TRACING_HOST_ENABLED=0
 COLLECT_MEM_STATS=0
 
@@ -335,7 +335,7 @@ cleanup() {
       $SSH_HOST_CMD \
       "sudo pkill -SIGINT -f '$host_loader_basename'; sleep 5; sudo pkill -9 -f '$host_loader_basename'; screen -S ebpf_host_tracer -X quit || true"
   fi
-	sleep 5
+	# sleep 5
 
 
 	# Only kill THIS VM's screen sessions on the client (not other VMs')
@@ -436,7 +436,7 @@ client_app_log_file_remote="${client_reports_dir_remote}/client_app.log"
 ebpf_host_stats="${host_reports_dir_remote}/ebpf_host_stats.csv"
 
 sudo mkdir -p "$current_guest_reports_dir"
-$SSH_HOST_CMD "mkdir -p '$host_reports_dir_remote'"
+# $SSH_HOST_CMD "mkdir -p '$host_reports_dir_remote'"
 
 # --- Pre-run cleanup ---
 cleanup
@@ -490,14 +490,14 @@ $SSH_CLIENT_CMD "screen -dmS $SCREEN_CLIENT_SESSION sudo bash -c \"$client_cmd\"
 
 # --- Warmup Phase ---
 log_info "Warming up experiment (120 seconds)..."
-progress_bar 116 2
+progress_bar 120 2
 
 if [ "$EBPF_TRACING_HOST_ENABLED" -eq 1 ]; then
     log_info "Starting HOST eBPF tracer on $HOST_IP..."
     host_loader_cmd="sudo taskset -c 33 $EBPF_HOST_LOADER -o $ebpf_host_stats"
     $SSH_HOST_CMD "screen -dmS ebpf_host_tracer sudo bash -c \"$host_loader_cmd\""
 fi
-sleep 4 # Allow eBPF loaders to initialize
+# sleep 4 # Allow eBPF loaders to initialize
 
 # --- Start Guest eBPF Tracers (if enabled) ---
 if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -507,7 +507,7 @@ if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
 fi
 
 # Sleep outside so all VMs nearly in sync
-sleep 2
+# sleep 2
 
 # --- Guest Ftrace Setup ---
 log_info "Configuring GUEST ftrace (Buffer: ${FTRACE_BUFFER_SIZE_KB}KB, Overwrite: ${FTRACE_OVERWRITE_ON_FULL})..."
