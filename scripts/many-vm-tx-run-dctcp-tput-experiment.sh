@@ -374,7 +374,7 @@ log_info "############################################################"
 
 
 current_guest_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
-host_reports_dir_remote="${HOST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
+# host_reports_dir_remote="${HOST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 client_reports_dir_remote="${CLIENT_SETUP_DIR}/reports/${EXP_NAME}-RUN-${j}"
 
 perf_guest_data_file="${current_guest_reports_dir}/perf_guest_cpu.data"
