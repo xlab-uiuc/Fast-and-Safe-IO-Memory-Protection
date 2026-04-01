@@ -535,7 +535,7 @@ log_info "############################################################"
 
 cleanup
 cd "$SCRIPT_DIR" || exit 1
-sleep 
+sleep 5
 sync
 
 if [ "$MLC_CORES" != "none" ]; then

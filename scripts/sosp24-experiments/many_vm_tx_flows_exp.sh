@@ -75,7 +75,7 @@ CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
 HOST_SSH_PASSWORD=""
 HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
-HOST_USE_PASS_AUTH=1
+HOST_USE_PASS_AUTH=0
 
 Z_LIST_DLF="1"
 
