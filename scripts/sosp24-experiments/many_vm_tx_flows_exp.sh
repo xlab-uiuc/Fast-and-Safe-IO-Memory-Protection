@@ -159,6 +159,8 @@ for z in $run_list; do
 
 	$SSH_HOST_CMD "mkdir -p ${HOST_RESULTS_DIR}/${EXP_NAME}"
 
+	sleep 5
+
 	$SCP_HOST_CMD -r \
 		"$local_report_dir"/* \
 		"${HOST_SSH_UNAME}@${HOST_IP}:${HOST_RESULTS_DIR}/${EXP_NAME}/"

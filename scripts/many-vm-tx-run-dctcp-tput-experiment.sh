@@ -527,13 +527,16 @@ fi
 log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
 progress_bar $((CORE_DURATION_S * 2)) 2
 
+sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
 log_info "############################################################"
 log_info "### Finished Experiment: $EXP_NAME (vm${VM_ID})"
 log_info "############################################################"
 
 cleanup
 cd "$SCRIPT_DIR" || exit 1
-sleep 5
+sleep 
+sync
 
 if [ "$MLC_CORES" != "none" ]; then
     log_info "MLC cores were used. The original script had a second phase for MLC throughput which is currently skipped."
