@@ -39,7 +39,7 @@ for i in range(NUM_RUNS):
                     net_tputs.append(tput)
                 break
 
-    try:
+    # try:
 
     # KEEPING IT MINIMAL 
 
