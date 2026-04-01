@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Ensure we are in the scripts directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Assuming the script is in scripts/sosp24-experiments/
@@ -74,7 +75,7 @@ CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
 
 HOST_SSH_PASSWORD=""
 HOST_SSH_IDENTITY_FILE="/home/schai/.ssh/id_rsa"
-HOST_USE_PASS_AUTH=
+HOST_USE_PASS_AUTH=1
 
 Z_LIST_DLF="1"
 
@@ -107,7 +108,7 @@ socket_buf=1
 ring_buffer=512
 
 # Always one run as we need to sync for multi-vm
-N_RUNS=
+N_RUNS=1
 
 format_flows=$(printf "%02d" "$NUM_FLOWS")
 
