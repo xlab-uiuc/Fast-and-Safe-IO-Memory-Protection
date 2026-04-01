@@ -263,7 +263,7 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
 
     ax_top.tick_params(axis='y', labelsize=params['font_size'])
     ax_bot.tick_params(axis='y', labelsize=params['font_size'])
-    fig.text(-0.05, 0.5, ylabel, va='center', rotation='vertical', fontsize=params['label_fontsize'])
+    fig.text(-0.03, 0.5, ylabel, va='center', rotation='vertical', fontsize=params['label_fontsize'])
     ax_bot.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
     ax_top.legend(loc='lower center',
                   bbox_to_anchor=(0.5, 1.0005),
