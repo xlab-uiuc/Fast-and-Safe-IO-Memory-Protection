@@ -71,6 +71,11 @@ EXIT_COLORS = {
     'Other': '#59A14F',
 }
 EXIT_ORDER = ['EPT_MISCONFIG', 'HLT', 'Other']
+EXIT_LABELS = {
+    'EPT_MISCONFIG': 'VM exits due to MMIO tail register write',
+    'HLT': 'VM exits due to contention-descheduling',
+    'Other': 'Other',
+}
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 perf_rows = []
@@ -182,7 +187,7 @@ def stacked_bar(ax, pivot, ylabel, scale=1.0, unit=''):
             continue
         vals = pivot.reindex(TARGET_CORES, fill_value=0)[reason].values / scale
         ax.bar(x, vals, bar_width, bottom=bottoms,
-               color=EXIT_COLORS[reason], label=reason, alpha=0.88,
+               color=EXIT_COLORS[reason], label=EXIT_LABELS[reason], alpha=0.88,
                edgecolor='black', linewidth=line_width, hatch=hatches[reason])
         bottoms += vals
     ax.set_ylabel(ylabel, fontsize=params['label_fontsize'])
@@ -200,7 +205,7 @@ def make_single(pivot, ylabel, title, legend_loc, outfile, **kwargs):
     ax.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
     ax.legend(loc='lower center',
               bbox_to_anchor=(0.5, 1.0005),
-              ncol=min(len(EXIT_COLORS), 3),
+              ncol=1,
               fontsize=params['legend_fontsize'],
               frameon=True,
               framealpha=0.85,
@@ -267,7 +272,7 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
     ax_bot.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
     ax_top.legend(loc='lower center',
                   bbox_to_anchor=(0.5, 1.0005),
-                  ncol=min(len(EXIT_COLORS), 3),
+                  ncol=1,
                   fontsize=params['legend_fontsize'],
                   frameon=True,
                   framealpha=0.85,
