@@ -244,7 +244,7 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
 
     ax_top.set_ylim(break_high, totals.max() * 1.12)
     ax_bot.set_ylim(0, break_low)
-    ax_bot.set_yticks([50])
+    ax_bot.set_yticks([25, 50])
     ax_top.set_yticks([200, 300, 400, 500, 600])
 
     # Hide the spines at the break
@@ -263,7 +263,7 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
 
     ax_top.tick_params(axis='y', labelsize=params['font_size'])
     ax_bot.tick_params(axis='y', labelsize=params['font_size'])
-    fig.text(0.005, 0.5, ylabel, va='center', rotation='vertical', fontsize=params['label_fontsize'])
+    fig.text(-0.05, 0.5, ylabel, va='center', rotation='vertical', fontsize=params['label_fontsize'])
     ax_bot.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
     ax_top.legend(loc='lower center',
                   bbox_to_anchor=(0.5, 1.0005),
@@ -285,4 +285,4 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
 
 make_single(samples_pivot,      '# VM Exits',                  'VM Exit Counts by Type',             'upper left',  'vm_exit_counts.pdf')
 make_single(time_pivot,         'Total Exit Time (us)',          'Total VM Exit Time by Type',          'upper left',  'vm_exit_time.pdf', scale=1000.0)
-make_broken_axis(time_per_unmap_pivot, 'VM exit time per unmap (us)', 'VM Exit Time per Unmap Call by Type', 'upper right', 'vm_exit_time_per_unmap.pdf', scale=1000.0, break_low=50, break_high=100)
+make_broken_axis(time_per_unmap_pivot, 'VM exit time\nper unmap (μs)', 'VM Exit Time per Unmap Call by Type', 'upper right', 'vm_exit_time_per_unmap.pdf', scale=1000.0, break_low=50, break_high=100)
