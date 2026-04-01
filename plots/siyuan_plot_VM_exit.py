@@ -5,30 +5,51 @@ import numpy as np
 import pandas as pd
 import os
 
-# ── Style ─────────────────────────────────────────────────────────────────────
-plt.rcParams.update({
-    'font.family':        'serif',
-    'font.serif':         ['Times New Roman', 'DejaVu Serif', 'serif'],
-    'font.size':          8,
-    'axes.labelsize':     8,
-    'axes.titlesize':     9,
-    'legend.fontsize':    7,
-    'xtick.labelsize':    7,
-    'ytick.labelsize':    7,
-    'pdf.fonttype':       42,
-    'ps.fonttype':        42,
-    'axes.grid':          True,
-    'axes.axisbelow':     True,
-    'grid.alpha':         0.35,
-    'grid.linestyle':     '--',
-    'grid.linewidth':     0.5,
-    'axes.linewidth':     0.7,
-    'xtick.major.width':  0.6,
-    'ytick.major.width':  0.6,
-})
+default_colors = [
+    '#6BAED6', '#E57373', '#F2A6A6', '#74C476', '#A1D99B', '#BDD7E7',
+    '#D98880', '#8FD19E', '#9ECAE1', '#F28E8E', '#98D89E', '#C7A27C',
+    '#9FD6D2', '#C6A0C9', '#F7B267', '#F3DD6D', '#D3D3D3', '#A3C76D',
+    '#D8A2B0', '#A8C3C5'
+]
+
+
+def calculate_plot_params(num_x_labels, num_series, max_width=None):
+    base_width = 7.0
+    base_height = 3.2
+    base_gap = 1.8
+
+    width_scale = 1.0 + (num_x_labels - 3) * 0.10
+    width_scale = max(width_scale, 1.0)
+    width_scale = min(width_scale, 2.2)
+
+    height_scale = 1.0 + (num_series - 2) * 0.1
+    height_scale = max(height_scale, 1.0)
+    height_scale = min(height_scale, 2.0)
+
+    final_width = base_width * width_scale
+    if max_width:
+        final_width = min(final_width, max_width)
+
+    gap_factor = base_gap
+    if num_x_labels > 20:
+        gap_factor = 1.0
+    elif num_x_labels > 10:
+        gap_factor = 1.2
+    elif num_x_labels < 5:
+        gap_factor = 2.0
+
+    return {
+        'figsize': (final_width, base_height * height_scale),
+        'font_size': 15,
+        'legend_fontsize': 15,
+        'label_fontsize': 17,
+        'gap_factor': gap_factor,
+    }
 
 # ── Experiment paths ──────────────────────────────────────────────────────────
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_REPO_ROOT = "/home/siyuanc3/Fast-and-Safe-IO-Memory-Protection"
+REPO_ROOT = os.path.abspath(os.environ.get("FSIO_REPO_ROOT", DEFAULT_REPO_ROOT))
 
 TARGET_CORES = [1, 4, 8, 12, 16, 20, 24]
 
@@ -45,10 +66,11 @@ exps = [
 
 # ── Colors per exit reason ────────────────────────────────────────────────────
 EXIT_COLORS = {
-    'HLT':           '#009E73',
-    'EPT_MISCONFIG': '#961b4d',
-    'Other':         '#999999',
+    'EPT_MISCONFIG': '#4E79A7',
+    'HLT': '#F28E2B',
+    'Other': '#59A14F',
 }
+EXIT_ORDER = ['EPT_MISCONFIG', 'HLT', 'Other']
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 perf_rows = []
@@ -57,7 +79,22 @@ unmap_counts = []
 for cores, exp_dir in zip(TARGET_CORES, exps):
     # --- perf CSV ---
     perf_csv = os.path.join(exp_dir, "perf_kvm_nested_cores.csv")
-    df = pd.read_csv(perf_csv)
+    try:
+        df = pd.read_csv(perf_csv)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Missing perf CSV: {perf_csv}\n"
+            f"Current REPO_ROOT={REPO_ROOT}\n"
+            f"Set FSIO_REPO_ROOT to override it, for example:\n"
+            f"FSIO_REPO_ROOT={SCRIPT_REPO_ROOT} python3 {os.path.basename(__file__)}"
+        ) from exc
+    except PermissionError as exc:
+        raise PermissionError(
+            f"Cannot read perf CSV: {perf_csv}\n"
+            f"Current REPO_ROOT={REPO_ROOT}\n"
+            f"Run this script as a user that can read that tree, or point "
+            f"FSIO_REPO_ROOT at a readable copy."
+        ) from exc
     for _, row in df.iterrows():
         perf_rows.append({
             'cores':              cores,
@@ -68,7 +105,21 @@ for cores, exp_dir in zip(TARGET_CORES, exps):
 
     # --- eBPF CSV (CPU 0 unmap count) ---
     ebpf_csv = os.path.join(exp_dir, "ebpf_guest_stats.csv")
-    ebpf_df = pd.read_csv(ebpf_csv, comment='#')
+    try:
+        ebpf_df = pd.read_csv(ebpf_csv, comment='#')
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Missing eBPF CSV: {ebpf_csv}\n"
+            f"Current REPO_ROOT={REPO_ROOT}\n"
+            f"Set FSIO_REPO_ROOT to override it if needed."
+        ) from exc
+    except PermissionError as exc:
+        raise PermissionError(
+            f"Cannot read eBPF CSV: {ebpf_csv}\n"
+            f"Current REPO_ROOT={REPO_ROOT}\n"
+            f"Run this script as a user that can read that tree, or point "
+            f"FSIO_REPO_ROOT at a readable copy."
+        ) from exc
     ebpf_df.columns = ebpf_df.columns.str.strip()
     mask = (ebpf_df['function'] == '__iommu_unmap') & (ebpf_df['cpu'].astype(str) == '0')
     counts = ebpf_df.loc[mask, 'count']
@@ -96,34 +147,70 @@ unmap_arr = np.array([uc if uc > 0 else np.nan for uc in unmap_counts])
 time_per_unmap_pivot = time_pivot.reindex(TARGET_CORES, fill_value=0).div(unmap_arr, axis=0)
 
 # ── Plot ──────────────────────────────────────────────────────────────────────
-x = np.arange(len(TARGET_CORES))
+params = calculate_plot_params(len(TARGET_CORES), len(EXIT_COLORS), max_width=7.0)
+
+plt.rcParams.update({
+    'font.size': params['font_size'],
+    'font.family': 'serif',
+    'font.serif': ['Times New Roman', 'DejaVu Serif', 'serif'],
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42,
+    'axes.grid': True,
+    'axes.axisbelow': True,
+    'grid.alpha': 0.35,
+    'grid.linestyle': '--',
+    'grid.linewidth': 0.5,
+    'axes.linewidth': 0.7,
+    'xtick.major.width': 0.6,
+    'ytick.major.width': 0.6,
+})
+
+x = np.arange(len(TARGET_CORES)) * params['gap_factor']
 xlabels = [f"{c}" for c in TARGET_CORES]
-bar_width = 0.6
+bar_width = 0.775
+line_width = 0.8
+hatches = {
+    'EPT_MISCONFIG': '',
+    'HLT': '..',
+    'Other': 'xx',
+}
 
 def stacked_bar(ax, pivot, ylabel, scale=1.0, unit=''):
     bottoms = np.zeros(len(TARGET_CORES))
-    for reason in list(EXIT_COLORS.keys()):
+    for reason in EXIT_ORDER:
         if reason not in pivot.columns:
             continue
         vals = pivot.reindex(TARGET_CORES, fill_value=0)[reason].values / scale
         ax.bar(x, vals, bar_width, bottom=bottoms,
-               color=EXIT_COLORS[reason], label=reason)
+               color=EXIT_COLORS[reason], label=reason, alpha=0.88,
+               edgecolor='black', linewidth=line_width, hatch=hatches[reason])
         bottoms += vals
-    ax.set_ylabel(ylabel)
+    ax.set_ylabel(ylabel, fontsize=params['label_fontsize'])
     ax.set_xticks(x)
-    ax.set_xticklabels(xlabels)
+    ax.set_xticklabels(xlabels, fontsize=params['font_size'])
+    ax.tick_params(axis='y', labelsize=params['font_size'])
     if unit:
         ax.yaxis.set_major_formatter(
             matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:.0f}{unit}")
         )
 
 def make_single(pivot, ylabel, title, legend_loc, outfile, **kwargs):
-    fig, ax = plt.subplots(figsize=(7.0, 3.2))
+    fig, ax = plt.subplots(figsize=params['figsize'])
     stacked_bar(ax, pivot, ylabel, **kwargs)
-    ax.set_title(title)
-    ax.set_xlabel('Number of Cores (1 flow/core)')
-    ax.legend(loc=legend_loc, ncol=2, fontsize=6, framealpha=0.85)
-    plt.tight_layout(pad=0.4)
+    ax.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
+    ax.legend(loc='lower center',
+              bbox_to_anchor=(0.5, 1.0005),
+              ncol=min(len(EXIT_COLORS), 3),
+              fontsize=params['legend_fontsize'],
+              frameon=True,
+              framealpha=0.85,
+              edgecolor='#cccccc',
+              borderpad=0.4,
+              labelspacing=0.25,
+              handlelength=1.4,
+              handletextpad=0.4,
+              columnspacing=1.0)
+    fig.subplots_adjust(left=0.12, right=0.98, bottom=0.18, top=0.84)
     plt.savefig(outfile, bbox_inches='tight')
     print(f"Saved {outfile}")
     plt.close()
@@ -147,7 +234,7 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
             return
 
     fig, (ax_top, ax_bot) = plt.subplots(
-        2, 1, figsize=(7.0, 3.5), sharex=True,
+        2, 1, figsize=(params['figsize'][0], params['figsize'][1] * 1.1), sharex=True,
         gridspec_kw={'height_ratios': list(ratio), 'hspace': 0.05}
     )
 
@@ -157,6 +244,8 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
 
     ax_top.set_ylim(break_high, totals.max() * 1.12)
     ax_bot.set_ylim(0, break_low)
+    ax_bot.set_yticks([50])
+    ax_top.set_yticks([200, 300, 400, 500, 600])
 
     # Hide the spines at the break
     ax_top.spines['bottom'].set_visible(False)
@@ -172,17 +261,28 @@ def make_broken_axis(pivot, ylabel, title, legend_loc, outfile,
     ax_bot.plot((-d, +d), (1-d, 1+d), transform=ax_bot.transAxes, **kw_d)
     ax_bot.plot((1-d, 1+d), (1-d, 1+d), transform=ax_bot.transAxes, **kw_d)
 
-    fig.text(0.01, 0.5, ylabel, va='center', rotation='vertical', fontsize=8)
-    ax_bot.set_xlabel('Number of Cores (1 flow/core)')
-    ax_top.set_title(title)
-    ax_top.legend(loc=legend_loc, ncol=2, fontsize=6, framealpha=0.85)
+    ax_top.tick_params(axis='y', labelsize=params['font_size'])
+    ax_bot.tick_params(axis='y', labelsize=params['font_size'])
+    fig.text(0.005, 0.5, ylabel, va='center', rotation='vertical', fontsize=params['label_fontsize'])
+    ax_bot.set_xlabel('Number of Cores', fontsize=params['label_fontsize'])
+    ax_top.legend(loc='lower center',
+                  bbox_to_anchor=(0.5, 1.0005),
+                  ncol=min(len(EXIT_COLORS), 3),
+                  fontsize=params['legend_fontsize'],
+                  frameon=True,
+                  framealpha=0.85,
+                  edgecolor='#cccccc',
+                  borderpad=0.4,
+                  labelspacing=0.25,
+                  handlelength=1.4,
+                  handletextpad=0.4,
+                  columnspacing=1.0)
 
-    plt.tight_layout(pad=0.4)
-    fig.subplots_adjust(left=0.12)
+    fig.subplots_adjust(left=0.12, right=0.98, bottom=0.18, top=0.84, hspace=0.10)
     plt.savefig(outfile, bbox_inches='tight')
     print(f"Saved {outfile}")
     plt.close()
 
 make_single(samples_pivot,      '# VM Exits',                  'VM Exit Counts by Type',             'upper left',  'vm_exit_counts.pdf')
-make_single(time_pivot,         'Total Exit Time (ns)',         'Total VM Exit Time by Type',          'upper left',  'vm_exit_time.pdf')
-make_broken_axis(time_per_unmap_pivot, 'Exit Time / Unmap (ns) (CPU 0)', 'VM Exit Time per Unmap Call by Type', 'upper right', 'vm_exit_time_per_unmap.pdf')
+make_single(time_pivot,         'Total Exit Time (us)',          'Total VM Exit Time by Type',          'upper left',  'vm_exit_time.pdf', scale=1000.0)
+make_broken_axis(time_per_unmap_pivot, 'VM exit time per unmap (us)', 'VM Exit Time per Unmap Call by Type', 'upper right', 'vm_exit_time_per_unmap.pdf', scale=1000.0, break_low=50, break_high=100)
