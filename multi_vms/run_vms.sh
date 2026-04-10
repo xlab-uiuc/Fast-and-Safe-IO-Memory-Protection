@@ -8,16 +8,16 @@ set -euo pipefail
 GUEST_VIOMMU="nested-vFree" # off/nested/nested-vFree
 NUM_VMS=1
 NUM_TOTAL_CORES="16"
-NUM_ACTIVE_CORES="12"
-NUM_FLOWS="12"
+NUM_ACTIVE_CORES="16"
+NUM_FLOWS="16"
 REUSE=0
 SKIP_RESET_HOST=0
 
 # --- Hardcoded experiment config ---
 GIT_REPO="/home/schai/viommu"
-GIT_BRANCH="multi-cross-numa-tx"
-# VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
-VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_tx_flows_exp.sh"
+GIT_BRANCH="multi-cross-numa-tx-fix"
+VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_flows_exp.sh"
+# VM_SCRIPT="cd /home/schai/viommu/scripts/sosp24-experiments; ./many_vm_tx_flows_exp.sh"
 
 # --- Host paths (this script runs ON the host) ---
 HOST_FandS_ABS=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")
@@ -42,7 +42,7 @@ CLIENT_SSH_UNAME="siyuanc3"
 CLIENT_SSH_HOST="nexus03.csl.illinois.edu"
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=0
-CLIENT_SSH_IDENTITY_FILE="/home/lbalara/.ssh/id_rsa"
+CLIENT_SSH_IDENTITY_FILE="/home/cochell2/.ssh/id_rsa"
 
 # Client kernel validation
 CLIENT_EXPECTED_KERNEL="6.12.9"
