@@ -407,7 +407,7 @@ save_config_to_report_json() {
 # MAIN
 #-------------------------------------------------------------------------------
 
-pre_exp_setup
+# pre_exp_setup
 
 log_info "Starting experiment: $EXP_NAME"
 log_info "VM_ID=$VM_ID, INIT_PORT=$INIT_PORT, single run (multi-VM mode)"

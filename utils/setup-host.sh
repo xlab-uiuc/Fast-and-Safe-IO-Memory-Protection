@@ -13,7 +13,7 @@ CPU_FREQ="2000MHz"
 CPUPOWER_PATH="/home/lbalara/viommu/linux-6.12.9/tools/power/cpupower" #TODO: HARDCODED
 VM_USER=schai
 VM_ADDR=192.168.122.53
-VM_KEY=/home/lbalara/.ssh/id_rsa
+VM_KEY=/home/cochell2/.ssh/id_rsa
 
 help()
 {
