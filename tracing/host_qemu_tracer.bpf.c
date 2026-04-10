@@ -146,6 +146,31 @@ int BPF_KRETPROBE(kretprobe_intel_iommu_tlb_sync)
   return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
+SEC("kretprobe/qi_submit_sync")
+int BPF_KRETPROBE(kprobe_qi_submit_sync, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/qi_submit_sync")
+int BPF_KRETPROBE(kretprobe_qi_submit_sync, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
+}
+
+// iommufd_fops_ioctl
+SEC("kretprobe/iommufd_fops_ioctl")
+int BPF_KRETPROBE(kprobe_iommufd_fops_ioctl, void *ret)
+{
+  return _bpf_utils_trace_func_entry(ctx);
+}
+
+SEC("kretprobe/iommufd_fops_ioctl")
+int BPF_KRETPROBE(kretprobe_iommufd_fops_ioctl, void *ret)
+{
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
+}
+
 SEC("uprobe//home/lbalara/viommu/qemu-nested/build/qemu-system-x86_64:vtd_fetch_inv_desc")
 int BPF_UPROBE(uprobe_vtd_fetch_inv_desc, void *s)
 {

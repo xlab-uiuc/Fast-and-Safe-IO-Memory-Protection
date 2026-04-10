@@ -1,5 +1,4 @@
 #default values
-set -x
 SCRIPT_NAME="record-host-metrics"
 
 DEP_DIR="/home/schai"
@@ -11,6 +10,7 @@ CPU_MASK=0
 RETX_REPORTING=1
 TCP_LOG_REPORTING=0
 FLAMEGRAPH_REPORTING=0
+PERCORE_FLAMEGRAPH=1
 BANDWIDTH_REPORTING=1
 PCIE_REPORTING=1
 MEMBW_REPORTING=1
@@ -20,6 +20,7 @@ INTF=enp8s0
 
 PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
 
+PERF_PATH="/home/schai/linux-6.12.9/tools/perf/perf"
 cur_dir=$PWD
 
 help()
@@ -33,6 +34,7 @@ help()
                [ --tcplog (=0/1, disable/enable recording TCP log (should be done at TCP senders) ) ] 
                [ --bw (=0/1, disable/enable recording app-level bandwidth ) ] 
                [ -f | --flame (=0/1, disable/enable recording flamegraph (for cores specified via -C/--cores option) ) ] 
+               [ --percore-flame (=0/1, disable/enable per-core flamegraph breakdown (requires --flame=1) ) ] 
                [ --pcie (=0/1, disable/enable recording PCIe bandwidth) ] 
                [ --membw (=0/1, disable/enable recording memory bandwidth) ] 
                [ --iio (=0/1, disable/enable recording IIO occupancy) ] 
@@ -44,7 +46,7 @@ help()
 }
 
 SHORT=o:,c:,f:,t:,h
-LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
+LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
 OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -65,6 +67,7 @@ while :; do
     --tcplog) TCP_LOG_REPORTING="$2"; shift 2 ;;
     --bw) BANDWIDTH_REPORTING="$2"; shift 2 ;;
     -f | --flame) FLAMEGRAPH_REPORTING="$2"; shift 2 ;;
+    --percore-flame) PERCORE_FLAMEGRAPH="$2"; shift 2 ;;
     --pcie) PCIE_REPORTING="$2"; shift 2 ;;
     --membw) MEMBW_REPORTING="$2"; shift 2 ;;
     --iio) IIO_REPORTING="$2"; shift 2 ;;
@@ -84,13 +87,18 @@ mkdir -p reports/$OUT_DIR #Directory to store parsed metrics
 
 function dump_netstat() {
     local SLEEP_TIME=$1
+    local interface=$2
 
     echo "Before measurement"
     netstat -s
+    sudo ip -s link show dev $interface
+
     echo "Sleeping..."
     sleep $SLEEP_TIME
+
     echo "After measurement"
     netstat -s
+    sudo ip -s link show dev $interface
 }
 
 function dump_pciebw() {
@@ -253,15 +261,17 @@ if [ "$TYPE" -eq 0 ]; then
     fi
 
     if [ "$BANDWIDTH_REPORTING" -eq 1 ]; then
-      echo "Collecting app bandwidth..."
-      echo "Avg_iperf_tput: " $(cat logs/$OUT_DIR/iperf.bw.log | grep "60.*-90.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
+      echo "Collecting app bandwidth... (no op)"
+      # echo "Avg_iperf_tput: " $(cat logs/$OUT_DIR/iperf.bw.log | grep "60.*-90.*" | awk  '{ sum += $7; n++ } END { if (n > 0) printf "%.3f", sum/1000; }') > reports/$OUT_DIR/iperf.bw.rpt
     fi
 
     if [ "$RETX_REPORTING" -eq 1 ]; then
       echo "Collecting retransmission rate..."
-      dump_netstat $DURATION_S > logs/$OUT_DIR/retx.log
-      cat logs/$OUT_DIR/retx.log | grep -E "segment|TCPLostRetransmit" > retx.out
-      python3 print_retx_rate.py retx.out $DURATION_S > reports/$OUT_DIR/retx.rpt
+      dump_netstat $DURATION_S $INTF > logs/$OUT_DIR/retx.log
+      python3 print_retx_rate.py logs/$OUT_DIR/retx.log $DURATION_S > reports/$OUT_DIR/retx.rpt
+      # dump_netstat $DURATION_S $INTF > logs/$OUT_DIR/retx.log
+      # cat logs/$OUT_DIR/retx.log | grep -E "segment|TCPLostRetransmit" > retx.out
+      # python3 print_retx_rate.py retx.out $DURATION_S > reports/$OUT_DIR/retx.rpt
     fi
 
     if [ "$TCP_LOG_REPORTING" -eq 1 ]; then
@@ -300,7 +310,7 @@ fi
 if [ "$MEMBW_REPORTING" -eq 1 ]; then
   echo "Collecting Memory bandwidth..."
   dump_membw > logs/$OUT_DIR/membw.log &
-  sleep 30
+  # sleep 30
   sleep $DURATION_S
   sudo pkill -9 -f "pcm"
   parse_membw
@@ -318,13 +328,44 @@ if [ "$IIO_REPORTING" -eq 1 ]; then
 fi
 
 if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
-    sudo rm -f out.perf-folded
+    sudo rm -f logs/$OUT_DIR/out.perf-folded
+    sudo rm -f perf.data
     echo "Creating Flame Graph..."
-    sudo perf record -C $CPU_MASK -g -F 99 -- sleep $DURATION_S
-    sudo perf script | $DEP_DIR/FlameGraph/stackcollapse-perf.pl > out.perf-folded
-    sudo $DEP_DIR/FlameGraph/flamegraph.pl out.perf-folded > logs/$OUT_DIR/perf-kernel-flame.svg
+
+    # hack collect the last CPU
+    COLLECT_CPU_MASK=$CPU_MASK"31"
+
+    echo "Collecting flamegraph for cores $COLLECT_CPU_MASK..."
+    sudo $PERF_PATH record -o logs/$OUT_DIR/perf.data -C $COLLECT_CPU_MASK -g -F 99 -- sleep $DURATION_S
+
+    # sudo $PERF_PATH script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
+    # sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
+    # sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
+
+    # echo "Flamegraph Results saved to $(realpath reports/$OUT_DIR/perf-kernel-flame.svg)"
+
+    # Generate per-core flamegraphs
+    if [ "$PERCORE_FLAMEGRAPH" -eq 1 ]; then
+        # IFS=',' read -ra CORES <<< "$CPU_MASK"
+        # for core in "${CORES[@]}"; do
+        for core in 4 31; do
+            # core=$(echo "$core" | xargs)
+            # if [ -z "$core" ]; then continue; fi
+
+            echo "Generating flamegraph for core $core..."
+            sudo $PERF_PATH script -C "$core" -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.cpu$core.txt
+            if [ -s logs/$OUT_DIR/perf.data.cpu$core.txt ]; then
+                sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.cpu$core.txt > logs/$OUT_DIR/out.perf-folded.cpu$core
+                sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded.cpu$core > reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg
+                echo "  Saved to reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg"
+            else
+                echo "  No samples found for core $core"
+            fi
+        done
+    fi
+    
     # also collect cache miss rates
-    sudo perf stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
+    sudo $PERF_PATH stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
     #loadmisses=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load-misses" | awk '{ printf $1 }')
     #loads=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load " | awk '{ printf $1 }')
 fi

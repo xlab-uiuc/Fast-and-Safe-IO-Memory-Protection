@@ -111,9 +111,9 @@ _bpf_utils_trace_func_exit(struct pt_regs *ctx, enum Domain domain, bool is_upro
 
   // Sanity check: if duration is larger than 1 second, it's likely a stale entry
   // or something went wrong.
-  // if (duration_ns > 1000000000ULL) {
-  //     return 0;
-  // }
+  if (duration_ns > 1000000000ULL) {
+      return 0;
+  }
 
   struct latency_stats_t *stats = bpf_map_lookup_elem(&func_latency_stats, &func_enum_key);
   if (stats) {
@@ -150,7 +150,7 @@ int BPF_KPROBE(kprobe_iommu_map, struct iommu_domain *domain, unsigned long iova
 SEC("kretprobe/iommu_map")
 int BPF_KRETPROBE(kretprobe_iommu_map, int ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/__iommu_map")
@@ -163,7 +163,7 @@ int BPF_KPROBE(kprobe___iommu_map, struct iommu_domain *domain, unsigned long io
 SEC("kretprobe/__iommu_map")
 int BPF_KRETPROBE(kretprobe___iommu_map, int ret_val)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/intel_iommu_iotlb_sync_map")
@@ -176,7 +176,7 @@ int BPF_KPROBE(kprobe_intel_iommu_iotlb_sync_map, struct iommu_domain *domain,
 SEC("kretprobe/intel_iommu_iotlb_sync_map")
 int BPF_KRETPROBE(kretprobe_intel_iommu_iotlb_sync_map, int ret_val)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/iommu_unmap")
@@ -189,7 +189,7 @@ int BPF_KPROBE(kprobe_iommu_unmap, struct iommu_domain *domain,
 SEC("kretprobe/iommu_unmap")
 int BPF_KRETPROBE(kretprobe_iommu_unmap, size_t ret_val)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/__iommu_unmap")
@@ -203,7 +203,7 @@ int BPF_KPROBE(kprobe___iommu_unmap, struct iommu_domain *domain,
 SEC("kretprobe/__iommu_unmap")
 int BPF_KRETPROBE(kretprobe___iommu_unmap, size_t ret_val)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/intel_iommu_tlb_sync")
@@ -216,7 +216,7 @@ int BPF_KPROBE(kprobe_intel_iommu_tlb_sync, struct iommu_domain *domain,
 SEC("kretprobe/intel_iommu_tlb_sync")
 int BPF_KRETPROBE(kretprobe_intel_iommu_tlb_sync)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/page_pool_alloc_netmem")
@@ -228,7 +228,7 @@ int BPF_KPROBE(kprobe_page_pool_alloc_netmem, struct page_pool *pool, gfp_t gfp)
 SEC("kretprobe/page_pool_alloc_netmem")
 int BPF_KRETPROBE(kretprobe_page_pool_alloc_netmem, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/__page_pool_alloc_pages_slow")
@@ -240,11 +240,11 @@ int BPF_KPROBE(kprobe___page_pool_alloc_pages_slow, struct page_pool *pool, gfp_
 SEC("kretprobe/__page_pool_alloc_pages_slow")
 int BPF_KRETPROBE(kretprobe___page_pool_alloc_pages_slow, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 
-SEC("kprobe/qi_submit_sync")
+SEC("kretprobe/qi_submit_sync")
 int BPF_KRETPROBE(kprobe_qi_submit_sync, void *ret)
 {
   return _bpf_utils_trace_func_entry(ctx);
@@ -253,7 +253,7 @@ int BPF_KRETPROBE(kprobe_qi_submit_sync, void *ret)
 SEC("kretprobe/qi_submit_sync")
 int BPF_KRETPROBE(kretprobe_qi_submit_sync, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/qi_batch_flush_descs")
@@ -265,7 +265,7 @@ int BPF_KPROBE(kprobe_qi_batch_flush_descs, void *ret)
 SEC("kretprobe/qi_batch_flush_descs")
 int BPF_KRETPROBE(kretprobe_qi_batch_flush_descs, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/cache_tag_flush_range")
@@ -277,19 +277,7 @@ int BPF_KPROBE(kprobe_cache_tag_flush_range, void *ret)
 SEC("kretprobe/cache_tag_flush_range")
 int BPF_KRETPROBE(kretprobe_cache_tag_flush_range, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/cache_tag_flush_range_call")
-int BPF_KPROBE(kprobe_cache_tag_flush_range_call, void *ret)
-{
-  return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/cache_tag_flush_range_call")
-int BPF_KRETPROBE(kretprobe_cache_tag_flush_range_call, void *ret)
-{
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/cache_tag_flush_range_np")
@@ -301,7 +289,7 @@ int BPF_KPROBE(kprobe_cache_tag_flush_range_np, void *ret)
 SEC("kretprobe/cache_tag_flush_range_np")
 int BPF_KRETPROBE(kretprobe_cache_tag_flush_range_np, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/iommu_flush_write_buffer")
@@ -313,7 +301,7 @@ int BPF_KPROBE(kprobe_iommu_flush_write_buffer, void *ret)
 SEC("kretprobe/iommu_flush_write_buffer")
 int BPF_KRETPROBE(kretprobe_iommu_flush_write_buffer, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/page_pool_dma_map")
@@ -325,7 +313,7 @@ int BPF_KPROBE(kprobe_page_pool_dma_map, void *ret)
 SEC("kretprobe/page_pool_dma_map")
 int BPF_KRETPROBE(kretprobe_page_pool_dma_map, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/page_pool_return_page")
@@ -337,7 +325,7 @@ int BPF_KPROBE(kprobe_page_pool_return_page, void *ret)
 SEC("kretprobe/page_pool_return_page")
 int BPF_KRETPROBE(kretprobe_page_pool_return_page, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/page_pool_put_unrefed_netmem")
@@ -349,7 +337,7 @@ int BPF_KPROBE(kprobe_page_pool_put_unrefed_netmem, void *ret)
 SEC("kretprobe/page_pool_put_unrefed_netmem")
 int BPF_KRETPROBE(kretprobe_page_pool_put_unrefed_netmem, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/page_pool_put_unrefed_page")
@@ -361,140 +349,7 @@ int BPF_KPROBE(kprobe_page_pool_put_unrefed_page, void *ret)
 SEC("kretprobe/page_pool_put_unrefed_page")
 int BPF_KRETPROBE(kretprobe_page_pool_put_unrefed_page, void *ret)
 {
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-
-SEC("kprobe/trace_mlx5e_tx_dma_unmap_ktls_hook")
-int BPF_KPROBE(kprobe_trace_mlx5e_tx_dma_unmap_ktls_hook, void *ret)
-{
-  return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_mlx5e_tx_dma_unmap_ktls_hook")
-int BPF_KRETPROBE(kretprobe_trace_mlx5e_tx_dma_unmap_ktls_hook, void *ret)
-{
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_mlx5e_dma_push_build_single_hook")
-int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_build_single_hook, void *ret)
-{
-  return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_mlx5e_dma_push_build_single_hook")
-int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_build_single_hook, void *ret)
-{
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_mlx5e_dma_push_xmit_single_hook")
-int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_xmit_single_hook, void *ret)
-{
-  return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_mlx5e_dma_push_xmit_single_hook")
-int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_xmit_single_hook, void *ret)
-{
-  return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_mlx5e_dma_push_page_hook")
-int BPF_KPROBE(kprobe_trace_mlx5e_dma_push_page_hook, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_mlx5e_dma_push_page_hook")
-int BPF_KRETPROBE(kretprobe_trace_mlx5e_dma_push_page_hook, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_mlx5e_tx_dma_unmap_hook")
-int BPF_KPROBE(kprobe_trace_mlx5e_tx_dma_unmap_hook, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_mlx5e_tx_dma_unmap_hook")
-int BPF_KRETPROBE(kretprobe_trace_mlx5e_tx_dma_unmap_hook, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_qi_submit_sync_cs")
-int BPF_KPROBE(kprobe_trace_qi_submit_sync_cs, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_qi_submit_sync_cs")
-int BPF_KRETPROBE(kretprobe_trace_qi_submit_sync_cs, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_qi_submit_sync_lock_wrapper")
-int BPF_KPROBE(kprobe_trace_qi_submit_sync_lock_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_qi_submit_sync_lock_wrapper")
-int BPF_KRETPROBE(kretprobe_trace_qi_submit_sync_lock_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_iommu_flush_write_buffer_cs")
-int BPF_KPROBE(kprobe_trace_iommu_flush_write_buffer_cs, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_iommu_flush_write_buffer_cs")
-int BPF_KRETPROBE(kretprobe_trace_iommu_flush_write_buffer_cs, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/trace_iommu_flush_write_buffer_lock_wrapper")
-int BPF_KPROBE(kprobe_trace_iommu_flush_write_buffer_lock_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/trace_iommu_flush_write_buffer_lock_wrapper")
-int BPF_KRETPROBE(kretprobe_trace_iommu_flush_write_buffer_lock_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/writel_wrapper")
-int BPF_KPROBE(kprobe_writel_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/writel_wrapper")
-int BPF_KRETPROBE(kretprobe_writel_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/after_writel_while_wrapper")
-int BPF_KPROBE(kprobe_after_writel_while_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/after_writel_while_wrapper")
-int BPF_KRETPROBE(kretprobe_after_writel_while_wrapper, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+  return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/iommu_dma_free_iova")
@@ -506,31 +361,7 @@ int BPF_KPROBE(kprobe_iommu_dma_free_iova, void *ret)
 SEC("kretprobe/iommu_dma_free_iova")
 int BPF_KRETPROBE(kretprobe_iommu_dma_free_iova, void *ret)
 {
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/iommu_dma_free_iova_call")
-int BPF_KPROBE(kprobe_iommu_dma_free_iova_call, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/iommu_dma_free_iova_call")
-int BPF_KRETPROBE(kretprobe_iommu_dma_free_iova_call, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/__iommu_dma_unmap_call")
-int BPF_KPROBE(kprobe___iommu_dma_unmap_call, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/__iommu_dma_unmap_call")
-int BPF_KRETPROBE(kretprobe___iommu_dma_unmap_call, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+    return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/__iommu_dma_unmap")
@@ -542,43 +373,7 @@ int BPF_KPROBE(kprobe___iommu_dma_unmap, void *ret)
 SEC("kretprobe/__iommu_dma_unmap")
 int BPF_KRETPROBE(kretprobe___iommu_dma_unmap, void *ret)
 {
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
-int BPF_KPROBE(kprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/count_mlx5e_alloc_rx_mpwqe_perpage_hook")
-int BPF_KRETPROBE(kretprobe_count_mlx5e_alloc_rx_mpwqe_perpage_hook, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/count_page_pool_release_page_dma_hook")
-int BPF_KPROBE(kprobe_count_page_pool_release_page_dma_hook, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/count_page_pool_release_page_dma_hook")
-int BPF_KRETPROBE(kretprobe_count_page_pool_release_page_dma_hook, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/count_page_pool_recycle_in_cache_hook")
-int BPF_KPROBE(kprobe_count_page_pool_recycle_in_cache_hook, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/count_page_pool_recycle_in_cache_hook")
-int BPF_KRETPROBE(kretprobe_count_page_pool_recycle_in_cache_hook, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+    return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/sys_flush_handler")
@@ -590,7 +385,7 @@ int BPF_KPROBE(kprobe_sys_flush_handler, void *ret)
 SEC("kretprobe/sys_flush_handler")
 int BPF_KRETPROBE(kretprobe_sys_flush_handler, void *ret)
 {
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+    return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }
 
 SEC("kprobe/__sys_flush_handler")
@@ -602,65 +397,5 @@ int BPF_KPROBE(kprobe___sys_flush_handler, void *ret)
 SEC("kretprobe/__sys_flush_handler")
 int BPF_KRETPROBE(kretprobe___sys_flush_handler, void *ret)
 {
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/dma_map_sg_attrs")
-int BPF_KPROBE(kprobe_dma_map_sg_attrs, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/dma_map_sg_attrs")
-int BPF_KRETPROBE(kretprobe_dma_map_sg_attrs, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/sk_stream_wait_memory")
-int BPF_KPROBE(kprobe_sk_stream_wait_memory, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/sk_stream_wait_memory")
-int BPF_KRETPROBE(kretprobe_sk_stream_wait_memory, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/iova_free_from_qi_batch")
-int BPF_KPROBE(kprobe_iova_free_from_qi_batch, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/iova_free_from_qi_batch")
-int BPF_KRETPROBE(kretprobe_iova_free_from_qi_batch, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/unmap_callback_consume")
-int BPF_KPROBE(kprobe_unmap_callback_consume, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/unmap_callback_consume")
-int BPF_KRETPROBE(kretprobe_unmap_callback_consume, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
-}
-
-SEC("kprobe/cache_tag_flush_iotlb")
-int BPF_KPROBE(kprobe_cache_tag_flush_iotlb, void *ret)
-{
-    return _bpf_utils_trace_func_entry(ctx);
-}
-
-SEC("kretprobe/cache_tag_flush_iotlb")
-int BPF_KRETPROBE(kretprobe_cache_tag_flush_iotlb, void *ret)
-{
-    return _bpf_utils_trace_func_exit(ctx, GUEST, false);
+    return _bpf_utils_trace_func_exit(ctx, HOST, false);
 }

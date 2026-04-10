@@ -70,8 +70,6 @@ CLIENT_INTF="eno12409np1"
 CLIENT_NUM_CLIENTS=5
 CLIENT_CPU_MASK="0,4,8,12,16"
 CLIENT_BANDWIDTH="100g"
-CLIENT_EXPECTED_KERNEL="6.12.9"
-CLIENT_EXPECTED_IOMMU="intel_iommu=off"
 
 # --- Host Machine Configuration ---
 HOST_HOME="/users/Leshna"
@@ -89,6 +87,9 @@ CLIENT_SSH_HOST="genie12.cs.cornell.edu" # Public IP or hostname for SSH "genie1
 CLIENT_SSH_PASSWORD="saksham"
 CLIENT_USE_PASS_AUTH=1 # 1 to use password, 0 to use identity file
 CLIENT_SSH_IDENTITY_FILE="/home/schai/.ssh/id_ed25519"
+
+CLIENT_EXPECTED_KERNEL="6.12.9"
+CLIENT_EXPECTED_IOMMU="intel_iommu=off"
 
 #-------------------------------------------------------------------------------
 # Help/usage
@@ -233,11 +234,11 @@ cleanup_mem_stats() {
 trap cleanup_mem_stats EXIT
 
 log_info() {
-    echo "[INFO-$(date +%Y-%m-%d-%H:%M:%S)] - $1"
+    echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
 log_error() {
-    echo "[ERROR-$(date +%Y-%m-%d-%H:%M:%S)] - $1" >&2
+    echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2
 }
 
 progress_bar() {
@@ -274,76 +275,6 @@ progress_bar() {
 }
 
 # --- Cleanup Function ---
-check_client_kernel() {
-    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
-    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
-    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_KERNEL"* ]]; then
-        log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
-        log_error "To fix, run this"
-        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
-        exit 1
-    fi
-
-    if [[ "$client_cmdline" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
-        log_error "Client IOMMU is not expected. Expected: $CLIENT_EXPECTED_IOMMU, Actual: $client_cmdline"
-        log_error "To fix, run this"
-        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
-        exit 1
-    fi
-
-    log_info "Client kernel check PASSED!"
-}
-
-save_pcpu_queue_stats() {
-    local pcpu_queue_stats_file="$1"
-    local header="$2"
-    echo "$header" >> "$pcpu_queue_stats_file"
-    sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
-}
-
-wait_for_iface() {
-    local iface="$GUEST_INTF"
-    log_info "Waiting for $iface to appear on GUEST..."
-    while ! ip link show "$iface" &>/dev/null; do
-        sleep 10
-        log_info "Wait for $iface to be up on GUEST..."
-    done
-    log_info "$iface is up on GUEST"
-}
-
-pre_exp_setup() {
-    log_info "--- Starting Pre-experiment Cleanup Phase ---"
-
-    wait_for_iface
-    check_client_kernel
-    
-    log_info "Disabling TX/RX on GUEST and CLIENT"
-    sudo ethtool --pause $GUEST_INTF tx off rx off
-    $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
-    
-    log_info "Disabling SMT on Client"
-    $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
-
-    # Host's smt, cpu power, numa balance will be setup in setup-host.sh
-    log_info "--- Pre-experiment Cleanup Phase Finished ---"
-}
-
-post_exp_cleanup() {
-    log_info "--- Starting Post-experiment Cleanup Phase ---"
-    
-    log_info "Resetting GUEST ftrace..."
-    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
-    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
-    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
-
-    log_info "Resetting HOST..."
-    $SSH_HOST_CMD \
-        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
-    
-    log_info "--- Post-experiment Cleanup Phase Finished ---"
-}
-
-
 cleanup() {
     log_info "--- Starting Cleanup Phase ---"
 
@@ -391,11 +322,27 @@ cleanup() {
     $SSH_HOST_CMD \
         'screen -wipe || true'
 
+    log_info "Resetting GUEST ftrace..."
+    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
+    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+    # log_info "Resetting HOST..."
+    # $SSH_HOST_CMD \
+    #     "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+
+    # log_info "Unbinding and rebinding GUEST NIC..."
+    # echo "0000:00:01.0" > /sys/bus/pci/drivers/mlx5_core/unbind
+    # sleep 2
+    # # Rebind
+    # echo "0000:00:01.0" > /sys/bus/pci/drivers/mlx5_core/bind
+    # sleep 2 
+
     log_info "Resetting GUEST network interface $GUEST_INTF..."
     sudo ip link set "$GUEST_INTF" down
-    sleep 1
+    sleep 2
     sudo ip link set "$GUEST_INTF" up
-    sleep 1
+    sleep 2
     log_info "--- Cleanup Phase Finished ---"
 }
 
@@ -476,11 +423,81 @@ save_vm_config_to_report() {
     done
 }
 
-pre_exp_setup
-
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 
+
+check_client_kernel() {
+    local client_kernel=$($SSH_CLIENT_CMD 'uname -r')
+    local client_cmdline=$($SSH_CLIENT_CMD 'cat /proc/cmdline')
+    if [[ "$client_kernel" != *"$CLIENT_EXPECTED_KERNEL"* ]]; then
+        log_error "Client kernel is not expected. Expected: $CLIENT_EXPECTED_KERNEL, Actual: $client_kernel"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    if [[ "$client_cmdline" != *"$CLIENT_EXPECTED_IOMMU"* ]]; then
+        log_error "Client IOMMU is not expected. Expected: $CLIENT_EXPECTED_IOMMU, Actual: $client_cmdline"
+        log_error "To fix, run this"
+        log_error "$SSH_CLIENT_CMD 'sudo /home/siyuanc3/iommu-vm/reboot-scripts/reboot-6.12.9-iommu-off.sh'"
+        exit 1
+    fi
+
+    log_info "Client kernel check PASSED!"
+}
+
+save_pcpu_queue_stats() {
+    local pcpu_queue_stats_file="$1"
+    local header="$2"
+    echo "$header" >> "$pcpu_queue_stats_file"
+    echo "current_time: $(date '+%Y-%m-%d %H:%M:%S')" >> "$pcpu_queue_stats_file"
+    sudo cat /sys/kernel/debug/pcpu_batch_index >> "$pcpu_queue_stats_file"
+}
+
+wait_for_iface() {
+    local iface="$GUEST_INTF"
+    log_info "Waiting for $iface to appear on GUEST..."
+    while ! ip link show "$iface" &>/dev/null; do
+        sleep 10
+        log_info "Wait for $iface to be up on GUEST..."
+    done
+    log_info "$iface is up on GUEST"
+}
+
+pre_exp_setup() {
+    log_info "--- Starting Pre-experiment Cleanup Phase ---"
+
+    wait_for_iface
+    check_client_kernel
+    
+    log_info "Disabling TX/RX on GUEST and CLIENT"
+    sudo ethtool --pause $GUEST_INTF tx off rx off
+    $SSH_CLIENT_CMD "sudo ethtool --pause $CLIENT_INTF tx off rx off"
+    
+    log_info "Disabling SMT on Client"
+    $SSH_CLIENT_CMD "echo off | sudo tee /sys/devices/system/cpu/smt/control"
+
+    # Host's smt, cpu power, numa balance will be setup in setup-host.sh
+    log_info "--- Pre-experiment Cleanup Phase Finished ---"
+}
+
+post_exp_cleanup() {
+    log_info "--- Starting Post-experiment Cleanup Phase ---"
+    
+    log_info "Resetting GUEST ftrace..."
+    sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
+    sudo echo 0 > /sys/kernel/debug/tracing/options/overwrite
+    sudo echo 20000 > /sys/kernel/debug/tracing/buffer_size_kb
+
+    log_info "Resetting HOST..."
+    $SSH_HOST_CMD \
+        "cd '$HOST_SETUP_DIR'; sudo bash reset-host.sh"
+    
+    log_info "--- Post-experiment Cleanup Phase Finished ---"
+}
+
+pre_exp_setup
 for ((j = 0; j < NUM_RUNS; j += 1)); do
     echo
     log_info "############################################################"
@@ -539,6 +556,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     else
         log_info "MLC not configured for this run."
     fi
+   
+    # --- Setup and Start Clients ---
+    log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
+    client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
+    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-tx-netapp-tput.sh --mode server -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' &> '$client_server_app_log_file'; exec bash"
+    $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
+    sleep 2
 
     # --- Setup Guest (Server) Environment ---
     log_info "Setting up GUEST server environment..."
@@ -553,22 +577,34 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         "screen -dmS host_session sudo bash -c \"cd '$HOST_SETUP_DIR'; sudo bash setup-host.sh -m '$MTU' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --ecn 1; exec bash\""
 
     # --- Start Guest (Server) Application ---
+    log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
+    for i in {1..30}; do
+        if $SSH_CLIENT_CMD "ss -tln | grep -q :$INIT_PORT || netstat -tln | grep -q :$INIT_PORT" 2>/dev/null; then
+            log_info "Remote servers are up and listening!"
+            sleep 2 # Small buffer to ensure all subsequent ports (if NUM_SERVERS > 1) are also bound
+            break
+        fi
+        sleep 1
+        if [ "$i" -eq 30 ]; then
+            log_error "Timeout waiting for remote servers to start!"
+        fi
+    done
+
     log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
     cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
-    sudo bash run-netapp-tput.sh --mode server -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
-        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" &> "$guest_server_app_log_file" &
+    # echo "sudo bash run-tx-netapp-tput.sh --mode client --server-ip '$CLIENT_IP' -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b '$CLIENT_BANDWIDTH' &> "$guest_server_app_log_file""
+    sudo bash run-tx-netapp-tput.sh --mode client --server-ip "$CLIENT_IP" -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
+        -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" & 
     sleep 2 # Allow server app to initialize
     cd - > /dev/null   
 
-    # --- Setup and Start Clients ---
-    log_info "Setting up and starting CLIENTS on $CLIENT_SSH_HOST..."
-    client_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash setup-envir.sh --dep '$CLIENT_HOME' --intf '$CLIENT_INTF' --ip '$CLIENT_IP' -m '$MTU' -d '$DDIO_ENABLED' -r '$RING_BUFFER_SIZE' --socket-buf '$TCP_SOCKET_BUF_MB' --hwpref 1 --rdma 0 --pfc 0 --ecn 1 --opt 1; "
-    client_cmd+="cd '$CLIENT_EXP_DIR'; sudo bash run-netapp-tput.sh --mode client --server-ip '$GUEST_IP' -n '$GUEST_NUM_SERVERS' -N '$CLIENT_NUM_CLIENTS'  -o '${EXP_NAME}-RUN-${j}' -p '$INIT_PORT' -c '$CLIENT_CPU_MASK' -b '$CLIENT_BANDWIDTH' &> '$client_server_app_log_file'; exec bash"
-    $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
-
     # --- Warmup Phase ---
+    # log_info "Warming up experiment (10 seconds)..."
+    # progress_bar 10 1
     log_info "Warming up experiment (60 seconds)..."
     progress_bar 60 1
+
+    save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_warmup"
 
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
@@ -624,16 +660,17 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
         --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 0 \
         --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
-        # --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
     echo $host_logging_cmd
     $SSH_HOST_CMD "screen -dmS logging_session_host sudo bash -c \"$host_logging_cmd\""
 
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
     --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
-    # --pcie 0 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
+
+    # --dur "$CORE_DURATION_S" --cpu-util 0 -c "$GUEST_CPU_MASK" --retx 0 --tcplog 0 --bw 0 --flame 0
+    # --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1
     cd - > /dev/null
 
     log_info "Logging done."
@@ -644,12 +681,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     sudo echo 0 > /sys/kernel/debug/tracing/tracing_on
     sudo cat /sys/kernel/debug/tracing/trace > "$iova_ftrace_guest_output_file"
     sudo echo > /sys/kernel/debug/tracing/trace # Clear buffer after saving
+    
+    head -n 10000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.head10000
+    tail -n 10000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.tail10000
     log_info "GUEST IOVA ftrace data saved to $iova_ftrace_guest_output_file"
 
     sudo bash -c "dmesg > ${current_guest_reports_dir}/dmesg.txt"
-    head -n 2000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.head2000
-    tail -n 2000 $iova_ftrace_guest_output_file > $iova_ftrace_guest_output_file.tail2000
-
+    
     log_info "Stopping and saving HOST IOVA ftrace data on $HOST_IP..."
     $SSH_HOST_CMD \
         "sudo bash -c 'sudo echo 0 > /sys/kernel/debug/tracing/tracing_on; \
@@ -674,13 +712,13 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 	sshpass -p $CLIENT_SSH_PASSWORD \
 	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt ${current_guest_reports_dir}/client-retx.rpt
-    sshpass -p $CLIENT_SSH_PASSWORD \
+	sshpass -p $CLIENT_SSH_PASSWORD \
 	scp ${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file} ${current_guest_reports_dir}/client_server_app.log
     else
 	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
         "${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
-    scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 	"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_server_app_log_file}" \
         "${current_guest_reports_dir}/client_server_app.log"
     fi
@@ -693,9 +731,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
         sshpass -p $HOST_SSH_PASSWORD scp \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt"
-        # sshpass -p $HOST_SSH_PASSWORD scp \
-        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
+        #sshpass -p $HOST_SSH_PASSWORD scp \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt"
     else
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/retx.rpt" \
@@ -703,9 +741,9 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     	scp -i "$HOST_SSH_IDENTITY_FILE" \
         "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/pcie.rpt" \
         "${current_guest_reports_dir}/host-pcie.rpt" || log_error "Failed to SCP host pcie.rpt (${host_reports_dir_remote}/pcie.rpt)"
-    	# scp -i "$HOST_SSH_IDENTITY_FILE" \
-        # "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
-        # "${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
+    	#scp -i "$HOST_SSH_IDENTITY_FILE" \
+        #"${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/membw.rpt" \
+        #"${current_guest_reports_dir}/host-membw.rpt" || log_error "Failed to SCP host membw.rpt (${host_reports_dir_remote}/membw.rpt)"
     fi
     # SCP profiling data to host (as guest has limited space)
     # sudo sshpass -p "$HOST_SSH_PASSWORD" scp "$perf_guest_data_file" "${HOST_SSH_UNAME}@${HOST_IP}:${host_reports_dir_remote}/perf_guest_cpu.data"
@@ -717,6 +755,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     save_pcpu_queue_stats "$current_guest_reports_dir/pcpu_queue_stats.txt" "after_data_collection"
     sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
 
+    # --- Post-run cleanup ---
+    # cleanup
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
@@ -725,8 +765,6 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     cleanup_mem_stats
 done
 
-
-# --- Post-run cleanup ---
 cleanup
 post_exp_cleanup
 
@@ -739,9 +777,16 @@ fi
 log_info "Collecting and processing statistics from all runs..."
 # The '0' or '1' at the end of collect-tput-stats.py might indicate whether MLC was run. Adjust as needed.
 if [ "$MLC_CORES" = "none" ]; then
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0
 else
-    sudo python3 vm-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
+    sudo python3 vm-tx-collect-tput-stats.py "$EXP_NAME" "$NUM_RUNS" 0 # TODO: Change back to 1
 fi
 
+for run in $(seq 0 $((NUM_RUNS - 1))); do
+    run_reports_dir="${GUEST_SETUP_DIR}/reports/${EXP_NAME}-RUN-${run}"
+    sudo python3 collect-per-core-stats.py "$EXP_NAME-RUN-$run" | sudo tee "${run_reports_dir}/per-core-stats.txt"
+done
+
+sync
+sleep 1
 log_info "Experiment $EXP_NAME finished."
