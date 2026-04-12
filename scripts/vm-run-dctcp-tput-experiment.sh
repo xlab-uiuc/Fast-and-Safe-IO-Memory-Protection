@@ -457,7 +457,7 @@ save_vm_config_to_report() {
     done
 }
 
-pre_exp_setup
+#pre_exp_setup
 
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
