@@ -544,8 +544,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     $SSH_CLIENT_CMD "screen -dmS client_session sudo bash -c \"$client_cmd\""
 
     # --- Warmup Phase ---
-    log_info "Warming up experiment (10 seconds)..."
-    progress_bar 10 1
+    log_info "Warming up experiment (60 seconds)..."
+    progress_bar 60 1
 
     # --- Start eBPF Tracers (if enabled) ---
     if [ "$EBPF_TRACING_ENABLED" -eq 1 ]; then
