@@ -688,6 +688,8 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Waiting for remote operations and data transfers to settle (original sleep: $(($CORE_DURATION_S * 2))s)..."
     progress_bar $((CORE_DURATION_S * 2)) 2
 
+    sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
     log_info "############################################################"
     log_info "### Finished Experiment Run: $j / $(($NUM_RUNS - 1))"
     log_info "############################################################"
