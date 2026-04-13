@@ -588,6 +588,8 @@ fi
 log_info "Waiting for remote operations to settle ($((CORE_DURATION_S * 2))s)..."
 progress_bar $((CORE_DURATION_S * 2)) 2
 
+sudo bash collect-period-tput.sh "$EXP_NAME-RUN-${j}"
+
 log_info "############################################################"
 log_info "### Finished Experiment: $EXP_NAME (vm${VM_ID})"
 log_info "############################################################"
