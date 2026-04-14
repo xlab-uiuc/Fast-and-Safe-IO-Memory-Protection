@@ -459,6 +459,17 @@ save_vm_config_to_report() {
 
 #pre_exp_setup
 
+# --- Ensure FlameGraph tools are available before experiments ---
+log_info "Ensuring FlameGraph tools are available..."
+if [ ! -d "$GUEST_HOME/FlameGraph" ]; then
+    log_info "Cloning FlameGraph tools to $GUEST_HOME/FlameGraph..."
+    git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$GUEST_HOME/FlameGraph"
+fi
+log_info "Ensuring FlameGraph tools on CLIENT ($CLIENT_SSH_HOST)..."
+$SSH_CLIENT_CMD "if [ ! -d '$CLIENT_HOME/FlameGraph' ]; then git clone --depth 1 https://github.com/brendangregg/FlameGraph.git '$CLIENT_HOME/FlameGraph'; fi"
+log_info "Ensuring FlameGraph tools on HOST ($HOST_IP)..."
+$SSH_HOST_CMD "if [ ! -d '$HOST_RESULTS_DIR/FlameGraph' ]; then git clone --depth 1 https://github.com/brendangregg/FlameGraph.git '$HOST_RESULTS_DIR/FlameGraph'; fi"
+
 log_info "Starting experiment: $EXP_NAME"
 log_info "Number of runs: $NUM_RUNS"
 

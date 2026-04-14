@@ -409,6 +409,15 @@ save_config_to_report_json() {
 
 # pre_exp_setup
 
+# --- Ensure FlameGraph tools are available before experiments ---
+FLAMEGRAPH_DIR="$GUEST_HOME/FlameGraph"
+if [ ! -d "$FLAMEGRAPH_DIR" ]; then
+	log_info "Cloning FlameGraph tools to $FLAMEGRAPH_DIR..."
+	git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$FLAMEGRAPH_DIR"
+fi
+log_info "Ensuring FlameGraph tools on CLIENT ($CLIENT_SSH_HOST)..."
+$SSH_CLIENT_CMD "if [ ! -d '$CLIENT_HOME/FlameGraph' ]; then git clone --depth 1 https://github.com/brendangregg/FlameGraph.git '$CLIENT_HOME/FlameGraph'; fi"
+
 log_info "Starting experiment: $EXP_NAME"
 log_info "VM_ID=$VM_ID, INIT_PORT=$INIT_PORT, single run (multi-VM mode)"
 
