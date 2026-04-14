@@ -536,7 +536,7 @@ log_info "Starting GUEST-side (server) logging..."
 cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
 sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
 	--dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
-	--pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
+	--pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --perf-path "$GUEST_PERF" --type 0
 cd - > /dev/null
 
 log_info "Logging done."
