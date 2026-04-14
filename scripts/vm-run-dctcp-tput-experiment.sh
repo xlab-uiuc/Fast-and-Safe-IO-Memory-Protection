@@ -592,14 +592,14 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting CLIENT-side logging on $CLIENT_SSH_HOST..."
     client_logging_cmd="cd '$CLIENT_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$CLIENT_HOME' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
-        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 0 --bw 1 --flame 0 \
+        --cpu-util 1 -c '$CLIENT_CPU_MASK' --retx 1 --tcplog 0 --bw 1 --flame 1 \
         --pcie 0 --membw 0 --iio 0 --pfc 0 --intf '$CLIENT_INTF' --type 0; exec bash"
     $SSH_CLIENT_CMD "screen -dmS logging_session_client sudo bash -c \"$client_logging_cmd\""
 
     log_info "Starting HOST-side logging on $HOST_IP..."
     host_logging_cmd="cd '$HOST_SETUP_DIR'; sudo bash record-host-metrics.sh \
         --dep '$HOST_RESULTS_DIR' -o '${EXP_NAME}-RUN-${j}' --dur '$CORE_DURATION_S' \
-        --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 0 \
+        --cpu-util 0 --retx 1 --tcplog 0 --bw 1 --flame 1 \
         --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
         # --pcie 1 --membw 0 --iio 0 --pfc 0 --type 0; exec bash"
     echo $host_logging_cmd
@@ -608,7 +608,7 @@ for ((j = 0; j < NUM_RUNS; j += 1)); do
     log_info "Starting GUEST-side (server) logging..."
     cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
     sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
-    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 0 \
+    --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
     --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
     # --pcie 0 --membw 1 --iio 1 --pfc 0 --intf "$GUEST_INTF" --type 0
     cd - > /dev/null
