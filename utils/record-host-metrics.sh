@@ -20,7 +20,7 @@ INTF=enp8s0
 
 PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
 
-PERF_PATH="${PERF_PATH:-$(command -v perf 2>/dev/null || echo "/home/schai/linux-6.12.9/tools/perf/perf")}"
+PERF_PATH=""
 cur_dir=$PWD
 
 help()
@@ -39,14 +39,15 @@ help()
                [ --membw (=0/1, disable/enable recording memory bandwidth) ] 
                [ --iio (=0/1, disable/enable recording IIO occupancy) ] 
                [ --pfc (=0/1, disable/enable recording PFC pause triggers) ] 
-               [ --intf (interface name, over which to record PFC triggers) ] 
-               [ -t | --type (=0/1, experiment type -- 0 for TCP, 1 for RDMA) ] 
+               [ --intf (interface name, over which to record PFC triggers) ]
+               [ --perf-path (path to perf binary; auto-detected if omitted) ]
+               [ -t | --type (=0/1, experiment type -- 0 for TCP, 1 for RDMA) ]
                [ -h | --help  ]"
     exit 2
 }
 
 SHORT=o:,c:,f:,t:,h
-LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
+LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,perf-path:,type:,help
 OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -73,12 +74,23 @@ while :; do
     --iio) IIO_REPORTING="$2"; shift 2 ;;
     --pfc) PFC_REPORTING="$2"; shift 2 ;;
     --intf) INTF="$2"; shift 2 ;;
+    --perf-path) PERF_PATH="$2"; shift 2 ;;
     -t | --type) TYPE="$2"; shift 2 ;;
     -h | --help) help ;;
     --) shift; break ;;
     *) echo "Unexpected option: $1"; help ;;
   esac
 done
+
+# Auto-detect a working perf binary if --perf-path was not provided.
+# The distro /usr/bin/perf is a wrapper that fails on custom kernels,
+# so try the real binaries under /usr/lib/linux-tools-* first.
+if [ -z "$PERF_PATH" ]; then
+    for _p in /usr/lib/linux-tools-*/perf; do
+        if [ -x "$_p" ]; then PERF_PATH="$_p"; fi
+    done
+    PERF_PATH="${PERF_PATH:-$(command -v perf 2>/dev/null)}"
+fi
 
 mkdir -p logs #Directory to store collected logs
 mkdir -p logs/$OUT_DIR #Directory to store collected logs
