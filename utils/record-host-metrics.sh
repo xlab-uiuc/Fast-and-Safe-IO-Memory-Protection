@@ -344,6 +344,12 @@ if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
     sudo rm -f perf.data
     echo "Creating Flame Graph..."
 
+    FLAMEGRAPH_DIR="$DEP_DIR/FlameGraph"
+    if [ ! -d "$FLAMEGRAPH_DIR" ]; then
+        echo "FlameGraph tools not found at $FLAMEGRAPH_DIR, cloning..."
+        git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$FLAMEGRAPH_DIR"
+    fi
+
     # Strip any trailing comma from CPU_MASK
     COLLECT_CPU_MASK="${CPU_MASK%,}"
 
@@ -352,13 +358,34 @@ if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
 
     echo "perf.data saved to $(realpath logs/$OUT_DIR/perf.data)"
 
-    # To manually generate flamegraphs later, run:
-    #   perf script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
-    #   stackcollapse-perf.pl logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
-    #   flamegraph.pl logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
-    #
-    # For per-core flamegraphs, add -C <core> to perf script:
-    #   perf script -C <core> -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.cpu<core>.txt
+    # Generate aggregate flamegraph
+    if [ -s logs/$OUT_DIR/perf.data ]; then
+        sudo $PERF_PATH script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
+        "$FLAMEGRAPH_DIR/stackcollapse-perf.pl" logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
+        "$FLAMEGRAPH_DIR/flamegraph.pl" logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
+        echo "Flamegraph saved to $(realpath reports/$OUT_DIR/perf-kernel-flame.svg)"
+    else
+        echo "WARNING: perf.data is empty, skipping flamegraph generation"
+    fi
+
+    # Generate per-core flamegraphs
+    if [ "$PERCORE_FLAMEGRAPH" -eq 1 ] && [ -s logs/$OUT_DIR/perf.data ]; then
+        IFS=',' read -ra CORES <<< "$CPU_MASK"
+        for core in "${CORES[@]}"; do
+            core=$(echo "$core" | xargs)
+            if [ -z "$core" ]; then continue; fi
+
+            echo "Generating flamegraph for core $core..."
+            sudo $PERF_PATH script -C "$core" -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.cpu$core.txt
+            if [ -s logs/$OUT_DIR/perf.data.cpu$core.txt ]; then
+                "$FLAMEGRAPH_DIR/stackcollapse-perf.pl" logs/$OUT_DIR/perf.data.cpu$core.txt > logs/$OUT_DIR/out.perf-folded.cpu$core
+                "$FLAMEGRAPH_DIR/flamegraph.pl" logs/$OUT_DIR/out.perf-folded.cpu$core > reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg
+                echo "  Saved to reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg"
+            else
+                echo "  No samples found for core $core"
+            fi
+        done
+    fi
 
     # also collect cache miss rates
     sudo $PERF_PATH stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
