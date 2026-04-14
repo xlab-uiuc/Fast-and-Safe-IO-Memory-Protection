@@ -363,6 +363,15 @@ EOF
 # MAIN
 #-------------------------------------------------------------------------------
 
+# --- Ensure FlameGraph tools are available before experiments ---
+FLAMEGRAPH_DIR="$GUEST_HOME/FlameGraph"
+if [ ! -d "$FLAMEGRAPH_DIR" ]; then
+	log_info "Cloning FlameGraph tools to $FLAMEGRAPH_DIR..."
+	git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$FLAMEGRAPH_DIR"
+fi
+log_info "Ensuring FlameGraph tools on CLIENT ($CLIENT_SSH_HOST)..."
+$SSH_CLIENT_CMD "if [ ! -d '$CLIENT_HOME/FlameGraph' ]; then git clone --depth 1 https://github.com/brendangregg/FlameGraph.git '$CLIENT_HOME/FlameGraph'; fi"
+
 log_info "Starting experiment: $EXP_NAME"
 log_info "VM_ID=$VM_ID, INIT_PORT=$INIT_PORT, single run TX (multi-VM mode)"
 
@@ -480,7 +489,7 @@ log_info "Starting GUEST-side (server) logging..."
 cd "$GUEST_SETUP_DIR" || { log_error "Failed to cd to $GUEST_SETUP_DIR"; exit 1; }
 sudo bash record-host-metrics.sh --dep "$GUEST_HOME" -o "${EXP_NAME}-RUN-${j}" \
   --dur "$CORE_DURATION_S" --cpu-util 1 -c "$GUEST_CPU_MASK" --retx 1 --tcplog 0 --bw 1 --flame 1 \
-  --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --type 0
+  --pcie 0 --membw 0 --iio 0 --pfc 0 --intf "$GUEST_INTF" --perf-path "$GUEST_PERF" --type 0
 cd - > /dev/null
 
 log_info "Logging done."
