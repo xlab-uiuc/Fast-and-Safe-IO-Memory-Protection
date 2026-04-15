@@ -184,10 +184,10 @@ else
 fi
 
 # Enable aRFS
-echo "Enabling aRFS..."
+log_info "Enabling aRFS..."
 ethtool -K $intf ntuple on 
 if [ $? -gt 0 ]; then 
-    echo "ERROR to enble ntuple" 
+    log_error "Failed to enable ntuple"
     exit 1 
 fi 
 echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 
