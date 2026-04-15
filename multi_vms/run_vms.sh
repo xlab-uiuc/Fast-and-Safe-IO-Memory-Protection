@@ -441,6 +441,22 @@ cleanup() {
 # Main
 # ============================================================
 
+# --- Pre-flight: verify host IOMMU is active ---
+check_host_iommu() {
+	local num_groups
+	num_groups=$(ls /sys/kernel/iommu_groups/ 2>/dev/null | wc -l)
+	if [[ "$num_groups" -eq 0 ]]; then
+		log_error "Host IOMMU is NOT active (0 IOMMU groups found)."
+		log_error "vfio-pci cannot bind SR-IOV VFs without IOMMU groups."
+		log_error "Add 'intel_iommu=on,sm_on' to the host kernel command line and reboot."
+		log_error "Current cmdline: $(cat /proc/cmdline)"
+		return 1
+	fi
+	log_info "Host IOMMU active ($num_groups IOMMU groups found)"
+}
+
+check_host_iommu || exit 1
+
 host_cmdline=$(cat /proc/cmdline)
 host_iommu_config=$(parse_iommu_mode "$host_cmdline")
 

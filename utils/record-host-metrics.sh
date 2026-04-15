@@ -20,7 +20,7 @@ INTF=enp8s0
 
 PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
 
-PERF_PATH="/home/schai/linux-6.12.9/tools/perf/perf"
+PERF_PATH=""
 cur_dir=$PWD
 
 help()
@@ -39,14 +39,15 @@ help()
                [ --membw (=0/1, disable/enable recording memory bandwidth) ] 
                [ --iio (=0/1, disable/enable recording IIO occupancy) ] 
                [ --pfc (=0/1, disable/enable recording PFC pause triggers) ] 
-               [ --intf (interface name, over which to record PFC triggers) ] 
-               [ -t | --type (=0/1, experiment type -- 0 for TCP, 1 for RDMA) ] 
+               [ --intf (interface name, over which to record PFC triggers) ]
+               [ --perf-path (path to perf binary; auto-detected if omitted) ]
+               [ -t | --type (=0/1, experiment type -- 0 for TCP, 1 for RDMA) ]
                [ -h | --help  ]"
     exit 2
 }
 
 SHORT=o:,c:,f:,t:,h
-LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,type:,help
+LONG=dep:,outdir:,dur:,cpu-util:,cores:,retx:,tcplog:,bw:,flame:,percore-flame:,pcie:,membw:,iio:,pfc:,intf:,perf-path:,type:,help
 OPTS=$(getopt -a -n $SCRIPT_NAME --options $SHORT --longoptions $LONG -- "$@")
 
 VALID_ARGUMENTS=$# # Returns the count of arguments that are in short or long options
@@ -73,12 +74,23 @@ while :; do
     --iio) IIO_REPORTING="$2"; shift 2 ;;
     --pfc) PFC_REPORTING="$2"; shift 2 ;;
     --intf) INTF="$2"; shift 2 ;;
+    --perf-path) PERF_PATH="$2"; shift 2 ;;
     -t | --type) TYPE="$2"; shift 2 ;;
     -h | --help) help ;;
     --) shift; break ;;
     *) echo "Unexpected option: $1"; help ;;
   esac
 done
+
+# Auto-detect a working perf binary if --perf-path was not provided.
+# The distro /usr/bin/perf is a wrapper that fails on custom kernels,
+# so try the real binaries under /usr/lib/linux-tools-* first.
+if [ -z "$PERF_PATH" ]; then
+    for _p in /usr/lib/linux-tools-*/perf; do
+        if [ -x "$_p" ]; then PERF_PATH="$_p"; fi
+    done
+    PERF_PATH="${PERF_PATH:-$(command -v perf 2>/dev/null)}"
+fi
 
 mkdir -p logs #Directory to store collected logs
 mkdir -p logs/$OUT_DIR #Directory to store collected logs
@@ -332,38 +344,49 @@ if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
     sudo rm -f perf.data
     echo "Creating Flame Graph..."
 
-    # hack collect the last CPU
-    COLLECT_CPU_MASK=$CPU_MASK"31"
+    FLAMEGRAPH_DIR="$DEP_DIR/FlameGraph"
+    if [ ! -d "$FLAMEGRAPH_DIR" ]; then
+        echo "FlameGraph tools not found at $FLAMEGRAPH_DIR, cloning..."
+        git clone --depth 1 https://github.com/brendangregg/FlameGraph.git "$FLAMEGRAPH_DIR"
+    fi
+
+    # Strip any trailing comma from CPU_MASK
+    COLLECT_CPU_MASK="${CPU_MASK%,}"
 
     echo "Collecting flamegraph for cores $COLLECT_CPU_MASK..."
     sudo $PERF_PATH record -o logs/$OUT_DIR/perf.data -C $COLLECT_CPU_MASK -g -F 99 -- sleep $DURATION_S
 
-    # sudo $PERF_PATH script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
-    # sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
-    # sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
+    echo "perf.data saved to $(realpath logs/$OUT_DIR/perf.data)"
 
-    # echo "Flamegraph Results saved to $(realpath reports/$OUT_DIR/perf-kernel-flame.svg)"
+    # Generate aggregate flamegraph
+    if [ -s logs/$OUT_DIR/perf.data ]; then
+        sudo $PERF_PATH script -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.txt
+        "$FLAMEGRAPH_DIR/stackcollapse-perf.pl" logs/$OUT_DIR/perf.data.txt > logs/$OUT_DIR/out.perf-folded
+        "$FLAMEGRAPH_DIR/flamegraph.pl" logs/$OUT_DIR/out.perf-folded > reports/$OUT_DIR/perf-kernel-flame.svg
+        echo "Flamegraph saved to $(realpath reports/$OUT_DIR/perf-kernel-flame.svg)"
+    else
+        echo "WARNING: perf.data is empty, skipping flamegraph generation"
+    fi
 
     # Generate per-core flamegraphs
-    if [ "$PERCORE_FLAMEGRAPH" -eq 1 ]; then
-        # IFS=',' read -ra CORES <<< "$CPU_MASK"
-        # for core in "${CORES[@]}"; do
-        for core in 4 31; do
-            # core=$(echo "$core" | xargs)
-            # if [ -z "$core" ]; then continue; fi
+    if [ "$PERCORE_FLAMEGRAPH" -eq 1 ] && [ -s logs/$OUT_DIR/perf.data ]; then
+        IFS=',' read -ra CORES <<< "$CPU_MASK"
+        for core in "${CORES[@]}"; do
+            core=$(echo "$core" | xargs)
+            if [ -z "$core" ]; then continue; fi
 
             echo "Generating flamegraph for core $core..."
             sudo $PERF_PATH script -C "$core" -i logs/$OUT_DIR/perf.data > logs/$OUT_DIR/perf.data.cpu$core.txt
             if [ -s logs/$OUT_DIR/perf.data.cpu$core.txt ]; then
-                sudo $DEP_DIR/FlameGraph/stackcollapse-perf.pl logs/$OUT_DIR/perf.data.cpu$core.txt > logs/$OUT_DIR/out.perf-folded.cpu$core
-                sudo $DEP_DIR/FlameGraph/flamegraph.pl logs/$OUT_DIR/out.perf-folded.cpu$core > reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg
+                "$FLAMEGRAPH_DIR/stackcollapse-perf.pl" logs/$OUT_DIR/perf.data.cpu$core.txt > logs/$OUT_DIR/out.perf-folded.cpu$core
+                "$FLAMEGRAPH_DIR/flamegraph.pl" logs/$OUT_DIR/out.perf-folded.cpu$core > reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg
                 echo "  Saved to reports/$OUT_DIR/perf-kernel-flame-cpu$core.svg"
             else
                 echo "  No samples found for core $core"
             fi
         done
     fi
-    
+
     # also collect cache miss rates
     sudo $PERF_PATH stat -C $CPU_MASK -e LLC-load,LLC-load-misses,l2_rqsts.all_demand_miss,l2_rqsts.all_demand_references -o logs/$OUT_DIR/llc.miss.log sleep 2
     #loadmisses=$(cat logs/$4/$3/llc.miss.log | grep "LLC-load-misses" | awk '{ printf $1 }')
