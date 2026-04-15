@@ -56,7 +56,7 @@ TCP_SOCKET_BUF_MB=1
 
 # --- VM SSH settings (host -> guest VMs) ---
 SSH_USER="schai"
-SSH_KEY="/home/lbalara/.ssh/id_rsa"
+SSH_KEY="/home/cochell2/.ssh/id_rsa"
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR"
 
 XML_DIR="./generated"
