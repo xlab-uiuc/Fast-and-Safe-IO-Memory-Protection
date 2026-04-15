@@ -4,10 +4,14 @@ import numpy as np
 import glob
 import os
 import pandas as pd
+from matplotlib.ticker import MultipleLocator
 
-default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
-                     '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
-                     '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
+default_colors = [
+    '#6BAED6', '#E57373', '#F2A6A6', '#74C476', '#A1D99B', '#BDD7E7',
+    '#D98880', '#8FD19E', '#9ECAE1', '#F28E8E', '#98D89E', '#C7A27C',
+    '#9FD6D2', '#C6A0C9', '#F7B267', '#F3DD6D', '#D3D3D3', '#A3C76D',
+    '#D8A2B0', '#A8C3C5'
+]
 
 color_off = default_colors[0]
 color_nested = default_colors[1]
@@ -61,7 +65,6 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
     
     # Font size adjustments
     # Reduce font size for many labels or series
-    # print('num_x_labels: ', num_x_labels)
     font_scale = 1.0
     if num_x_labels > 10:
         font_scale *= 0.95
@@ -70,8 +73,7 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
     if num_series > 5:
         font_scale *= 0.95
     
-    font_size = int(base_font * font_scale)
-    font_size = max(font_size, 7)  # Minimum readable font size
+    font_size = 17
     
     # Bar width calculation
     # More series means narrower bars
@@ -92,11 +94,11 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
         gap_factor = 2.0  # More spacing for few categories
     
     # Legend and label font sizes
-    legend_fontsize = max(font_size - 1, 6)
-    label_fontsize = max(font_size + 1, 8)
+    legend_fontsize = 15
+    label_fontsize = 17
     
     # Always show value labels, but adjust size
-    show_value_labels = True
+    show_value_labels = False
 
     font_size = font_size - 2
     
@@ -278,7 +280,8 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
 
 def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel, 
                      output_dir=None, precision=1, show_value_labels=None,
-                     log_scale=False, scientific_labels=False, max_width=None):
+                     log_scale=False, scientific_labels=False, max_width=None,
+                     stacked_from=None, legend_first_row_items=None):
     """
     Plot N-series grouped bar chart with dynamically adjusted layout.
     
@@ -295,6 +298,8 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         log_scale: if True, use log scale for y-axis
         scientific_labels: if True, format value labels in scientific notation
         max_width: optional maximum width for the figure
+        legend_first_row_items: if set, put this many items on the first legend row,
+                               remaining items on subsequent rows
     """
     if series_list is None or len(series_list) == 0 or x_labels is None:
         return
@@ -331,18 +336,21 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     x = np.arange(num_x_labels) * params['gap_factor']
     
     # Default color palette if not specified
-    default_colors = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', 
-                     '#F0E442', '#D55E00', '#999999']
+    plot_colors = default_colors
+    hatch_patterns = ['', '..', 'xx', '//', '\\\\', 'oo', '++', '--']
     
     bars_handles = []
     series_max_values = []
+    stacked_flags = []
+    original_values_list = []
     
     for idx, series in enumerate(series_list):
         offset = (idx - (num_series - 1) / 2) * params['bar_width']
-        color = series.get('color', default_colors[idx % len(default_colors)])
+        color = series.get('color', plot_colors[idx % len(plot_colors)])
+        hatch = series.get('hatch', hatch_patterns[idx % len(hatch_patterns)])
         label = series.get('label', f"Series {idx+1}")
         values = series.get('values', [])
-        errors = series.get('errors', None)  # Get error bar data if provided
+        errors = series.get('errors', None)
         
         # Ensure values match x_labels length
         if len(values) != num_x_labels:
@@ -352,27 +360,75 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         if errors is not None and len(errors) != num_x_labels:
             errors = (errors + [0] * num_x_labels)[:num_x_labels]
         
-        # Create bars with error bars if errors are provided
-        if errors is not None:
-            bars = plt.bar(x + offset, values, params['bar_width'], 
-                          color=color, alpha=0.88,
-                          label=label, edgecolor='black', linewidth=0.5,
-                          yerr=errors, capsize=2,
-                          error_kw={'elinewidth': 0.8, 'capthick': 0.8, 'ecolor': '#333333'})
-            # bars = plt.bar(x + offset, values, params['bar_width'], 
-            #               color=color, label=label, edgecolor='black', linewidth=0.5,
-            #               yerr=errors, capsize=3, error_kw={'elinewidth': 1, 'capthick': 1})
-        else:
-            bars = plt.bar(x + offset, values, params['bar_width'], 
-                          color=color, alpha=0.88, label=label, edgecolor='black', linewidth=0.5)
-        bars_handles.append(bars)
+        original_values_list.append(list(values))
         
-        if len(values) > 0:
-            # Account for error bars in max calculation
+        if stacked_from is not None and idx > stacked_from:
+            bottom = np.zeros(num_x_labels)
+            bars = None
+            for k in range(stacked_from, idx + 1):
+                k_vals = list(series_list[k].get('values', []))
+                if len(k_vals) != num_x_labels:
+                    k_vals = (k_vals + [0] * num_x_labels)[:num_x_labels]
+                k_vals = np.array(k_vals, dtype=float)
+                
+                if k == stacked_from:
+                    seg = k_vals.copy()
+                else:
+                    prev = list(series_list[k - 1].get('values', []))
+                    if len(prev) != num_x_labels:
+                        prev = (prev + [0] * num_x_labels)[:num_x_labels]
+                    prev = np.array(prev, dtype=float)
+                    seg = np.maximum(k_vals - prev, 0)
+                
+                seg_color = series_list[k].get('color', plot_colors[k % len(plot_colors)])
+                seg_hatch = series_list[k].get('hatch', hatch_patterns[k % len(hatch_patterns)])
+                
+                if k < idx:
+                    plt.bar(x + offset, seg, params['bar_width'],
+                           bottom=bottom, color=seg_color, alpha=0.35,
+                           edgecolor='grey', linewidth=0.3, hatch=seg_hatch)
+                else:
+                    if errors is not None:
+                        bars = plt.bar(x + offset, seg, params['bar_width'],
+                                      bottom=bottom, color=color, alpha=0.88,
+                                      label=label, edgecolor='black', linewidth=1.5,
+                                      hatch=hatch, yerr=errors, capsize=3,
+                                      error_kw={'elinewidth': 1.8, 'capthick': 1.8, 'ecolor': '#111111'})
+                    else:
+                        bars = plt.bar(x + offset, seg, params['bar_width'],
+                                      bottom=bottom, color=color, alpha=0.88,
+                                      label=label, edgecolor='black', linewidth=1.5,
+                                      hatch=hatch)
+                
+                bottom += seg
+            
+            bars_handles.append(bars)
+            stacked_flags.append(True)
+            
+            if len(values) > 0:
+                if errors is not None:
+                    series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                else:
+                    series_max_values.append(max(values))
+        else:
             if errors is not None:
-                series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                bars = plt.bar(x + offset, values, params['bar_width'], 
+                              color=color, alpha=0.88,
+                              label=label, edgecolor='black', linewidth=1.5,
+                              hatch=hatch, yerr=errors, capsize=3,
+                              error_kw={'elinewidth': 1.8, 'capthick': 1.8, 'ecolor': '#111111'})
             else:
-                series_max_values.append(max(values))
+                bars = plt.bar(x + offset, values, params['bar_width'], 
+                              color=color, alpha=0.88, label=label, edgecolor='black', linewidth=1.5,
+                              hatch=hatch)
+            bars_handles.append(bars)
+            stacked_flags.append(False)
+            
+            if len(values) > 0:
+                if errors is not None:
+                    series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                else:
+                    series_max_values.append(max(values))
     
 
    
@@ -391,9 +447,10 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         rotation = 30
         ha = 'right'
     
-    plt.xticks(x, x_labels, rotation=rotation, ha=ha, 
+    plt.xticks(x, x_labels, rotation=rotation, ha=ha,
               fontsize=params['font_size'])
-    plt.yticks(fontsize=params['font_size'])
+    ax = plt.gca()
+    ax.tick_params(axis='y', labelsize=params['font_size'])
     
     # Grid
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -404,18 +461,34 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     # plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), 
     #           ncol=params['legend_ncol'], fontsize=params['legend_fontsize'],
     #           frameon=True, shadow=True)
-    plt.legend(loc='upper center',
-              bbox_to_anchor=(0.5, 1.22),
-              ncol=min(num_series, 3),
-              fontsize=params['legend_fontsize'],
-              frameon=True,
-              framealpha=0.85,
-              edgecolor='#cccccc',
-              borderpad=0.4,
-              labelspacing=0.25,
-              handlelength=1.4,
-              handletextpad=0.4,
-              columnspacing=1.0)
+    legend_kwargs = dict(
+        loc='upper left',
+        fontsize=params['legend_fontsize'],
+        frameon=False,
+        borderpad=0.4,
+        labelspacing=0.25,
+        handlelength=1.4,
+        handletextpad=0.4,
+        columnspacing=1.0,
+    )
+    if legend_first_row_items is not None and 0 < legend_first_row_items < num_series:
+        from matplotlib.patches import Patch
+        handles, labels = plt.gca().get_legend_handles_labels()
+        n_first = legend_first_row_items
+        n_rest = num_series - n_first
+        ncol = max(n_rest, n_first)
+        spacers = ncol - n_first
+        blank = Patch(fill=False, edgecolor='none', linewidth=0)
+        new_handles = handles[:n_first] + [blank] * spacers + handles[n_first:]
+        new_labels = labels[:n_first] + [''] * spacers + labels[n_first:]
+        plt.legend(new_handles, new_labels, ncol=ncol, **legend_kwargs)
+    else:
+        plt.legend(ncol=min(num_series, 3), **legend_kwargs)
+
+    if not log_scale and series_max_values:
+        ymax_for_ticks = max(series_max_values)
+        if 100 <= ymax_for_ticks <= 1000:
+            ax.yaxis.set_major_locator(MultipleLocator(100))
 
 
     # Add value labels on bars if requested
@@ -442,19 +515,25 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
             va_align = 'bottom'
             y_offset = 0.015 * ymax
         
-        for bars in bars_handles:
-            for bar in bars:
-                height = bar.get_height()
-                if height > 0:  # Only label non-zero bars
+        for s_idx, bars in enumerate(bars_handles):
+            for b_idx, bar in enumerate(bars):
+                if stacked_flags[s_idx]:
+                    display_val = original_values_list[s_idx][b_idx]
+                    bar_top = bar.get_y() + bar.get_height()
+                else:
+                    display_val = bar.get_height()
+                    bar_top = display_val
+                
+                if display_val > 0:  # Only label non-zero bars
                     if scientific_labels:
-                        label_text = f"{height:.1e}"
+                        label_text = f"{display_val:.1e}"
                     else:
-                        label_text = f"{height:.{precision}f}"
+                        label_text = f"{display_val:.{precision}f}"
                     
                     if log_scale:
-                        y_pos = height * 1.15
+                        y_pos = bar_top * 1.15
                     else:
-                        y_pos = height + y_offset
+                        y_pos = bar_top + y_offset
 
                     plt.text(
                         bar.get_x() + bar.get_width() / 2,
@@ -931,7 +1010,7 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
                         output_dir=output_dir,
                         precision=4)
 
-def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None):
+def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None, metrics=None):
     """Plot throughput, CPU util, drop-rate for multiple setups.
 
     datasets: list of dicts with keys: 'setup_name' (str), 'data' (list[ndarray]), 'color' (str)
@@ -939,53 +1018,59 @@ def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None):
     if datasets is None or len(datasets) == 0:
         return
 
+    if metrics is None:
+        metrics = ('tput', 'cpu', 'drop')
+
     # Throughput
-    series_list = []
-    for ds in datasets:
-        series_list.append({
-            'label': ds['setup_name'],
-            'values': [ r['net_tput_mean'] for r in ds['data'] ],
-            'errors': [ r['net_tput_stddev'] for r in ds['data'] ],
-            'color': ds.get('color')
-        })
-    plot_bars_dynamic(series_list, x_labels,
-                    title=title_key + '-tput',
-                    xlabel=xlabel,
-                    ylabel="Throughput (Gbps)",
-                    output_dir=output_dir,
-                    precision=1)
+    if 'tput' in metrics:
+        series_list = []
+        for ds in datasets:
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': [ r['net_tput_mean'] for r in ds['data'] ],
+                'errors': [ r['net_tput_stddev'] for r in ds['data'] ],
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=title_key + '-tput',
+                        xlabel=xlabel,
+                        ylabel="Throughput (Gbps)",
+                        output_dir=output_dir,
+                        precision=1)
 
     # CPU Utilization
-    series_list = []
-    for ds in datasets:
-        series_list.append({
-            'label': ds['setup_name'],
-            'values': [ r['cpu_utils_mean'] for r in ds['data'] ],
-            'errors': [ r['cpu_utils_stddev'] for r in ds['data'] ],
-            'color': ds.get('color')
-        })
-    plot_bars_dynamic(series_list, x_labels,
-                    title=title_key + '-cpu-util',
-                    xlabel=xlabel,
-                    ylabel="% CPU Utilization",
-                    output_dir=output_dir,
-                    precision=1)
+    if 'cpu' in metrics:
+        series_list = []
+        for ds in datasets:
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': [ r['cpu_utils_mean'] for r in ds['data'] ],
+                'errors': [ r['cpu_utils_stddev'] for r in ds['data'] ],
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=title_key + '-cpu-util',
+                        xlabel=xlabel,
+                        ylabel="% CPU Utilization",
+                        output_dir=output_dir,
+                        precision=1)
 
     # Drop rate
-    series_list = []
-    for ds in datasets:
-        series_list.append({
-            'label': ds['setup_name'],
-            'values': [ r['retx_rate_mean'] for r in ds['data'] ],
-            'errors': [ r['retx_rate_stddev'] for r in ds['data'] ],
-            'color': ds.get('color')
-        })
-    plot_bars_dynamic(series_list, x_labels,
-                    title=title_key + '-drop-rate',
-                    xlabel=xlabel,
-                    ylabel="Drop rate",
-                    output_dir=output_dir,
-                    precision=3)
+    if 'drop' in metrics:
+        series_list = []
+        for ds in datasets:
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': [ r['retx_rate_mean'] for r in ds['data'] ],
+                'errors': [ r['retx_rate_stddev'] for r in ds['data'] ],
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=title_key + '-drop-rate',
+                        xlabel=xlabel,
+                        ylabel="Drop rate",
+                        output_dir=output_dir,
+                        precision=3)
 
 def plot_flows_exp():
     
@@ -1034,9 +1119,13 @@ def plot_flows_exp():
     
     # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
     # host_strict_guest_nested_siyuan_one_core_invalid, extra_hooks_siyuan_one_core_invalid_ebpf = get_data(x_labels, siyuan_exp_one_core_invalid)
-    host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(x_labels, nested_exps)
+    host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(
+        x_labels, nested_exps, collect_ebpf=False
+    )
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(
+        x_labels, off_exps, collect_ebpf=False
+    )
     host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
 
     # datasets = [
@@ -1049,7 +1138,7 @@ def plot_flows_exp():
 
     datasets = [
         { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
-        { 'setup_name': 'Host Strict; Guest Shadow', 'data': host_strict_guest_shadow_data, 'ebpf': host_strict_guest_shadow_ebpf_data, 'color': '#CC79A7' },
+        { 'setup_name': 'Host Strict; Guest Shadow', 'data': host_strict_guest_shadow_data, 'ebpf': host_strict_guest_shadow_ebpf_data, 'color': color_shadow },
         { 'setup_name': 'Host Strict; Guest Nested', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': '#009E73' },
         # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
         # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Combining', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
@@ -1097,28 +1186,36 @@ def siyuan_flows_exp_motivation():
     x_labels = [f"{i:02d}" for i in target_values]
     print(x_labels)
 
-
     off_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-02-10-38-6.12.9-iommufd-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-02-29-45-6.12.9-iommufd-RX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
     ]
 
+    # off_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-02-10-38-6.12.9-iommufd-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
+
+    # nested_exps = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-24-15-08-11-6.12.9-iommufd-RX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
+    
     nested_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-24-15-08-11-6.12.9-iommufd-RX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-04-43-12-6.12.9-iommufd-RX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
     ]
+
     # nested_exps = [
     #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-04-24-41-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1"  for i in target_values
     # ]
 
-    # shadow_exps = [
-    #     f"../utils/reports/2025-11-16-16-40-49-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-shadow-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
-    # ]
+    shadow_exps = [
+        f"../utils/reports/2025-11-16-16-40-49-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-shadow-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    ]
     
     # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
     # host_strict_guest_nested_siyuan_one_core_invalid, extra_hooks_siyuan_one_core_invalid_ebpf = get_data(x_labels, siyuan_exp_one_core_invalid)
     host_strict_guest_nested_exta_hooks_data, extra_hooks_ebpf = get_data(x_labels, nested_exps)
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
     host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
+    host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
 
     # datasets = [
     #     { 'setup_name': 'Host Strict; Guest Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
@@ -1129,18 +1226,19 @@ def siyuan_flows_exp_motivation():
     # ]
 
     datasets = [
-        { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
-        # { 'setup_name': 'Host Strict; Guest Shadow', 'data': host_strict_guest_shadow_data, 'ebpf': host_strict_guest_shadow_ebpf_data, 'color': '#CC79A7' },
-        { 'setup_name': 'vIOMMU on (nested)', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': '#009E73' },
-        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': '#FF6600' },
-        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Combining', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': '#F0E442' },
+        { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
+        # { 'setup_name': 'Host Strict; Guest Shadow', 'data': host_strict_guest_shadow_data, 'ebpf': host_strict_guest_shadow_ebpf_data, 'color': color_shadow },
+        { 'setup_name': 'vIOMMU On', 'data': host_strict_guest_nested_exta_hooks_data, 'ebpf': extra_hooks_ebpf, 'color': color_nested },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
+        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention + Combining', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
     ]
 
     plot_all_subplots(datasets=datasets,
                       x_labels=x_labels,
                       title_key='motivation_Rx',
                       xlabel="Number of Cores (1 flow/core)",
-                      output_dir="Motivation_Rx")
+                      output_dir="Motivation_Rx",
+                      metrics=('tput',))
     plot_ebpf_selected_functions(datasets=datasets,
                                  x_labels=x_labels,
                                  selected_functions={
@@ -1157,31 +1255,36 @@ def plot_motivation_Tx():
     tx_target_values = [4, 8, 12, 16, 20, 24]
     x_labels = [f"{i:02d}" for i in [1, 4, 8, 12, 16, 20, 24]]
     tx_off_exps =[
-        "/home/schai/viommu_siyuan/utils/reports/2026-03-28-17-40-35-6.12.9-iommufd-TX-flow01-host-strict-guest-off-off-1cores-ringbuf512-sockbuf1"] + [
+        "/home/schai/viommu_siyuan/utils/reports/2026-03-29-19-45-07-6.12.9-iommufd-TX-flow01-host-strict-guest-off-off-1cores-ringbuf512-sockbuf1"] + [
         f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-01-16-54-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in tx_target_values
     ]
 
     tx_nested_exps = [
-        "/home/schai/viommu_siyuan/utils/reports/2026-03-28-17-52-21-6.12.9-iommufd-TX-flow01-host-strict-guest-strict-nested-1cores-ringbuf512-sockbuf1",
+        "/home/schai/viommu_siyuan/utils/reports/2026-03-29-20-04-18-6.12.9-iommufd-TX-flow01-host-strict-guest-strict-nested-1cores-ringbuf512-sockbuf1",
     ] + [
         f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-03-13-17-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in tx_target_values
     ]
 
-    tx_host_strict_guest_nested_exta_hooks_data, tx_extra_hooks_ebpf = get_data(x_labels, tx_nested_exps)
+    tx_host_strict_guest_nested_exta_hooks_data, tx_extra_hooks_ebpf = get_data(
+        x_labels, tx_nested_exps, collect_ebpf=False
+    )
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
-    tx_host_strict_guest_off_data, tx_host_strict_guest_off_ebpf_data = get_data(x_labels, tx_off_exps)
+    tx_host_strict_guest_off_data, tx_host_strict_guest_off_ebpf_data = get_data(
+        x_labels, tx_off_exps, collect_ebpf=False
+    )
 
 
     datasets = [
-        { 'setup_name': 'vIOMMU Off', 'data': tx_host_strict_guest_off_data, 'ebpf': tx_host_strict_guest_off_ebpf_data, 'color': '#0072B2' },
-        { 'setup_name': 'vIOMMU on (nested)', 'data': tx_host_strict_guest_nested_exta_hooks_data, 'ebpf': tx_extra_hooks_ebpf, 'color': '#009E73' },
+        { 'setup_name': 'vIOMMU Off', 'data': tx_host_strict_guest_off_data, 'ebpf': tx_host_strict_guest_off_ebpf_data, 'color': color_off },
+        { 'setup_name': 'vIOMMU On', 'data': tx_host_strict_guest_nested_exta_hooks_data, 'ebpf': tx_extra_hooks_ebpf, 'color': color_nested },
     ]
 
     plot_all_subplots(datasets=datasets,
                       x_labels=x_labels,
                       title_key='motivation_Tx_varying_cores',
                       xlabel="Number of Cores (1 flow/core)",
-                      output_dir="Motivation_Tx")
+                      output_dir="Motivation_Tx",
+                      metrics=('tput',))
 
     # plot_ebpf_selected_functions(datasets=datasets,
     #                              x_labels=x_labels,
@@ -2194,3 +2297,4 @@ if __name__ == "__main__":
     # siyuan_Evaluation_sensitivity()
     # plot_tx_ebpf_exp()  # Uncomment when ready to use
     siyuan_flows_exp_motivation()
+    # plot_motivation_Tx()
