@@ -39,6 +39,7 @@ if not vm_dirs:
 # Collect per-VM results
 all_tputs = []
 all_cpus = []
+all_client_cpus = []
 
 print(f"======= Multi-VM Results: {base_exp_name} =======")
 print(f"VMs found: {len(vm_dirs)}")
@@ -56,26 +57,33 @@ for vm_dir in vm_dirs:
 
     tput = float(results['net_tput_mean'])
     cpu = float(results['cpu_utils_mean'])
+    # client_cpu_utils_mean is a newer column; fall back to 0 for older runs
+    client_cpu = float(results['client_cpu_utils_mean']) if 'client_cpu_utils_mean' in results.dtype.names else 0.0
     all_tputs.append(tput)
     all_cpus.append(cpu)
+    all_client_cpus.append(client_cpu)
 
     print(f"--- {vm_dir} ---")
     if "tput" in metrics or "all" in metrics:
-        print(f"  Throughput: {tput:.4f} Gbps")
+        print(f"  Throughput:      {tput:.4f} Gbps")
     if "cpu" in metrics or "all" in metrics:
-        print(f"  CPU Util:   {cpu:.4f} %")
+        print(f"  CPU Util:        {cpu:.4f} %")
+        print(f"  Client CPU Util: {client_cpu:.4f} %")
     print()
 
 # Aggregate summary
 if all_tputs:
     print(f"======= Aggregate ({len(all_tputs)} VMs) =======")
     if "tput" in metrics or "all" in metrics:
-        print(f"  Total Throughput:   {sum(all_tputs):.4f} Gbps")
-        print(f"  Mean Throughput:    {np.mean(all_tputs):.4f} Gbps")
+        print(f"  Total Throughput:       {sum(all_tputs):.4f} Gbps")
+        print(f"  Mean Throughput:        {np.mean(all_tputs):.4f} Gbps")
         if len(all_tputs) > 1:
-            print(f"  Stddev Throughput:  {np.std(all_tputs, ddof=1):.4f} Gbps")
+            print(f"  Stddev Throughput:      {np.std(all_tputs, ddof=1):.4f} Gbps")
     if "cpu" in metrics or "all" in metrics:
-        print(f"  Mean CPU Util:      {np.mean(all_cpus):.4f} %")
+        print(f"  Mean CPU Util:          {np.mean(all_cpus):.4f} %")
         if len(all_cpus) > 1:
-            print(f"  Stddev CPU Util:    {np.std(all_cpus, ddof=1):.4f} %")
+            print(f"  Stddev CPU Util:        {np.std(all_cpus, ddof=1):.4f} %")
+        print(f"  Mean Client CPU Util:   {np.mean(all_client_cpus):.4f} %")
+        if len(all_client_cpus) > 1:
+            print(f"  Stddev Client CPU Util: {np.std(all_client_cpus, ddof=1):.4f} %")
     print()
