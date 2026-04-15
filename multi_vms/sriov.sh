@@ -49,6 +49,15 @@ for i in $(seq 0 $((NUM_VFS - 1))); do
     echo "vfio-pci" > "/sys/bus/pci/devices/$vf_bdf/driver_override"
     echo "$vf_bdf" > /sys/bus/pci/drivers_probe
     echo "" > "/sys/bus/pci/devices/$vf_bdf/driver_override"
+
+    # Verify vfio-pci actually bound (drivers_probe succeeds even when probe callback fails)
+    actual_drv=$(basename "$(readlink -f "/sys/bus/pci/devices/$vf_bdf/driver")" 2>/dev/null || echo "none")
+    if [[ "$actual_drv" != "vfio-pci" ]]; then
+        log_error "VF $((i+1)) ($vf_bdf): vfio-pci bind FAILED (driver=$actual_drv)."
+        log_error "Check that host IOMMU is enabled (intel_iommu=on,sm_on) and the device has an IOMMU group."
+        exit 1
+    fi
+
     grp=$(basename "$(readlink -f "/sys/bus/pci/devices/$vf_bdf/iommu_group")")
     echo "VF $((i+1)): $vf_bdf  iommu_group=$grp"
 done

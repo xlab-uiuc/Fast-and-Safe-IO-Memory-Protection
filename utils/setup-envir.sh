@@ -115,6 +115,17 @@ if [ "$TCP_OPTIMIZATION_ENABLED" -eq 1 ]; then
     log_info "Enabling TCP optimizations (TSO, GRO, aRFS)..."
     sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE
     cd -
+
+    # Maximize NIC combined channel (queue) count so RX can use all available CPUs.
+    # SR-IOV VFs often default to far fewer queues than the guest has vCPUs,
+    # which caps RX parallelism regardless of core count.
+    max_channels=$(ethtool -l $INTF 2>/dev/null | grep -m1 'Combined:' | awk '{print $2}')
+    num_cpus=$(nproc)
+    if [ -n "$max_channels" ] && [ "$max_channels" -gt 0 ]; then
+        target_channels=$(( num_cpus < max_channels ? num_cpus : max_channels ))
+        log_info "Setting NIC combined channels to $target_channels (cpus=$num_cpus, nic_max=$max_channels)"
+        sudo ethtool -L $INTF combined $target_channels
+    fi
 fi
 
 #Enable/disable DDIO
@@ -173,6 +184,7 @@ else
 fi
 
 # Enable aRFS
+echo "Enabling aRFS..."
 ethtool -K $intf ntuple on 
 if [ $? -gt 0 ]; then 
     echo "ERROR to enble ntuple" 
