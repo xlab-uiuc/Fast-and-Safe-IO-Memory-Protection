@@ -20,6 +20,7 @@ retx_rates = []
 sent_packets = []
 mem_bws = []
 cpu_utils = []
+client_cpu_utils = []
 mlc_tputs = []
 
 pcie_wr_tput = []
@@ -101,6 +102,21 @@ for i in range(NUM_RUNS):
                     cpu_utils.append(cpu_util)
                 break
 
+    client_cpu_util_file = FILE_NAME + '-RUN-' + str(i) + '/client-cpu_util.rpt'
+    if os.path.exists(client_cpu_util_file):
+        with open(client_cpu_util_file) as f1:
+            for line in f1:
+                line_str = line.split()
+                if (line_str[0] != 'avg_cpu_util:'):
+                    continue
+                else:
+                    client_cpu_util = float(line_str[-1])
+                    if (client_cpu_util >= 0):
+                        client_cpu_utils.append(client_cpu_util)
+                    break
+    else:
+        print(f"[WARN] Client cpu_util file not found: {client_cpu_util_file}")
+
 
 def mean_or_zero(arr): return statistics.mean(arr) if arr else 0
 def stdev_or_zero(arr): return statistics.stdev(arr) if len(arr) > 1 else 0
@@ -108,6 +124,7 @@ def max_or_zero(arr): return max(arr) if len(arr) > 1 else 0
 
 
 cpu_utils_mean = mean_or_zero(cpu_utils);               cpu_utils_stddev = stdev_or_zero(cpu_utils)
+client_cpu_utils_mean = mean_or_zero(client_cpu_utils); client_cpu_utils_stddev = stdev_or_zero(client_cpu_utils)
 net_tput_mean = mean_or_zero(net_tputs);                net_tput_stddev = stdev_or_zero(net_tputs)
 # retx_rate_mean = mean_or_zero(retx_rates);              retx_rate_stddev = stdev_or_zero(retx_rates)
 # sent_packets_mean = mean_or_zero(sent_packets);         sent_packets_stddev = stdev_or_zero(sent_packets)
@@ -135,6 +152,7 @@ net_tput_mean = mean_or_zero(net_tputs);                net_tput_stddev = stdev_
 
 output_list = [
     ("cpu_utils_mean", cpu_utils_mean), ("cpu_utils_stddev", cpu_utils_stddev),
+    ("client_cpu_utils_mean", client_cpu_utils_mean), ("client_cpu_utils_stddev", client_cpu_utils_stddev),
     ("net_tput_mean", net_tput_mean), ("net_tput_stddev", net_tput_stddev),
     # ("retx_rate_mean", retx_rate_mean), ("retx_rate_stddev", retx_rate_stddev),
     # ("mem_bw_mean", mem_bw_mean), ("mem_bw_stddev", mem_bw_stddev),
