@@ -115,11 +115,11 @@ if [ "$TCP_OPTIMIZATION_ENABLED" -eq 1 ]; then
     # We need to include a new repo that has some configuration script.
     # It will live in the home directory and will be cloned, if not already present
 
-    git clone https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021 ~/Understanding-network-stack-overheads-SIGCOMM-2021 || true
+    git clone https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021 $DEPS_DIR/Understanding-network-stack-overheads-SIGCOMM-2021 || true
 
-    cd ~/Understanding-network-stack-overheads-SIGCOMM-2021
+    cd $DEPS_DIR/Understanding-network-stack-overheads-SIGCOMM-2021
     log_info "Enabling TCP optimizations (TSO, GRO, aRFS)..."
-    sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE
+    sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE --verbose
     cd -
 
     # Maximize NIC combined channel (queue) count so RX can use all available CPUs.
