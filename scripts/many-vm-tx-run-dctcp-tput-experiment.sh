@@ -447,7 +447,7 @@ log_info "Starting GUEST server application; logs at $guest_server_app_log_file"
 cd "$GUEST_EXP_DIR" || { log_error "Failed to cd to $GUEST_EXP_DIR"; exit 1; }
 sudo bash run-tx-netapp-tput.sh --mode client --server-ip "$CLIENT_IP" -n "$GUEST_NUM_SERVERS" -N "$CLIENT_NUM_CLIENTS" -o "${EXP_NAME}-RUN-${j}" \
   -p "$INIT_PORT" -c "$GUEST_CPU_MASK" --b "$CLIENT_BANDWIDTH" &> "$guest_server_app_log_file" & 
-sleep 2 # Allow server app to initialize
+sleep 60 # Allow server app to initialize
 cd - > /dev/null
 
 log_info "Warming up experiment (120 seconds)..."
