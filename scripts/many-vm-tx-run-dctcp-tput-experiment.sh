@@ -434,7 +434,7 @@ log_info "Waiting for remote servers to start listening on port $INIT_PORT..."
 for i in {1..30}; do
   if $SSH_CLIENT_CMD "ss -tln | grep -q :$INIT_PORT || netstat -tln | grep -q :$INIT_PORT" 2>/dev/null; then
     log_info "Remote servers are up and listening!"
-    sleep 2 # Small buffer to ensure all subsequent ports (if NUM_SERVERS > 1) are also bound
+    sleep 60 # Small buffer to ensure all subsequent ports (if NUM_SERVERS > 1) are also bound
     break
   fi
     sleep 1
