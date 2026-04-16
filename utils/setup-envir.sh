@@ -109,6 +109,19 @@ if [ "$ECN_ENABLED" = 1 ]; then
     echo 1 > /proc/sys/net/ipv4/tcp_ecn
 fi
 
+# Enable aRFS
+log_info "Enabling aRFS..."
+sudo ethtool -K $INTF ntuple on 
+if [ $? -gt 0 ]; then 
+    log_error "Failed to enable ntuple"
+    exit 1 
+fi 
+echo 32768 > sudo /proc/sys/net/core/rps_sock_flow_entries 
+for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do 
+    echo 32768 > sudo $f; 
+done 
+sudo /usr/sbin/set_irq_affinity.sh $INTF
+
 #Enable aRFS, TSO, GRO for the interface
 if [ "$TCP_OPTIMIZATION_ENABLED" -eq 1 ]; then
 
@@ -188,17 +201,4 @@ else
       sudo lldptool -T -i $INTF -V PFC willing=no enabled=
     fi
 fi
-
-# Enable aRFS
-log_info "Enabling aRFS..."
-ethtool -K $intf ntuple on 
-if [ $? -gt 0 ]; then 
-    log_error "Failed to enable ntuple"
-    exit 1 
-fi 
-echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 
-for f in /sys/class/net/$intf/queues/rx-*/rps_flow_cnt; do 
-    echo 32768 > $f; 
-done 
-/usr/sbin/set_irq_affinity.sh $intf
 
