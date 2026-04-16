@@ -115,6 +115,7 @@ tput = results['net_tput_mean']
 sent_packets = results['sent_packets_mean'] / 20
 drop_rate = results['retx_rate_mean']
 cpu = results['cpu_utils_mean']
+client_cpu = results['client_cpu_utils_mean']
 pwt = results['pwt_occupancy_mean']
 
 acks_page = per_page(sent_packets, tput)
@@ -130,6 +131,7 @@ if "tput" in metrics or "all" in metrics:
     print(f"Throughput: {tput}")
 if "cpu" in metrics or "all" in metrics:
     print(f"CPU Util: {cpu}")
+    print(f"Client CPU Util: {client_cpu}")
 if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {drop_rate}")
 if "acks" in metrics or "all" in metrics:
@@ -162,6 +164,7 @@ if "tput" in metrics or "all" in metrics:
     print(f"Throughput: {results['net_tput_stddev']}")
 if "cpu" in metrics or "all" in metrics:
     print(f"CPU Util: {results['cpu_utils_stddev']}")
+    print(f"Client CPU Util: {results['client_cpu_utils_stddev']}")
 if "drops" in metrics or "all" in metrics:
     print(f"Drop rate: {results['retx_rate_stddev']}")
 if "acks" in metrics or "all" in metrics:

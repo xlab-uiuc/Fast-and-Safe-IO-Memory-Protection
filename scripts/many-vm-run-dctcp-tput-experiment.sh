@@ -583,12 +583,18 @@ if [ "$CLIENT_USE_PASS_AUTH" -eq 1 ]; then
 		scp "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
 		"${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
 	sshpass -p "$CLIENT_SSH_PASSWORD" \
+		scp "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/cpu_util.rpt" \
+		"${current_guest_reports_dir}/client-cpu_util.rpt" || log_error "Failed to SCP client cpu_util.rpt"
+	sshpass -p "$CLIENT_SSH_PASSWORD" \
 		scp "${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_app_log_file_remote}" \
 		"$client_app_log_file" || log_error "Failed to SCP client_app.log"
 else
 	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 		"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/retx.rpt" \
 		"${current_guest_reports_dir}/client-retx.rpt" || log_error "Failed to SCP client retx.rpt"
+	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
+		"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_reports_dir_remote}/cpu_util.rpt" \
+		"${current_guest_reports_dir}/client-cpu_util.rpt" || log_error "Failed to SCP client cpu_util.rpt"
 	scp -i "$CLIENT_SSH_IDENTITY_FILE" \
 		"${CLIENT_SSH_UNAME}@${CLIENT_SSH_HOST}:${client_app_log_file_remote}" \
 		"$client_app_log_file" || log_error "Failed to SCP client_app.log"
