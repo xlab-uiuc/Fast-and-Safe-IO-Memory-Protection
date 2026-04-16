@@ -1,6 +1,5 @@
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
 import glob
 import os
@@ -18,13 +17,6 @@ color_nested = default_colors[1]
 color_shadow = default_colors[2]    
 color_optimization = default_colors[3]
 
-# Temporary output filter: keep only the plots we currently care about.
-ENABLED_SUMMARY_PLOTS = {"tput"}
-ENABLED_EBPF_PLOTS = {
-    ("qi_submit_sync", "count_per_page"),
-    ("cache_tag_flush_range", "mean_ns"),
-}
-
 def calculate_plot_params(num_x_labels, num_series, max_width=None):
     """
     Dynamically calculate plot parameters based on data dimensions.
@@ -38,10 +30,19 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
         dict with keys: 'figsize', 'font_size', 'bar_width', 'gap_factor', 
                        'legend_fontsize', 'label_fontsize', 'show_value_labels'
     """
-    # Base values — align with the ablation plot sizing/style.
-    base_width = 7.0
-    base_height = 3.2
-    base_gap = 1.8
+    # # Base values for minimal case (2-3 labels, 2 series)
+    # base_width = 10
+    # base_height = 6
+    # base_font = 10
+    # base_bar_width = 0.38
+    # base_gap = 1.5
+
+    # Base values — ACM two-column text width is 7", keep height compact for papers
+    base_width = 7.0   # full ACM text width
+    base_height = 3.2  # compact height; tall figures waste column space
+    base_font = 14   # 8pt matches ACM 9pt body text when figure is scaled
+    base_bar_width = 0.38
+    base_gap = 1.5
     
     # Calculate width scaling (more x-labels need more width)
     # Use moderate scaling for readability
@@ -71,7 +72,7 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
     if num_series > 5:
         font_scale *= 0.95
     
-    font_size = 16
+    font_size = 17
     
     # Bar width calculation
     # More series means narrower bars
@@ -92,12 +93,14 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
         gap_factor = 2.0  # More spacing for few categories
     
     # Legend and label font sizes
-    legend_fontsize = 16
-    label_fontsize = 18
+    legend_fontsize = 15
+    label_fontsize = 17
     
-    # Always show value labels, but adjust size
     show_value_labels = False
 
+    font_size = font_size - 2
+    
+    print('font_size: ', font_size)
     return {
         'figsize': figsize,
         'font_size': font_size,
@@ -105,7 +108,7 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
         'gap_factor': gap_factor,
         'legend_fontsize': legend_fontsize,
         'label_fontsize': label_fontsize,
-        'legend_ncol': min(3, max(2, num_series // 2)),
+        'legend_ncol': min(3, max(2, num_series // 2)),  # Dynamic legend columns
         'show_value_labels': show_value_labels
     }
 
@@ -275,7 +278,9 @@ def calculate_plot_params(num_x_labels, num_series, max_width=None):
 
 def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel, 
                      output_dir=None, precision=1, show_value_labels=None,
-                     log_scale=False, scientific_labels=False, max_width=None):
+                     log_scale=False, scientific_labels=False, max_width=None,
+                     stacked_from=None, legend_first_row_items=None,
+                     annotate_pct_change=False):
     """
     Plot N-series grouped bar chart with dynamically adjusted layout.
     
@@ -292,6 +297,10 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         log_scale: if True, use log scale for y-axis
         scientific_labels: if True, format value labels in scientific notation
         max_width: optional maximum width for the figure
+        legend_first_row_items: if set, put this many items on the first legend row,
+                               remaining items on subsequent rows
+        annotate_pct_change: if True, annotate each bar after the first series
+                            with percent change relative to the previous bar
     """
     if series_list is None or len(series_list) == 0 or x_labels is None:
         return
@@ -329,11 +338,12 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     
     # Default color palette if not specified
     plot_colors = default_colors
-    hatch_patterns = ['', '..', '//', 'oo', '\\\\', '++', '--', '**', 'xx']
+    hatch_patterns = ['', '..', 'xx', '//', '\\\\', 'oo', '++', '--']
     
     bars_handles = []
     series_max_values = []
-    bar_line_width = 0.8
+    stacked_flags = []
+    original_values_list = []
     
     for idx, series in enumerate(series_list):
         offset = (idx - (num_series - 1) / 2) * params['bar_width']
@@ -341,35 +351,83 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
         hatch = series.get('hatch', hatch_patterns[idx % len(hatch_patterns)])
         label = series.get('label', f"Series {idx+1}")
         values = series.get('values', [])
-        errors = series.get('errors', None)  # Get error bar data if provided
+        errors = series.get('errors', None)
         
-        # Ensure values match x_labels length
         if len(values) != num_x_labels:
             values = (values + [0] * num_x_labels)[:num_x_labels]
         
-        # Ensure errors match if provided
         if errors is not None and len(errors) != num_x_labels:
             errors = (errors + [0] * num_x_labels)[:num_x_labels]
         
-        # Create bars with error bars if errors are provided
-        if errors is not None:
-            bars = plt.bar(x + offset, values, params['bar_width'], 
-                          color=color, alpha=0.88,
-                          label=label, edgecolor='black', linewidth=bar_line_width, hatch=hatch,
-                          yerr=errors, capsize=3,
-                          error_kw={'elinewidth': 1.0, 'capthick': 1.0, 'ecolor': '#111111'})
-        else:
-            bars = plt.bar(x + offset, values, params['bar_width'], 
-                          color=color, alpha=0.88, label=label, edgecolor='black', linewidth=bar_line_width,
-                          hatch=hatch)
-        bars_handles.append(bars)
+        original_values_list.append(list(values))
         
-        if len(values) > 0:
-            # Account for error bars in max calculation
+        if stacked_from is not None and idx > stacked_from:
+            bottom = np.zeros(num_x_labels)
+            bars = None
+            for k in range(stacked_from, idx + 1):
+                k_vals = list(series_list[k].get('values', []))
+                if len(k_vals) != num_x_labels:
+                    k_vals = (k_vals + [0] * num_x_labels)[:num_x_labels]
+                k_vals = np.array(k_vals, dtype=float)
+                
+                if k == stacked_from:
+                    seg = k_vals.copy()
+                else:
+                    prev = list(series_list[k-1].get('values', []))
+                    if len(prev) != num_x_labels:
+                        prev = (prev + [0] * num_x_labels)[:num_x_labels]
+                    prev = np.array(prev, dtype=float)
+                    seg = np.maximum(k_vals - prev, 0)
+                
+                seg_color = series_list[k].get('color', plot_colors[k % len(plot_colors)])
+                seg_hatch = series_list[k].get('hatch', hatch_patterns[k % len(hatch_patterns)])
+                
+                if k < idx:
+                    plt.bar(x + offset, seg, params['bar_width'],
+                           bottom=bottom, color=seg_color, alpha=0.35,
+                           edgecolor='grey', linewidth=0.3, hatch=seg_hatch)
+                else:
+                    if errors is not None:
+                        bars = plt.bar(x + offset, seg, params['bar_width'],
+                                      bottom=bottom, color=color, alpha=0.88,
+                                      label=label, edgecolor='black', linewidth=1.5,
+                                      hatch=hatch, yerr=errors, capsize=3,
+                                      error_kw={'elinewidth': 1.8, 'capthick': 1.8, 'ecolor': '#111111'})
+                    else:
+                        bars = plt.bar(x + offset, seg, params['bar_width'],
+                                      bottom=bottom, color=color, alpha=0.88,
+                                      label=label, edgecolor='black', linewidth=1.5,
+                                      hatch=hatch)
+                
+                bottom += seg
+            
+            bars_handles.append(bars)
+            stacked_flags.append(True)
+            
+            if len(values) > 0:
+                if errors is not None:
+                    series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                else:
+                    series_max_values.append(max(values))
+        else:
             if errors is not None:
-                series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                bars = plt.bar(x + offset, values, params['bar_width'], 
+                              color=color, alpha=0.88,
+                              label=label, edgecolor='black', linewidth=1.5,
+                              hatch=hatch, yerr=errors, capsize=3,
+                              error_kw={'elinewidth': 1.8, 'capthick': 1.8, 'ecolor': '#111111'})
             else:
-                series_max_values.append(max(values))
+                bars = plt.bar(x + offset, values, params['bar_width'], 
+                              color=color, alpha=0.88, label=label, edgecolor='black', linewidth=1.5,
+                              hatch=hatch)
+            bars_handles.append(bars)
+            stacked_flags.append(False)
+            
+            if len(values) > 0:
+                if errors is not None:
+                    series_max_values.append(max([v + e for v, e in zip(values, errors)]))
+                else:
+                    series_max_values.append(max(values))
     
 
    
@@ -393,36 +451,78 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
     plt.yticks(fontsize=params['font_size'])
     
     # Grid
-    ax = plt.gca()
-    ax.set_axisbelow(True)
-    ax.xaxis.grid(True, which='major', color='#b5b5b5', linestyle='--', linewidth=0.8, alpha=0.85)
-    ax.yaxis.grid(True, which='major', color='#b5b5b5', linestyle='--', linewidth=0.8, alpha=0.85)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     if log_scale:
         plt.yscale('log')
-    else:
-        ymax = max(series_max_values) if len(series_max_values) > 0 else 0
-        if ymax >= 300:
-            ax.yaxis.set_major_locator(ticker.MultipleLocator(100))
-        else:
-            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
     
     # Legend with dynamic positioning
-    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), 
-    #           ncol=params['legend_ncol'], fontsize=params['legend_fontsize'],
-    #           frameon=True, shadow=True)
-    plt.legend(loc='lower center',
-              bbox_to_anchor=(0.5, 1.03),
-              ncol=min(num_series, 3),
-              fontsize=params['legend_fontsize'],
-              frameon=True,
-              framealpha=0.85,
-              edgecolor='#cccccc',
-              borderpad=0.4,
-              labelspacing=0.25,
-              handlelength=1.4,
-              handletextpad=0.4,
-              columnspacing=1.0)
+    legend_kwargs = dict(
+        loc='lower center',
+        bbox_to_anchor=(0.5, 1.0005),
+        fontsize=params['legend_fontsize'],
+        frameon=True,
+        framealpha=0.85,
+        edgecolor='#cccccc',
+        borderpad=0.4,
+        labelspacing=0.25,
+        handlelength=1.4,
+        handletextpad=0.4,
+        columnspacing=1.0,
+    )
+    if legend_first_row_items is not None and 0 < legend_first_row_items < num_series:
+        from matplotlib.patches import Patch
+        handles, labels = plt.gca().get_legend_handles_labels()
+        n_first = legend_first_row_items
+        n_rest = num_series - n_first
+        ncol = max(n_rest, n_first)
+        spacers = ncol - n_first
+        blank = Patch(fill=False, edgecolor='none', linewidth=0)
+        new_handles = handles[:n_first] + [blank] * spacers + handles[n_first:]
+        new_labels = labels[:n_first] + [''] * spacers + labels[n_first:]
+        plt.legend(new_handles, new_labels, ncol=ncol, **legend_kwargs)
+    else:
+        plt.legend(ncol=min(num_series, 3), **legend_kwargs)
 
+
+    if annotate_pct_change and not any(stacked_flags):
+        ymax = max(series_max_values) if len(series_max_values) > 0 else 1
+        ymax = max(ymax, 1e-6)
+        if not log_scale:
+            current_ylim = plt.ylim()
+            plt.ylim(current_ylim[0], max(current_ylim[1], ymax * 1.15))
+
+        pct_font = max(params['font_size'] - 2, 9)
+        if log_scale:
+            pct_offset_mult = 1.08
+        else:
+            pct_y_offset = 0.012 * ymax
+
+        for s_idx in range(1, len(bars_handles)):
+            if stacked_flags[s_idx]:
+                continue
+            prev_values = original_values_list[s_idx - 1]
+            curr_values = original_values_list[s_idx]
+            for b_idx, bar in enumerate(bars_handles[s_idx]):
+                prev_val = prev_values[b_idx]
+                curr_val = curr_values[b_idx]
+                if prev_val == 0 or curr_val <= 0:
+                    continue
+
+                pct_change = ((curr_val - prev_val) / prev_val) * 100.0
+                label_text = f"{pct_change:+.1f}%"
+                if log_scale:
+                    y_pos = curr_val * pct_offset_mult
+                else:
+                    y_pos = curr_val + pct_y_offset
+
+                plt.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    y_pos,
+                    label_text,
+                    ha='center',
+                    va='bottom',
+                    fontsize=pct_font,
+                )
 
     # Add value labels on bars if requested
     if show_value_labels:
@@ -448,19 +548,25 @@ def plot_bars_dynamic(series_list, x_labels, title, xlabel, ylabel,
             va_align = 'bottom'
             y_offset = 0.015 * ymax
         
-        for bars in bars_handles:
-            for bar in bars:
-                height = bar.get_height()
-                if height > 0:  # Only label non-zero bars
+        for s_idx, bars in enumerate(bars_handles):
+            for b_idx, bar in enumerate(bars):
+                if stacked_flags[s_idx]:
+                    display_val = original_values_list[s_idx][b_idx]
+                    bar_top = bar.get_y() + bar.get_height()
+                else:
+                    display_val = bar.get_height()
+                    bar_top = display_val
+                
+                if display_val > 0:
                     if scientific_labels:
-                        label_text = f"{height:.1e}"
+                        label_text = f"{display_val:.1e}"
                     else:
-                        label_text = f"{height:.{precision}f}"
+                        label_text = f"{display_val:.{precision}f}"
                     
                     if log_scale:
-                        y_pos = height * 1.15
+                        y_pos = bar_top * 1.15
                     else:
-                        y_pos = height + y_offset
+                        y_pos = bar_top + y_offset
 
                     plt.text(
                         bar.get_x() + bar.get_width() / 2,
@@ -864,82 +970,78 @@ def plot_ebpf_selected_functions(datasets, x_labels, selected_functions, title_k
 
     for functionality_name, function_names in selected_functions.items():
         # Count
-        if (functionality_name, "count") in ENABLED_EBPF_PLOTS:
-            series_list = []
-            for ds in datasets:
-                values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count')
-                series_list.append({
-                    'label': ds['setup_name'],
-                    'values': values,
-                    'errors': errors,
-                    'color': ds.get('color')
-                })
-            plot_bars_dynamic(series_list, x_labels,
-                            title=f"{title_key}-{sanitize(functionality_name)}-count",
-                            xlabel=xlabel,
-                            ylabel="Count",
-                            output_dir=output_dir,
-                            precision=1)
+        series_list = []
+        for ds in datasets:
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count')
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': values,
+                'errors': errors,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-count",
+                        xlabel=xlabel,
+                        ylabel="Count",
+                        output_dir=output_dir,
+                        precision=1)
 
         # Mean (ns)
-        if (functionality_name, "mean_ns") in ENABLED_EBPF_PLOTS:
-            series_list = []
-            for ds in datasets:
-                values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'mean_ns')
-                series_list.append({
-                    'label': ds['setup_name'],
-                    'values': values,
-                    'errors': errors,
-                    'color': ds.get('color')
-                })
-            plot_bars_dynamic(series_list, x_labels,
-                            title=f"{title_key}-{sanitize(functionality_name)}-mean_ns",
-                            xlabel=xlabel,
-                            ylabel="Mean (ns)",
-                            output_dir=output_dir,
-                            precision=1,
-                            log_scale=True,
-                            scientific_labels=True)
+        series_list = []
+        for ds in datasets:
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'mean_ns')
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': values,
+                'errors': errors,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-mean_ns",
+                        xlabel=xlabel,
+                        ylabel="Mean (ns)",
+                        output_dir=output_dir,
+                        precision=1,
+                        log_scale=True,
+                        scientific_labels=True)
 
         # Total time (count * mean_ns)
-        if (functionality_name, "total_time") in ENABLED_EBPF_PLOTS:
-            series_list = []
-            for ds in datasets:
-                counts = extract_metric_series(ds['ebpf'], function_names, 'count')
-                means = extract_metric_series(ds['ebpf'], function_names, 'mean_ns')
-                total_ns = [c * m for c, m in zip(counts, means)]
-                total_ms = [t / 1e6 for t in total_ns]
-                series_list.append({
-                    'label': ds['setup_name'],
-                    'values': total_ms,
-                    'color': ds.get('color')
-                })
-            plot_bars_dynamic(series_list, x_labels,
-                            title=f"{title_key}-{sanitize(functionality_name)}-total_time",
-                            xlabel=xlabel,
-                            ylabel="Total time (ms)",
-                            output_dir=output_dir,
-                            precision=1,
-                            log_scale=True,
-                            scientific_labels=True)
+        series_list = []
+        for ds in datasets:
+            counts = extract_metric_series(ds['ebpf'], function_names, 'count')
+            means = extract_metric_series(ds['ebpf'], function_names, 'mean_ns')
+            total_ns = [c * m for c, m in zip(counts, means)]
+            total_ms = [t / 1e6 for t in total_ns]
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': total_ms,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-total_time",
+                        xlabel=xlabel,
+                        ylabel="Total time (ms)",
+                        output_dir=output_dir,
+                        precision=1,
+                        log_scale=True,
+                        scientific_labels=True)
 
         # Count per page
-        if (functionality_name, "count_per_page") in ENABLED_EBPF_PLOTS:
-            series_list = []
-            for ds in datasets:
-                values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count_per_page')
-                series_list.append({
-                    'label': ds['setup_name'],
-                    'values': values,
-                    'errors': errors,
-                    'color': ds.get('color')
-                })
-            plot_bars_dynamic(series_list, x_labels,
-                            title=f"{title_key}-{sanitize(functionality_name)}-count_per_page",
-                            xlabel=xlabel,
-                            ylabel="Count per page",
-                            output_dir=output_dir,
-                            precision=4)
+        series_list = []
+        for ds in datasets:
+            values, errors = extract_metric_with_stddev(ds['ebpf'], function_names, 'count_per_page')
+            series_list.append({
+                'label': ds['setup_name'],
+                'values': values,
+                'errors': errors,
+                'color': ds.get('color')
+            })
+        plot_bars_dynamic(series_list, x_labels,
+                        title=f"{title_key}-{sanitize(functionality_name)}-count_per_page",
+                        xlabel=xlabel,
+                        ylabel="Count per page",
+                        output_dir=output_dir,
+                        precision=4)
 
 def plot_ebpf_unmap_coalesce_ratio(datasets, x_labels, title_key, xlabel="Experiments", output_dir=None,
                                    unmap_functions=None, qi_functions=None):
@@ -1009,16 +1111,24 @@ def plot_ebpf_unmap_coalesce_ratio(datasets, x_labels, title_key, xlabel="Experi
                       precision=2)
 
 
-def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None):
+def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None,
+                      stacked_from=None, legend_first_row_items=None,
+                      annotate_pct_change=False, metrics=None):
     """Plot throughput, CPU util, drop-rate for multiple setups.
 
     datasets: list of dicts with keys: 'setup_name' (str), 'data' (list[ndarray]), 'color' (str)
+    stacked_from: if set, series after this index are drawn as stacked bars
+                  showing incremental contributions from each optimization.
+    legend_first_row_items: if set, put this many items on the first legend row
     """
     if datasets is None or len(datasets) == 0:
         return
 
+    if metrics is None:
+        metrics = ('tput', 'cpu', 'drop')
+
     # Throughput
-    if "tput" in ENABLED_SUMMARY_PLOTS:
+    if 'tput' in metrics:
         series_list = []
         for ds in datasets:
             series_list.append({
@@ -1032,10 +1142,13 @@ def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None):
                         xlabel=xlabel,
                         ylabel="Throughput (Gbps)",
                         output_dir=output_dir,
-                        precision=1)
+                        precision=1,
+                        stacked_from=stacked_from,
+                        legend_first_row_items=legend_first_row_items,
+                        annotate_pct_change=annotate_pct_change)
 
     # CPU Utilization
-    if "cpu-util" in ENABLED_SUMMARY_PLOTS:
+    if 'cpu' in metrics:
         series_list = []
         for ds in datasets:
             series_list.append({
@@ -1049,24 +1162,45 @@ def plot_all_subplots(datasets, x_labels, title_key, xlabel, output_dir=None):
                         xlabel=xlabel,
                         ylabel="% CPU Utilization",
                         output_dir=output_dir,
-                        precision=1)
+                        precision=1,
+                        stacked_from=stacked_from,
+                        legend_first_row_items=legend_first_row_items,
+                        annotate_pct_change=False)
 
-    # Drop rate
-    if "drop-rate" in ENABLED_SUMMARY_PLOTS:
-        series_list = []
-        for ds in datasets:
-            series_list.append({
-                'label': ds['setup_name'],
-                'values': [ r['retx_rate_mean'] for r in ds['data'] ],
-                'errors': [ r['retx_rate_stddev'] for r in ds['data'] ],
-                'color': ds.get('color')
-            })
-        plot_bars_dynamic(series_list, x_labels,
-                        title=title_key + '-drop-rate',
-                        xlabel=xlabel,
-                        ylabel="Drop rate",
-                        output_dir=output_dir,
-                        precision=3)
+
+def write_tput_pct_change_report(datasets, x_labels, title_key, output_dir=None):
+    """Write multiplicative throughput change over the previous bar."""
+    if datasets is None or len(datasets) < 2 or x_labels is None:
+        return
+
+    lines = ["Throughput ratio relative to previous bar", ""]
+    for x_idx, x_label in enumerate(x_labels):
+        lines.append(f"Core {x_label}")
+        for ds_idx in range(1, len(datasets)):
+            prev_ds = datasets[ds_idx - 1]
+            curr_ds = datasets[ds_idx]
+            prev_val = float(prev_ds['data'][x_idx]['net_tput_mean'])
+            curr_val = float(curr_ds['data'][x_idx]['net_tput_mean'])
+            if prev_val == 0:
+                ratio_text = "N/A"
+            else:
+                ratio = curr_val / prev_val
+                ratio_text = f"{ratio:.2f}x"
+            lines.append(
+                f"{prev_ds['setup_name']} -> {curr_ds['setup_name']}: {ratio_text}"
+            )
+        lines.append("")
+
+    file_name = f"{title_key}-tput-times.txt"
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        file_path = os.path.join(output_dir, file_name)
+    else:
+        file_path = file_name
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(lines).rstrip() + "\n")
+    print(f"Saved report to {file_path}")
 
 def plot_flows_exp():
     
@@ -1370,8 +1504,12 @@ def siyuan_Evaluation_plot_flows_exp():
     # ]
 
 
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(
+        x_labels, off_exps, collect_ebpf=False
+    )
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(
+        x_labels, nested_exps, collect_ebpf=False
+    )
     
     # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
@@ -1462,15 +1600,8 @@ def plot_flows_exp_stress():
     #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-10-11-40-6.12.9-iommufd-RX-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1" for i in target_values
     # ]
     
-    # nested_exps = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-18-54-39-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1/" for i in target_values
-    # ]
-
     nested_exps = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-18-54-39-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1/" for i in target_values[:-1]
-    ] + [
-        # 
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-10-11-40-6.12.9-iommufd-RX-flow192-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1"
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-01-18-54-39-6.12.9-iommufd-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1/" for i in target_values
     ]
 
     # nested_exps = [
@@ -1504,9 +1635,7 @@ def plot_flows_exp_stress():
 
     # 2026-03-28-11-11-56-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow192-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1
     pinned_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-06-57-11-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow24-host-strict-guest-strict-nested-24cores-ringbuf512-sockbuf1"
-    ] + [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-11-11-56-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1" for i in target_values[1:]
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-11-11-56-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow{i * n_cores}-host-strict-guest-strict-nested-{n_cores}cores-ringbuf512-sockbuf1" for i in target_values
     ]
 
     
@@ -1564,7 +1693,7 @@ def plot_tx_ebpf_exp():
     
     # TODO: Update these paths with your actual experiment directories
     # target_values = [4, 8, 12, 16, 20, 24]  # Adjust as needed
-    target_values = [4, 8, 12, 16, 20, 24]
+    target_values = [4, 8, 12, 16, 20, 24, 28]
     x_labels = [f"{i:02d}" for i in target_values]
     print(x_labels)
 
@@ -1650,8 +1779,12 @@ def plot_tx_ebpf_exp():
     ]
 
     # Get data
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(
+        x_labels, off_exps, collect_ebpf=False
+    )
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(
+        x_labels, nested_exps, collect_ebpf=False
+    )
     # optimization_data, optimization_ebpf_data = get_data(x_labels, optimization_exps)
 
     # per_core_queue_data, per_core_queue_ebpf_data = get_data(x_labels, per_core_queue_exps)
@@ -1671,36 +1804,7 @@ def plot_tx_ebpf_exp():
         # { 'setup_name': '+ Per Core Queue + Batch (DLF)', 'data': dlf_data, 'ebpf': dlf_ebpf_data, 'color': default_colors[6] },
         # { 'setup_name': '+ Per Core Queue + Batch (Pinned)', 'data': batch_pinned_data, 'ebpf': batch_pinned_ebpf_data, 'color': default_colors[7] },
     ]
-
-    print("\n===== TX eBPF Throughput (Gbps) =====")
-    header = f"{'Setup':<30s}" + "".join(f"{'flow-' + lbl:>14s}" for lbl in x_labels)
-    print(header)
-    print("-" * len(header))
-    for ds in datasets:
-        row = f"{ds['setup_name']:<30s}"
-        for r in ds['data']:
-            row += f"{r['net_tput_mean']:>10.2f} +/-{r['net_tput_stddev']:.2f}"
-        print(row)
-    print("=" * len(header) + "\n")
-
-    off_ds = next((ds for ds in datasets if 'Off' in ds['setup_name']), None)
-    vfree_ds = next((ds for ds in datasets if 'vFree' in ds['setup_name']), None)
-    if off_ds and vfree_ds:
-        print("===== vFree / vIOMMU Off Throughput Ratio =====")
-        ratio_header = f"{'':>30s}" + "".join(f"{'flow-' + lbl:>14s}" for lbl in x_labels)
-        print(ratio_header)
-        print("-" * len(ratio_header))
-        row = f"{'vFree / Off ratio':<30s}"
-        pct_row = f"{'vFree % of Off':<30s}"
-        for off_r, vf_r in zip(off_ds['data'], vfree_ds['data']):
-            ratio = off_r['net_tput_mean'] / vf_r['net_tput_mean']
-            pct = vf_r['net_tput_mean'] / off_r['net_tput_mean'] * 100
-            row += f"{ratio:>14.3f}"
-            pct_row += f"{pct:>13.1f}%"
-        print(row)
-        print(pct_row)
-        print("=" * len(ratio_header) + "\n")
-
+    
     plot_all_subplots(datasets=datasets,
                       x_labels=x_labels,
                       title_key='tx-ebpf',
@@ -1719,12 +1823,6 @@ def plot_tx_ebpf_exp():
                                  title_key='tx-ebpf',
                                  xlabel="Number of flows (one flow per core)",
                                  output_dir="TX_EBPF_Evaluation")
-
-    plot_ebpf_unmap_coalesce_ratio(datasets=datasets,
-                                    x_labels=x_labels,
-                                    xlabel=f"1 flow/core",
-                                    title_key='tx-ebpf',
-                                    output_dir="TX_EBPF_Evaluation")
 
 
 # Archived data!!!!!
@@ -1929,15 +2027,31 @@ def siyuan_Evaluation_ablation_Rx():
     #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in [20,24]
     # ]
 
+    # 2026-03-31-02-19-49-6.12.9-iommufd-no-map-contention-junk-RX-flow01-host-strict-guest-strict--1cores-ringbuf512-sockbuf1
+    other_opts = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-31-02-19-49-6.12.9-iommufd-no-map-contention-junk-RX-flow{i:02d}-host-strict-guest-strict--{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
 
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(
+        x_labels, off_exps, collect_ebpf=False
+    )
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(
+        x_labels, nested_exps, collect_ebpf=False
+    )
     
     # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
 
-    pinned_no_DFP_data, pinned_no_DFP_ebpf_data = get_data(x_labels, pinned_no_DFP)
-    pinned_DFP_data, pinned_DFP_ebpf_data = get_data(x_labels, pinned_DFP)
+    other_opts_data, other_opts_ebpf_data = get_data(
+        x_labels, other_opts, collect_ebpf=False
+    )
+    pinned_no_DFP_data, pinned_no_DFP_ebpf_data = get_data(
+        x_labels, pinned_no_DFP, collect_ebpf=False
+    )
+    pinned_DFP_data, pinned_DFP_ebpf_data = get_data(
+        x_labels, pinned_DFP, collect_ebpf=False
+    )
     
     
     # z_val_1_data, z_val_1_ebpf_data = get_data(x_labels, z_val_1)
@@ -1966,11 +2080,12 @@ def siyuan_Evaluation_ablation_Rx():
 
     datasets = [
         { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
-        { 'setup_name': 'vIOMMU Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        { 'setup_name': 'vIOMMU On', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        { 'setup_name': '+ Code Opt.', 'data': other_opts_data, 'ebpf': other_opts_ebpf_data, 'color': '#F7B267' },
         # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
-        { 'setup_name': 'vIOMMU Nested + SBI', 'data': pinned_no_DFP_data, 'ebpf': pinned_no_DFP_ebpf_data, 'color': default_colors[5] },
+        { 'setup_name': '+ One-for-many', 'data': pinned_no_DFP_data, 'ebpf': pinned_no_DFP_ebpf_data, 'color': default_colors[5] },
         
-        { 'setup_name': 'vIOMMU Nested + SBI + DFP', 'data': pinned_DFP_data, 'ebpf': pinned_DFP_ebpf_data, 'color': color_optimization }
+        { 'setup_name': '+ Deferred free page', 'data': pinned_DFP_data, 'ebpf': pinned_DFP_ebpf_data, 'color': color_optimization }
         # { 'setup_name': 'vIOMMU Nested + Async (DLF)', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[4] },
         # { 'setup_name': 'Host Strict; Guest DLF z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[3] },
         # { 'setup_name': 'Host Strict; Guest DLF z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[4] },
@@ -1985,22 +2100,20 @@ def siyuan_Evaluation_ablation_Rx():
 
     plot_all_subplots(datasets=datasets,
                       x_labels=x_labels,
-                      title_key='eval_core_exp',
+                      title_key='eval_ablation_rx',
                       xlabel="Number of flows (one flow per core)",
-                      output_dir="Siyuan_Evaluation_ablation_RX")
+                      output_dir="Siyuan_Evaluation_ablation_RX",
+                      legend_first_row_items=1,
+                      annotate_pct_change=False,
+                      metrics=('tput',))
+    write_tput_pct_change_report(
+        datasets=datasets,
+        x_labels=x_labels,
+        title_key='eval_ablation_rx',
+        output_dir="Siyuan_Evaluation_ablation_RX",
+    )
 
-    plot_ebpf_selected_functions(datasets=datasets,
-                                 x_labels=x_labels,
-                                 selected_functions={
-                                     "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
-                                     "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
-                                     "qi_submit_sync": ["qi_submit_sync"],
-                                 },
-                                 xlabel="Number of flows (one flow per core)",
-                                 title_key='eval_core_exp',
-                                 output_dir="Siyuan_Evaluation_ablation_RX")
-
-def siyuan_Evaluation_ablation():
+def siyuan_Evaluation_ablation_Tx():
     
     target_values = [4, 8, 12, 16, 20, 24]
     # x_labels = [f"{i:02d}" for i in range(1, 33)]
@@ -2008,18 +2121,40 @@ def siyuan_Evaluation_ablation():
     print(x_labels)
 
     off_exps = [
-        f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-01-16-54-server-iommufd-off-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-off-off-{i}cores-ringbuf512-sockbuf1" for i in target_values
     ]
-
 
     nested_exps = [
-        f"/home/schai/viommu/utils/reports/2025-11-15-17-53-09-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-20-03-13-17-server-iommufd-nested-6.12.9-iommufd-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
     ]
 
-
-    siyuan_no_map_contention = [
-        f"/home/schai/viommu_siyuan/utils/reports/2025-12-05-04-01-47-6.12.9-iommufd-vanilla-based-no-map-contention-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    pinned_cb_opt_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-25-02-04-07-server-iommufd-nested-iova-contig-cb-opt-6.12.9-iommufd-nested-iova-contig-cb-opt-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1-" for i in target_values
     ]
+
+    # 2026-03-29-03-36-52-6.12.9-iommufd-nested-iova-contig-TX-flow01-host-strict-guest-strict-nested-1cores-ringbuf512-sockbuf1
+    pinned_no_DFP_exps = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-29-03-36-52-6.12.9-iommufd-nested-iova-contig-TX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+    # 2026-03-31-03-43-14-6.12.9-iommufd-no-map-contention-junk-TX-flow32-host-strict-guest-strict--32cores-ringbuf512-sockbuf1
+    other_opts = [
+        f"/home/schai/viommu_siyuan/utils/reports/2026-03-31-03-43-14-6.12.9-iommufd-no-map-contention-junk-TX-flow{i:02d}-host-strict-guest-strict--{i}cores-ringbuf512-sockbuf1" for i in target_values
+    ]
+
+    # off_exps = [
+    #     f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    # ]
+
+
+    # nested_exps = [
+    #     f"/home/schai/viommu/utils/reports/2025-11-15-17-53-09-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
+    # ]
+
+
+    # siyuan_no_map_contention = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2025-12-05-04-01-47-6.12.9-iommufd-vanilla-based-no-map-contention-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
+    # ]
 
     
     # siyuan_exp_async_invalid_wait = [
@@ -2031,9 +2166,9 @@ def siyuan_Evaluation_ablation():
     #     f"/home/schai/viommu_owen/utils/reports/2026-02-23-21-47-51-6.12.9-iommufd-vanilla-nested-conf-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
     # ]
 
-    pinned_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-06-57-11-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
-    ]
+    # pinned_DFP = [
+    #     f"/home/schai/viommu_siyuan/utils/reports/2026-03-28-06-57-11-6.12.9-iommufd-nested-iova-contig-cb-opt-RX-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-ringbuf512-sockbuf1" for i in target_values
+    # ]
 
     # z_val_1 = [
     #     f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
@@ -2105,12 +2240,24 @@ def siyuan_Evaluation_ablation():
     # ]
 
 
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
+    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(
+        x_labels, off_exps, collect_ebpf=False
+    )
+    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(
+        x_labels, nested_exps, collect_ebpf=False
+    )
     
     # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
     # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
-    
+    other_opts_data, other_opts_ebpf_data = get_data(
+        x_labels, other_opts, collect_ebpf=False
+    )
+    pinned_no_DFP_data, pinned_no_DFP_ebpf_data = get_data(
+        x_labels, pinned_no_DFP_exps, collect_ebpf=False
+    )
+    pinned_cb_opt_data, pinned_cb_opt_ebpf_data = get_data(
+        x_labels, pinned_cb_opt_exps, collect_ebpf=False
+    )
     # z_val_1_data, z_val_1_ebpf_data = get_data(x_labels, z_val_1)
     # z_val_10_data, z_val_10_ebpf_data = get_data(x_labels, z_val_10)
     # z_val_100_data, z_val_100_ebpf_data = get_data(x_labels, z_val_100)
@@ -2136,14 +2283,17 @@ def siyuan_Evaluation_ablation():
 
     datasets = [
         { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
-        { 'setup_name': 'vIOMMU Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        { 'setup_name': 'vIOMMU On', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
+        { 'setup_name': '+ Code Opts', 'data': other_opts_data, 'ebpf': other_opts_ebpf_data, 'color': '#F7B267' },
+        { 'setup_name': '+ One-for-many', 'data': pinned_no_DFP_data, 'ebpf': pinned_no_DFP_ebpf_data, 'color': default_colors[5] },
+        { 'setup_name': '+ Deferred free page', 'data': pinned_cb_opt_data, 'ebpf': pinned_cb_opt_ebpf_data, 'color': color_optimization },
         # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
         # { 'setup_name': 'vIOMMU Nested + Async (pinned)', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
-        { 'setup_name': 'vIOMMU Nested + Async (DLF)', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[4] },
+        # { 'setup_name': 'vIOMMU Nested + Async (DLF)', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[4] },
         # { 'setup_name': 'Host Strict; Guest DLF z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[3] },
         # { 'setup_name': 'Host Strict; Guest DLF z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[4] },
 
-        { 'setup_name': 'vIOMMU Nested + Async (DLF) + DFP', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
+        # { 'setup_name': 'vIOMMU Nested + Async (DLF) + DFP', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
         # { 'setup_name': 'vIOMMU Nested + Async (pinned) + DFP', 'data': pinned_async_DFP_data, 'ebpf': pinned_async_DFP_ebpf_data, 'color': default_colors[6] },
         # { 'setup_name': 'Host Strict; Guest DLF z=10 (DFP)', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
         # { 'setup_name': 'Host Strict; Guest DLF z=100 (DFP)', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
@@ -2153,226 +2303,25 @@ def siyuan_Evaluation_ablation():
 
     plot_all_subplots(datasets=datasets,
                       x_labels=x_labels,
-                      title_key='eval_ablation_core_exp',
+                      title_key='eval_ablation_tx',
                       xlabel="Number of flows (one flow per core)",
-                      output_dir="Siyuan_Evaluation_ablation")
-
-    plot_ebpf_selected_functions(datasets=datasets,
-                                 x_labels=x_labels,
-                                 selected_functions={
-                                     "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
-                                     "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
-                                     "qi_submit_sync": ["qi_submit_sync"],
-                                 },
-                                 xlabel="Number of flows (one flow per core)",
-                                 title_key='eval_ablation_core_exp',
-                                 output_dir="Siyuan_Evaluation_ablation")
-
-def siyuan_Evaluation_sensitivity():
-    
-    target_values = [4, 8, 12, 16, 20, 24]
-    # x_labels = [f"{i:02d}" for i in range(1, 33)]
-    x_labels = [f"{i:02d}" for i in target_values]
-    print(x_labels)
-
-    off_exps = [
-        f"/home/schai/viommu/utils/reports/2025-11-16-04-13-32-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-off-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
-    ]
-
-
-    nested_exps = [
-        f"/home/schai/viommu/utils/reports/2025-11-15-17-53-09-6.12.9-iommufd-flow{i:02d}-host-strict-guest-strict-nested-ringbuf-512_sokcetbuf1_{i}cores" for i in target_values
-    ]
-
-
-    # siyuan_no_map_contention = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2025-12-05-04-01-47-6.12.9-iommufd-vanilla-based-no-map-contention-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
-    # ]
-
-    
-    # siyuan_exp_async_invalid_wait = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2026-01-02-03-05-05-6.12.9-iommufd-vanilla-based-no-map-contention-AsyncInvalid-wait-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
-    # ]
-
-
-    # pinned_async_DFP = [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-02-23-21-47-51-6.12.9-iommufd-vanilla-nested-conf-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in target_values
-    # ]
-
-    z_val_1 = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
-    ]
-
-    z_val_10 = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
-    ]
-
-    z_val_100 = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-01-22-19-38-46-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
-    ]
-
-    # z_val_1_DFP = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
-    # ]
-
-    # z_val_10_DFP = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
-    # ]
-
-    # z_val_100_DFP = [
-    #     f"/home/schai/viommu_siyuan/utils/reports/2026-02-12-03-47-18-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in target_values
-    # ]
-
-    z_val_1_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in target_values
-    ]
-
-    z_val_10_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in target_values
-    ]
-
-    z_val_100_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-02-23-01-47-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in target_values
-    ]
-
-
-    z_val_3_DFP = [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [4, 8, 12]
-    ] + ["/home/schai/viommu_siyuan/utils/reports/2026-02-22-16-37-19-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow16-host-strict-guest-strict-nested-16cores"] + [
-        f"/home/schai/viommu_siyuan/utils/reports/2026-02-22-00-46-43-6.12.9-iommufd-vanilla-nested-distributed-leader-follower-call-flow{i:02d}-host-strict-guest-strict-nested-{i}cores" for i in [20, 24]
-    ]
-
-
-    # archived data before deadlock bug fixed
-    # z_val_1= [
-    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in [8,12]
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval1"
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval1" for i in [20,24]
-    # ]
-
-    # z_val_10= [
-    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in [8,12]
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval10"
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval10" for i in [20,24]
-    # ]
-
-    # z_val_100= [
-    #      f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in [8,12]
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-08-16-46-53-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow16-host-strict-guest-strict-nested-16cores-zval100"
-    # ] + [
-    #     f"/home/schai/viommu_owen/utils/reports/2026-01-09-00-13-06-6.12.9-iommufd-vanilla-based-distributed-leader-follower-flow{i:02d}-host-strict-guest-strict-nested-{i}cores-zval100" for i in [20,24]
-    # ]
-
-
-    host_strict_guest_off_data, host_strict_guest_off_ebpf_data = get_data(x_labels, off_exps)
-    host_strict_guest_nested_data, host_strict_guest_nested_ebpf_data = get_data(x_labels, nested_exps)
-    
-    # host_strict_guest_nested_siyuan_no_map_contention, extra_hooks_siyuan_no_map_contention_ebpf = get_data(x_labels, siyuan_no_map_contention)
-    # host_strict_guest_nested_siyuan_async_invalid_wait, extra_hooks_siyuan_async_invalid_wait_ebpf = get_data(x_labels, siyuan_exp_async_invalid_wait)
-    
-    z_val_1_data, z_val_1_ebpf_data = get_data(x_labels, z_val_1)
-    z_val_10_data, z_val_10_ebpf_data = get_data(x_labels, z_val_10)
-    z_val_100_data, z_val_100_ebpf_data = get_data(x_labels, z_val_100)
-
-    z_val_1_DFP_data, z_val_1_DFP_ebpf_data = get_data(x_labels, z_val_1_DFP)
-    # pinned_async_DFP_data, pinned_async_DFP_ebpf_data = get_data(x_labels, pinned_async_DFP)
-    z_val_10_DFP_data, z_val_10_DFP_ebpf_data = get_data(x_labels, z_val_10_DFP)
-    z_val_100_DFP_data, z_val_100_DFP_ebpf_data = get_data(x_labels, z_val_100_DFP)
-
-    # z_val_3_DFP_data, z_val_3_DFP_ebpf_data = get_data(x_labels, z_val_3_DFP)
-    # host_strict_guest_shadow_data, host_strict_guest_shadow_ebpf_data = get_data(x_labels, shadow_exps)
-
-    # Default color palette if not specified
-    # default_colors = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', 
-    #                  '#F0E442', '#D55E00', '#999999', '#FF6600',
-    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
-    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
-
-
-    # default_colors = ['#0072B2', '#009E73', '#CC79A7', '#F0E442', '#56B4E9', '#E69F00','#D55E00', '#999999', '#FF6600',
-    #                  '#882255', '#332288', '#117733', '#AA4499', '#44AA99',
-    #                  '#DDAA33', '#88CCEE', '#BBBBBB', '#661100', '#6699CC']
-
-    datasets = [
-        { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
-        { 'setup_name': 'vIOMMU Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
-        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
-        # { 'setup_name': 'vIOMMU Nested + Async (pinned)', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
-        { 'setup_name': 'Async (DLF) z=1', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[4] },
-        { 'setup_name': 'Async (DLF) z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[5] },
-        { 'setup_name': 'Async (DLF) z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[6] },
-
-        # { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
-        # { 'setup_name': 'vIOMMU Nested + Async (pinned) + DFP', 'data': pinned_async_DFP_data, 'ebpf': pinned_async_DFP_ebpf_data, 'color': default_colors[6] },
-        # { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
-        # { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
-
-        # { 'setup_name': 'Host Strict; Guest DLF z=3 (DFP)', 'data': z_val_3_DFP_data, 'ebpf': z_val_3_DFP_ebpf_data, 'color': default_colors[9] },
-    ]
-
-    plot_all_subplots(datasets=datasets,
-                      x_labels=x_labels,
-                      title_key='eval_sensitivity_core_exp',
-                      xlabel="Number of flows (one flow per core)",
-                      output_dir="Siyuan_Evaluation_sensitivity")
-
-    plot_ebpf_selected_functions(datasets=datasets,
-                                 x_labels=x_labels,
-                                 selected_functions={
-                                     "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
-                                     "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
-                                     "qi_submit_sync": ["qi_submit_sync"],
-                                 },
-                                 xlabel="Number of flows (one flow per core)",
-                                 title_key='eval_sensitivity_core_exp',
-                                 output_dir="Siyuan_Evaluation_sensitivity")
-
-    datasets = [
-        { 'setup_name': 'vIOMMU Off', 'data': host_strict_guest_off_data, 'ebpf': host_strict_guest_off_ebpf_data, 'color': color_off },
-        { 'setup_name': 'vIOMMU Nested', 'data': host_strict_guest_nested_data, 'ebpf': host_strict_guest_nested_ebpf_data, 'color': color_nested },
-        # { 'setup_name': 'Host Strict; Guest Nested No Map Contention', 'data': host_strict_guest_nested_siyuan_no_map_contention, 'ebpf': extra_hooks_siyuan_no_map_contention_ebpf, 'color': default_colors[8] },
-        # { 'setup_name': 'vIOMMU Nested + Async (pinned)', 'data': host_strict_guest_nested_siyuan_async_invalid_wait, 'ebpf': extra_hooks_siyuan_async_invalid_wait_ebpf, 'color': default_colors[5] },
-        # { 'setup_name': 'Async (DLF) z=1', 'data': z_val_1_data, 'ebpf': z_val_1_ebpf_data, 'color': default_colors[4] },
-        # { 'setup_name': 'Async (DLF) z=10', 'data': z_val_10_data, 'ebpf': z_val_10_ebpf_data, 'color': default_colors[5] },
-        # { 'setup_name': 'Async (DLF) z=100', 'data': z_val_100_data, 'ebpf': z_val_100_ebpf_data, 'color': default_colors[6] },
-
-        { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_1_DFP_data, 'ebpf': z_val_1_DFP_ebpf_data, 'color': color_optimization },
-        # { 'setup_name': 'vIOMMU Nested + Async (pinned) + DFP', 'data': pinned_async_DFP_data, 'ebpf': pinned_async_DFP_ebpf_data, 'color': default_colors[6] },
-        { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_10_DFP_data, 'ebpf': z_val_10_DFP_ebpf_data, 'color': default_colors[7] },
-        { 'setup_name': 'Async (DLF) z=100 + DFP', 'data': z_val_100_DFP_data, 'ebpf': z_val_100_DFP_ebpf_data, 'color': default_colors[8] },
-
-        # { 'setup_name': 'Host Strict; Guest DLF z=3 (DFP)', 'data': z_val_3_DFP_data, 'ebpf': z_val_3_DFP_ebpf_data, 'color': default_colors[9] },
-    ]
-
-    plot_all_subplots(datasets=datasets,
-                      x_labels=x_labels,
-                      title_key='eval_sensitivity_core_exp_dlf',
-                      xlabel="Number of flows (one flow per core)",
-                      output_dir="Siyuan_Evaluation_sensitivity")
-
-    plot_ebpf_selected_functions(datasets=datasets,
-                                 x_labels=x_labels,
-                                 selected_functions={
-                                     "cache_tag_flush_range_np": ["cache_tag_flush_range_np"],
-                                     "cache_tag_flush_range": ["cache_tag_flush_range", "cache_tag_flush_range_call"],
-                                     "qi_submit_sync": ["qi_submit_sync"],
-                                 },
-                                 xlabel="Number of flows (one flow per core)",
-                                 title_key='eval_sensitivity_core_exp_dlf',
-                                 output_dir="Siyuan_Evaluation_sensitivity")
-                                
+                      output_dir="Siyuan_Evaluation_ablation_TX",
+                      legend_first_row_items=1,
+                      annotate_pct_change=False,
+                      metrics=('tput',))
+    write_tput_pct_change_report(
+        datasets=datasets,
+        x_labels=x_labels,
+        title_key='eval_ablation_tx',
+        output_dir="Siyuan_Evaluation_ablation_TX",
+    )
 
 if __name__ == "__main__":
     # plot_flows_exp()
     # siyuan_Evaluation_plot_flows_exp()
-    plot_flows_exp_stress()
-    # siyuan_Evaluation_ablation_Rx()
+    # plot_flows_exp_stress()
+    siyuan_Evaluation_ablation_Rx()
+    siyuan_Evaluation_ablation_Tx()
     # siyuan_Evaluation_sensitivity()
     # plot_tx_ebpf_exp()  # Uncomment when ready to use
     # siyuan_flows_exp_motivation()
-    pass
