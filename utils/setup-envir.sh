@@ -132,7 +132,7 @@ if [ "$TCP_OPTIMIZATION_ENABLED" -eq 1 ]; then
 
     cd $DEPS_DIR/Understanding-network-stack-overheads-SIGCOMM-2021
     log_info "Enabling TCP optimizations (TSO, GRO, aRFS)..."
-    sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE --verbose
+    sudo python3 network_setup.py $INTF --arfs --mtu $MTU --sock-size --tso --gro --ring-buffer $RING_BUFFER_SIZE
     cd -
 
     # Maximize NIC combined channel (queue) count so RX can use all available CPUs.
