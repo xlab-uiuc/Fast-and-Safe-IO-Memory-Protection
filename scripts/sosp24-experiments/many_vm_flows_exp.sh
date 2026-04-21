@@ -16,19 +16,21 @@ HOST_IP_ARG=""
 HOST_SSH_UNAME_ARG=""
 HOST_HOME_ARG=""
 HOST_RESULTS_DIR_ARG=""
+BANDWIDTH_PER_FLOW="400g"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-	--vm-name)          VM_NAME="$2";              shift 2 ;;
-	--num-cores)        NUM_CORES="$2";            shift 2 ;;
-	--num-flows)        NUM_FLOWS="$2";            shift 2 ;;
-	--exp-name)         EXP_NAME="$2";             shift 2 ;;
-	--host-ip)          HOST_IP_ARG="$2";          shift 2 ;;
-	--host-ssh-uname)   HOST_SSH_UNAME_ARG="$2";   shift 2 ;;
-	--host-home)        HOST_HOME_ARG="$2";        shift 2 ;;
-	--host-results-dir) HOST_RESULTS_DIR_ARG="$2"; shift 2 ;;
-	--dry)              DRY_RUN=1;                 shift   ;;
-	*)                  shift                      ;;
+	--vm-name)            VM_NAME="$2";              shift 2 ;;
+	--num-cores)          NUM_CORES="$2";            shift 2 ;;
+	--num-flows)          NUM_FLOWS="$2";            shift 2 ;;
+	--exp-name)           EXP_NAME="$2";             shift 2 ;;
+	--bandwidth-per-flow) BANDWIDTH_PER_FLOW="$2";   shift 2 ;;
+	--host-ip)            HOST_IP_ARG="$2";          shift 2 ;;
+	--host-ssh-uname)     HOST_SSH_UNAME_ARG="$2";   shift 2 ;;
+	--host-home)          HOST_HOME_ARG="$2";        shift 2 ;;
+	--host-results-dir)   HOST_RESULTS_DIR_ARG="$2"; shift 2 ;;
+	--dry)                DRY_RUN=1;                 shift   ;;
+	*)                    shift                      ;;
 	esac
 done
 
@@ -50,6 +52,7 @@ echo "VM name:  $VM_NAME"
 echo "VM index: $VM_INDEX"
 echo "Cores:    $NUM_CORES"
 echo "Flows:    $NUM_FLOWS"
+echo "BW/flow:  $BANDWIDTH_PER_FLOW"
 echo "Experiment Name: $EXP_NAME"
 
 # --- Configuration ---
@@ -153,7 +156,7 @@ for z in $run_list; do
 		--client-ssh-name "$CLIENT_SSH_UNAME" --client-ssh-pass "$CLIENT_SSH_PASSWORD" \
 		--client-ssh-host "$CLIENT_SSH_HOST" --client-ssh-use-pass "$CLIENT_USE_PASS_AUTH" \
 		--client-ssh-ifile "$CLIENT_SSH_IDENTITY_FILE" \
-		-e "$EXP_NAME" -m 4000 -r "$ring_buffer" -b "400g" -d 1 \
+		-e "$EXP_NAME" -m 4000 -r "$ring_buffer" -b "$BANDWIDTH_PER_FLOW" -d 1 \
 		--socket-buf "$socket_buf" --mlc-cores 'none' --runs "$N_RUNS" \
 		2>&1 | sudo tee ../utils/reports/"$EXP_NAME"/experiment.log
 
