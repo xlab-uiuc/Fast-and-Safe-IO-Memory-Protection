@@ -26,7 +26,11 @@ def per_page(value, tput_gbps_mean):
     return value/pages_ps
 
 def __get_ebpf_stats(exp_name, run_id):
-    ebpf_path = os.path.join("../utils/reports/", exp_name + f'-RUN-{run_id}', "ebpf_guest_stats.csv")
+    run_dir = os.path.join("../utils/reports/", exp_name + f'-RUN-{run_id}')
+    ebpf_path = os.path.join(run_dir, "ebpf_guest_stats.csv")
+    if not os.path.exists(ebpf_path):
+        # Fall back to host stats (e.g. bare-metal runs have no guest)
+        ebpf_path = os.path.join(run_dir, "ebpf_host_stats.csv")
     if not os.path.exists(ebpf_path):
         return None
     print(f"Reading eBPF stats from {ebpf_path}")
