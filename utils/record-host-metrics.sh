@@ -20,7 +20,7 @@ INTF=enp8s0
 
 PCM_PCIE_FILTER="Socket1,IIO Stack 1 - PCIe3,Part0"
 
-PERF_PATH="/home/schai/linux-6.12.9/tools/perf/perf"
+PERF_PATH="/home/lbalara/viommu/linux-6.12.9/tools/perf/perf"
 cur_dir=$PWD
 
 help()
@@ -348,7 +348,7 @@ if [ "$FLAMEGRAPH_REPORTING" -eq 1 ]; then
     if [ "$PERCORE_FLAMEGRAPH" -eq 1 ]; then
         # IFS=',' read -ra CORES <<< "$CPU_MASK"
         # for core in "${CORES[@]}"; do
-        for core in 4 31; do
+        for core in 64; do
             # core=$(echo "$core" | xargs)
             # if [ -z "$core" ]; then continue; fi
 
